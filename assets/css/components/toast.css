@@ -1,0 +1,259 @@
+/* Sistema de Toast Notifications para Klube Cash */
+:root {
+    --toast-primary: #FF7A00;
+    --toast-success: #22c55e;
+    --toast-error: #ef4444;
+    --toast-warning: #f59e0b;
+    --toast-info: #3b82f6;
+    --toast-white: #ffffff;
+    --toast-dark: #1f2937;
+    --toast-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Container para os toasts */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+/* Estilo base do toast */
+.toast {
+    display: flex;
+    align-items: center;
+    min-width: 320px;
+    max-width: 400px;
+    padding: 16px 20px;
+    background: var(--toast-white);
+    border-radius: 12px;
+    box-shadow: var(--toast-shadow);
+    border-left: 4px solid var(--toast-primary);
+    pointer-events: auto;
+    transform: translateX(100%);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Animação de entrada */
+.toast.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+/* Animação de saída */
+.toast.hide {
+    transform: translateX(100%);
+    opacity: 0;
+}
+
+/* Ícone do toast */
+.toast-icon {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    margin-right: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: bold;
+    color: white;
+}
+
+/* Conteúdo do toast */
+.toast-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.toast-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin: 0 0 4px 0;
+    line-height: 1.2;
+    color: var(--toast-dark);
+}
+
+.toast-message {
+    font-size: 13px;
+    margin: 0;
+    opacity: 0.8;
+    line-height: 1.4;
+    color: var(--toast-dark);
+}
+
+/* Botão de fechar */
+.toast-close {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    margin-left: 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+    font-size: 16px;
+    line-height: 1;
+    color: var(--toast-dark);
+}
+
+.toast-close:hover {
+    opacity: 1;
+}
+
+/* Barra de progresso */
+.toast-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: var(--toast-primary);
+    transition: width linear;
+    border-radius: 0 0 12px 0;
+}
+
+/* Tipos de toast */
+.toast.success {
+    border-left-color: var(--toast-success);
+}
+
+.toast.success .toast-icon {
+    background: var(--toast-success);
+}
+
+.toast.success .toast-progress {
+    background: var(--toast-success);
+}
+
+.toast.error {
+    border-left-color: var(--toast-error);
+}
+
+.toast.error .toast-icon {
+    background: var(--toast-error);
+}
+
+.toast.error .toast-progress {
+    background: var(--toast-error);
+}
+
+.toast.warning {
+    border-left-color: var(--toast-warning);
+}
+
+.toast.warning .toast-icon {
+    background: var(--toast-warning);
+}
+
+.toast.warning .toast-progress {
+    background: var(--toast-warning);
+}
+
+.toast.info {
+    border-left-color: var(--toast-info);
+}
+
+.toast.info .toast-icon {
+    background: var(--toast-info);
+}
+
+.toast.info .toast-progress {
+    background: var(--toast-info);
+}
+
+/* Responsivo */
+@media (max-width: 480px) {
+    .toast-container {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+    }
+    
+    .toast {
+        min-width: auto;
+        max-width: none;
+    }
+}
+
+/* Spinner de carregamento */
+.spinner-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.spinner-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.loader {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: inline-block;
+    position: relative;
+    border: 3px solid;
+    border-color: #FFF #FFF transparent transparent;
+    box-sizing: border-box;
+    animation: rotation 1s linear infinite;
+}
+
+.loader::after,
+.loader::before {
+    content: '';
+    box-sizing: border-box;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+    border: 3px solid;
+    border-color: transparent transparent #FF3D00 #FF3D00;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    animation: rotationBack 0.5s linear infinite;
+    transform-origin: center center;
+}
+
+.loader::before {
+    width: 32px;
+    height: 32px;
+    border-color: #FFF #FFF transparent transparent;
+    animation: rotation 1.5s linear infinite;
+}
+
+@keyframes rotation {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes rotationBack {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(-360deg); }
+}

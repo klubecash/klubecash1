@@ -1,0 +1,326 @@
+
+/* Variáveis CSS para padronização */
+:root {
+    --primary-color: #012f63;
+    --primary-dark: #012f63;
+    --primary-light: #FFF0E6;
+    --secondary-color: #2A3F54;
+    --success-color: #28A745;
+    --warning-color: #FFC107;
+    --danger-color: #DC3545;
+    --info-color: #17A2B8;
+    --light-gray: #F8F9FA;
+    --medium-gray: #6C757D;
+    --dark-gray: #343A40;
+    --white: #FFFFFF;
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+    --border-radius: 12px;
+    --transition: all 0.3s ease;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #F5F7FA;
+    color: var(--dark-gray);
+    line-height: 1.6;
+}
+
+/* Layout principal */
+.main-content {
+    margin-left: 250px;
+    padding: 2rem;
+    min-height: 100vh;
+}
+
+/* Cabeçalho da página */
+.page-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--primary-light);
+}
+
+.page-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--secondary-color);
+    margin-bottom: 0.5rem;
+}
+
+.page-subtitle {
+    color: var(--medium-gray);
+    font-size: 1.1rem;
+}
+
+/* Sistema de alertas melhorado */
+.alert {
+    background-color: var(--white);
+    border-radius: var(--border-radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    box-shadow: var(--shadow-md);
+    border-left: 4px solid;
+    animation: slideIn 0.3s ease-out;
+}
+
+.alert.success {
+    border-color: var(--success-color);
+    background-color: #D4EDDA;
+    color: #155724;
+}
+
+.alert.error {
+    border-color: var(--danger-color);
+    background-color: #F8D7DA;
+    color: #721C24;
+}
+
+.alert-icon {
+    flex-shrink: 0;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Cards melhorados */
+.card {
+    background-color: var(--white);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-md);
+    margin-bottom: 2rem;
+    overflow: hidden;
+    transition: var(--transition);
+}
+
+.card:hover {
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    color: var(--white);
+    padding: 1.5rem;
+    border-bottom: none;
+}
+
+.card-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+/* Grid de informações */
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.info-item {
+    background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+    padding: 1.25rem;
+    border-radius: 10px;
+    border-left: 4px solid var(--primary-color);
+    transition: var(--transition);
+}
+
+.info-item:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.info-label {
+    font-size: 0.875rem;
+    color: var(--medium-gray);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.info-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--dark-gray);
+    word-break: break-word;
+}
+
+/* Status badges melhorados */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 25px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-aprovado {
+    background-color: var(--success-color);
+    color: var(--white);
+}
+
+.status-pendente {
+    background-color: var(--warning-color);
+    color: #856404;
+}
+
+.status-rejeitado {
+    background-color: var(--danger-color);
+    color: var(--white);
+}
+
+/* Formulários melhorados */
+.form-section {
+    margin-bottom: 2rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--dark-gray);
+    font-size: 0.95rem;
+}
+
+.form-input, .form-textarea, .form-select {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid #E1E5E9;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: var(--transition);
+    background-color: var(--white);
+}
+
+.form-input:focus, .form-textarea:focus, .form-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(255, 122, 0, 0.1);
+    transform: translateY(-1px);
+}
+
+.form-help {
+    display: block;
+    margin-top: 0.25rem;
+    color: var(--medium-gray);
+    font-size: 0.875rem;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+/* Botões melhorados */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1.5rem;
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: var(--transition);
+    text-align: center;
+    justify-content: center;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    color: var(--white);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(255, 122, 0, 0.3);
+}
+
+.btn-secondary {
+    background-color: var(--medium-gray);
+    color: var(--white);
+}
+
+.btn-secondary:hover {
+    background-color: #5A6C7D;
+    transform: translateY(-2px);
+}
+
+/* Seções de formulário */
+.form-sections {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 2rem;
+}
+
+/* Responsividade */
+@media (max-width: 991.98px) {
+    .main-content {
+        margin-left: 0;
+        padding: 1rem;
+    }
+
+    .form-sections {
+        grid-template-columns: 1fr;
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .page-title {
+        font-size: 1.5rem;
+    }
+
+    .card-body {
+        padding: 1rem;
+    }
+}
+
+/* Loader para ações */
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}

@@ -1,0 +1,603 @@
+/* ===================================
+   SIDEBAR PERFEITA - SEM SOBREPOSIÇÕES
+   Sistema completo de posicionamento
+=================================== */
+
+/* Reset específico da sidebar */
+.klube-sidebar,
+.klube-sidebar *,
+.klube-mobile-toggle,
+.klube-overlay {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* Sidebar principal */
+.klube-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    background: #ffffff;
+    border-right: 1px solid #e5e7eb;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Sidebar colapsada */
+.klube-sidebar.collapsed {
+    width: 80px;
+}
+
+/* Header da sidebar */
+.klube-sidebar-header {
+    height: 80px;
+    padding: 20px;
+    background: linear-gradient(135deg, #F1780C 0%, #ff7700 100%);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.klube-logo-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.klube-logo {
+    height: 40px;
+    width: 40px;
+    object-fit: contain;
+    filter: brightness(0) invert(1);
+    flex-shrink: 0;
+}
+
+.klube-logo-text {
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    white-space: nowrap;
+    transition: opacity 0.3s ease, width 0.3s ease;
+}
+
+.klube-sidebar.collapsed .klube-logo-text {
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+}
+
+.klube-collapse-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: white;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+}
+
+.klube-collapse-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+}
+
+/* Perfil do usuário */
+.klube-user-profile {
+    padding: 24px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.klube-avatar {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #F1780C 0%, #ff7700 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.klube-user-info {
+    flex: 1;
+    min-width: 0;
+    transition: opacity 0.3s ease, width 0.3s ease;
+}
+
+.klube-sidebar.collapsed .klube-user-info {
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+}
+
+.klube-user-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.klube-user-role {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: #F1780C;
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    border-radius: 20px;
+}
+
+/* Navegação */
+.klube-nav {
+    flex: 1;
+    padding: 20px 0;
+    
+    min-height: 0;
+}
+
+.klube-nav::-webkit-scrollbar {
+    width: 4px;
+}
+
+.klube-nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.klube-nav::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 2px;
+}
+
+.klube-nav-section {
+    margin-bottom: 32px;
+}
+
+.klube-section-title {
+    padding: 0 20px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #9ca3af;
+    transition: opacity 0.3s ease;
+}
+
+.klube-sidebar.collapsed .klube-section-title {
+    opacity: 0;
+    height: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.klube-menu {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.klube-menu-item {
+    margin: 2px 12px;
+}
+
+.klube-menu-link {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    color: #6b7280;
+    text-decoration: none;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    font-size: 14px;
+    position: relative;
+}
+
+.klube-menu-link:hover {
+    background: #fff0e6;
+    color: #F1780C;
+    transform: translateX(4px);
+}
+
+.klube-menu-link.active {
+    background: #F1780C;
+    color: white;
+}
+
+.klube-menu-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.klube-menu-text {
+    transition: opacity 0.3s ease, width 0.3s ease;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.klube-sidebar.collapsed .klube-menu-text {
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+}
+
+.klube-sidebar.collapsed .klube-menu-icon {
+    margin-right: 0;
+}
+
+.klube-sidebar.collapsed .klube-menu-link {
+    justify-content: center;
+    padding: 14px;
+}
+
+/* Badge */
+.klube-badge {
+    margin-left: auto;
+    background: #ef4444;
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 10px;
+    min-width: 18px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.klube-sidebar.collapsed .klube-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    margin: 0;
+}
+
+/* Footer */
+.klube-sidebar-footer {
+    padding: 20px;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+    flex-shrink: 0;
+}
+
+.klube-logout-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 16px;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.klube-logout-btn:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.klube-logout-icon {
+    width: 18px;
+    height: 18px;
+}
+
+.klube-sidebar.collapsed .klube-logout-text {
+    display: none;
+}
+
+/* Toggle mobile - CORRIGIDO PARA SER CLICÁVEL */
+.klube-mobile-toggle {
+    display: none;
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    width: 48px;
+    height: 48px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 9999; /* Z-index muito alto para garantir que fique por cima */
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #6b7280;
+    transition: all 0.3s ease;
+    user-select: none; /* Previne seleção de texto */
+    pointer-events: auto; /* Garante que seja clicável */
+    outline: none; /* Remove outline padrão */
+    -webkit-tap-highlight-color: transparent; /* Remove highlight no mobile */
+}
+
+.klube-mobile-toggle:hover,
+.klube-mobile-toggle:focus,
+.klube-mobile-toggle:active {
+    background: #f9fafb;
+    color: #F1780C;
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+    border-color: #F1780C;
+}
+
+/* Garantir que o botão seja visível em todos os estados */
+.klube-mobile-toggle:before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    right: -10px;
+    bottom: -10px;
+    background: transparent;
+    z-index: -1;
+}
+
+/* Overlay */
+.klube-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    backdrop-filter: blur(4px);
+}
+
+.klube-overlay.active {
+    display: block;
+}
+
+/* Tooltip */
+.klube-tooltip {
+    position: absolute;
+    left: calc(100% + 15px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: #1f2937;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+    z-index: 1002;
+    pointer-events: none;
+}
+
+.klube-sidebar.collapsed .klube-menu-link:hover .klube-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* RESPONSIVIDADE */
+@media (max-width: 768px) {
+    /* Mobile: sidebar desliza da esquerda */
+    .klube-sidebar {
+        transform: translateX(-100%);
+        width: 320px;
+        z-index: 1001; /* Menor que o botão móvel */
+    }
+    
+    .klube-sidebar.mobile-open {
+        transform: translateX(0);
+    }
+    
+    .klube-mobile-toggle {
+        display: flex !important;
+        z-index: 9999 !important; /* Força z-index alto no mobile */
+    }
+    
+    .klube-collapse-btn {
+        display: none;
+    }
+    
+    .klube-tooltip {
+        display: none !important;
+    }
+    
+    /* Restaurar elementos colapsados no mobile */
+    .klube-sidebar.collapsed .klube-user-info,
+    .klube-sidebar.collapsed .klube-menu-text,
+    .klube-sidebar.collapsed .klube-section-title,
+    .klube-sidebar.collapsed .klube-logo-text {
+        opacity: 1 !important;
+        width: auto !important;
+        overflow: visible !important;
+    }
+    
+    .klube-sidebar.collapsed .klube-menu-link {
+        justify-content: flex-start !important;
+        padding: 14px 16px !important;
+    }
+    
+    .klube-sidebar.collapsed .klube-menu-icon {
+        margin-right: 12px !important;
+    }
+    
+    .klube-sidebar.collapsed .klube-logout-text {
+        display: inline !important;
+    }
+    
+    .klube-sidebar.collapsed .klube-badge {
+        position: static !important;
+        margin-left: auto !important;
+    }
+    
+    /* Bloquear scroll do body quando menu móvel aberto */
+    body.klube-mobile-menu-open {
+        overflow: hidden;
+        position: fixed;
+        width: 100%;
+    }
+    
+    /* Garantir que nada sobreponha o botão móvel */
+    .klube-mobile-toggle {
+        isolation: isolate;
+    }
+}
+
+/* AJUSTE AUTOMÁTICO DO CONTEÚDO PRINCIPAL */
+/* Mantendo suas alterações nas margens */
+
+.klube-main-adjusted {
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Para páginas com diferentes classes de conteúdo */
+.main-content,
+.content,
+.page-content,
+main {
+    min-height: 100vh;
+    background: #f8fafc;
+}
+
+@media (min-width: 769px) {
+    /* Desktop: sempre aplicar margem - SUAS ALTERAÇÕES MANTIDAS */
+    .klube-main-adjusted {
+        margin-left: 295px !important;
+        padding-left: 0 !important;
+    }
+    
+    /* Para sidebar colapsada - SUAS ALTERAÇÕES MANTIDAS */
+    .klube-sidebar.collapsed ~ .klube-main-adjusted,
+    body:has(.klube-sidebar.collapsed) .klube-main-adjusted {
+        margin-left: 5px !important;
+    }
+}
+
+@media (max-width: 768px) {
+    /* Mobile: sempre sem margem - SUAS ALTERAÇÕES MANTIDAS */
+    .klube-main-adjusted {
+        
+    }
+}
+
+/* Garantia adicional para elementos específicos */
+.dashboard-container .main-content,
+.admin-container .main-content,
+.store-container .main-content {
+    margin-left: 0; /* Será sobrescrito pelo JS */
+}
+
+/* Animações suaves */
+@keyframes slideInFromLeft {
+    from {
+        transform: translateX(-100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+.klube-sidebar.mobile-open {
+    animation: slideInFromLeft 0.3s ease-out;
+}
+
+/* Estados de loading */
+.klube-sidebar-loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.klube-sidebar-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 24px;
+    height: 24px;
+    margin: -12px 0 0 -12px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #F1780C;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Print styles */
+@media print {
+    .klube-sidebar,
+    .klube-mobile-toggle,
+    .klube-overlay {
+        display: none !important;
+    }
+    
+    .klube-main-adjusted {
+        margin-left: 0 !important;
+    }
+}
+
+/* Correções adicionais para garantir que o botão móvel sempre funcione */
+@media (max-width: 768px) {
+    /* Forçar o botão a ficar sempre visível e clicável */
+    .klube-mobile-toggle {
+        position: fixed !important;
+        display: flex !important;
+        z-index: 99999 !important;
+        pointer-events: auto !important;
+        touch-action: manipulation !important;
+    }
+    
+    /* Prevenir que qualquer elemento sobreponha o botão */
+    .main-content,
+    .content,
+    .page-content,
+    main,
+    .dashboard-container,
+    .admin-container,
+    .store-container {
+        z-index: 1 !important;
+        position: relative !important;
+    }
+    
+    /* Área de toque expandida para melhor usabilidade móvel */
+    .klube-mobile-toggle {
+        min-height: 48px;
+        min-width: 48px;
+        touch-action: manipulation;
+    }
+}

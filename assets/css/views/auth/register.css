@@ -1,0 +1,387 @@
+/* Estilos específicos para a página de registro */
+:root {
+    --primary-color: #FF7A00;
+    --white: #FFFFFF;
+    --light-gray: #F5F5F5;
+    --dark-gray: #333333;
+    --medium-gray: #666666;
+    --border-radius: 20px;
+    --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: var(--primary-color);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.logo-container {
+    text-align: center;
+    margin: 20px 0;
+    padding: 10px;
+}
+
+.logo-container img {
+    height: 50px;
+}
+
+.register-container {
+    background-color: var(--white);
+    border-radius: var(--border-radius);
+    padding: 30px;
+    width: 90%;
+    max-width: 450px;
+    box-shadow: var(--shadow);
+    margin: 0 auto;
+}
+
+.register-header {
+    margin-bottom: 30px;
+}
+
+.register-header h1 {
+    font-size: 18px;
+    color: var(--dark-gray);
+    margin-bottom: 5px;
+}
+
+.register-header span {
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+.register-header h2 {
+    font-size: 32px;
+    margin-bottom: 10px;
+    color: var(--dark-gray);
+}
+
+.login-link {
+    text-align: right;
+    margin-bottom: 20px;
+}
+
+.login-link a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.input-group {
+    margin-bottom: 20px;
+}
+
+.input-group label {
+    display: block;
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: var(--dark-gray);
+}
+
+.input-group input {
+    width: 100%;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.input-group input:focus {
+    border-color: var(--primary-color);
+}
+
+.input-row {
+    display: flex;
+    gap: 15px;
+}
+
+.input-row .input-group {
+    flex: 1;
+}
+
+.password-field {
+    position: relative;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #999;
+}
+
+.register-btn {
+    display: block;
+    width: 100%;
+    padding: 15px;
+    background-color: var(--primary-color);
+    color: var(--white);
+    border: none;
+    border-radius: 10px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    margin-top: 30px;
+}
+
+.register-btn:hover {
+    background-color: #E86E00;
+}
+
+.error-message {
+    background-color: #ffdddd;
+    color: #ff0000;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.success-message {
+    background-color: #ddffdd;
+    color: #008800;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+/* Adicione este código no seu arquivo responsive.css ou diretamente no estilo da página de registro */
+@media (max-width: 991px) {
+/* Oculta toda a estrutura de painéis usada no desktop */
+.register-page .left-panel {
+display: none;
+}
+
+/* Oculta o painel direito como estrutura separada */
+.register-page .right-panel {
+width: 100%;
+}
+
+/* Oculta as ilustrações explicitamente */
+.illustrations, 
+.illustration-left, 
+.illustration-right {
+display: none !important;
+}
+
+/* Garante que o logo mobile fique visível */
+.logo-container {
+display: block;
+}
+
+/* Ajusta o container de registro para preencher a tela disponível */
+.register-container {
+width: 90%;
+margin: 0 auto;
+max-width: 450px;
+}
+
+/* Faz o body usar o layout mobile */
+body {
+background-color: var(--primary-color);
+flex-direction: column;
+}
+
+/* Garante que a ilustração à direita não seja exibida em mobile */
+.right-panel .illustration-right {
+display: none;
+}
+}
+
+/* Ajuste para dispositivos realmente pequenos */
+@media (max-width: 576px) {
+/* Ajusta a disposição dos campos em linha para ficarem em coluna */
+.input-row {
+flex-direction: column;
+gap: 5px;
+}
+}
+@media (min-width: 992px) {
+    body {
+        background-color: var(--white);
+        flex-direction: row;
+    }
+
+    .register-page {
+        display: flex;
+        width: 100%;
+        height: 100vh;
+    }
+
+    .left-panel {
+        background-color: var(--primary-color);
+        width: 50%;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        position: relative;
+    }
+
+    .right-panel {
+        width: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: var(--white);
+    }
+
+    .logo-container-desktop {
+        text-align: left;
+        margin: 20px;
+    }
+
+    .illustrations {
+        display: flex;
+        justify-content: space-between;
+        margin-top: auto;
+    }
+
+    .illustration-left, .illustration-right {
+        position: absolute;
+        bottom: 30px;
+    }
+
+    .illustration-left {
+        width: 180px;
+        left: 50px;
+    }
+
+    .illustration-right {
+        width: 200px;
+        right: -120px;
+        bottom: 50px;
+        z-index: 2;
+    }
+
+    .register-container {
+        margin: 0;
+        width: 400px;
+        max-width: 90%;
+    }
+
+    .logo-container {
+        display: none;
+    }
+
+    .form-title {
+        margin-top: 0;
+    }
+}
+
+
+/* Melhorias para o layout responsivo e posicionamento */
+.social-login {
+    display: flex;
+    gap: 10px;
+    margin: 20px 0;
+    justify-content: center;
+}
+
+.social-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background-color: var(--light-gray);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    font-weight: 500;
+}
+
+.social-btn:hover {
+    background-color: #e0e0e0;
+    transform: translateY(-1px);
+}
+
+.google-btn {
+    flex: 2;
+    background-color: #FFF1E6;
+    color: var(--primary-color);
+    min-width: 200px;
+}
+
+.facebook-btn, .apple-btn {
+    flex: 1;
+    min-width: 60px;
+}
+
+.social-btn img {
+    height: 24px;
+    margin-right: 10px;
+}
+
+.google-btn img {
+    height: 20px;
+}
+
+.hide {
+    display: none !important;
+}
+
+.hide-on-mobile {
+    display: inline;
+}
+
+.register-link {
+    margin-top: 20px;
+    text-align: center;
+    color: var(--medium-gray);
+    font-size: 14px;
+}
+
+.register-link a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.register-link a:hover {
+    text-decoration: underline;
+}
+
+/* Ajustes específicos para mobile */
+@media (max-width: 768px) {
+    .social-login {
+        margin: 15px 0;
+    }
+    
+    .google-btn {
+        min-width: auto;
+    }
+    
+    .hide-on-mobile {
+        display: none;
+    }
+    
+    .social-btn {
+        padding: 10px;
+    }
+    
+    .facebook-btn img,
+    .apple-btn img {
+        margin-right: 0;
+    }
+}
+
+/* Ajustes para desktop */
+@media (min-width: 992px) {
+    .social-login {
+        margin-top: 20px;
+    }
+}

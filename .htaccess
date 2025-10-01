@@ -1,0 +1,665 @@
+# Klube Cash - .htaccess Otimizado para Mercado Pago v2.1
+
+# Habilitar o motor de reescrita
+RewriteEngine On
+RewriteBase /
+
+# === PROTEÇÃO VENDOR COMPOSER (ADIÇÃO) ===
+# Bloquear acesso ao diretório vendor mas permitir includes internos
+<IfModule mod_rewrite.c>
+    RewriteRule ^vendor/.*$ - [F,L]
+</IfModule>
+
+# Proteção de arquivos Composer
+<Files composer.json>
+    Order allow,deny
+    Deny from all
+</Files>
+
+<Files composer.lock>
+    Order allow,deny
+    Deny from all
+</Files>
+#RewriteRule ^views/client/dashboard\.php$ /auto-redirect.php [L]
+RewriteRule ^api/store-client-search/?$ api/store-client-search.php [L,QSA]
+RewriteRule ^uploads/whatsapp_images/.*\.(png|jpg|jpeg)$ - [L]
+
+# BYPASS FUNCIONÁRIO
+RewriteCond %{QUERY_STRING} bypass=funcionario
+RewriteRule ^store/dashboard/?$ views/stores/dashboard.php?bypass=funcionario [L]
+# === ROTAS DE AUDITORIA (NOVO SISTEMA) ===
+RewriteRule ^admin/auditoria/?$ views/admin/audit-log.php [L]
+RewriteRule ^admin/logs-usuario/?$ views/admin/user-logs.php [L]
+RewriteRule ^api/audit/?$ api/audit.php [L,QSA]
+
+# Proteger API de funcionários
+RewriteCond %{REQUEST_URI} ^/api/funcionarios\.php
+RewriteCond %{REQUEST_METHOD} !^(GET|POST)$
+RewriteRule .* - [F,L]
+# ===== ROTAS API WHATSAPP =====
+# Permitir acesso à API de saldo do WhatsApp
+RewriteRule ^api/whatsapp-saldo/?$ api/whatsapp-saldo.php [L,QSA]
+
+# Melhorar performance para requisições da API
+<FilesMatch "whatsapp-saldo\.php$">
+    # Cache por 0 segundos (não cachear)
+    ExpiresActive on
+    ExpiresDefault "access plus 0 seconds"
+    
+    # Headers para API
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "POST, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization"
+</FilesMatch>
+
+# Tratamento para requisições OPTIONS (CORS)
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^api/whatsapp-saldo/?$ [R=200,L]
+# === REGRAS PARA NOTIFICAÇÕES DE CASHBACK ===
+# Permitir acesso direto à API de notificação
+RewriteRule ^api/cashback-notificacao/?$ api/cashback-notificacao.php [L,QSA]
+
+# Regra para teste de notificações (apenas em desenvolvimento)
+RewriteRule ^api/cashback-notificacao/test/?$ api/cashback-notificacao.php?test=1 [L,QSA]
+
+# === REGRAS EXISTENTES MANTIDAS ===
+# Suas regras atuais permanecem inalteradas...
+# === REDIRECIONAMENTOS DE ERRO SIMPLIFICADOS ===
+# Sistema simplificado - apenas access_denied e session_expired
+RewriteCond %{QUERY_STRING} error=access_denied
+#RewriteRule ^.*$ /views/errors/access-denied.php? [R=302,L]
+RewriteRule ^store/dashboard/?$ views/stores/dashboard-temp.php [L,QSA]
+RewriteCond %{QUERY_STRING} error=session_expired  
+#RewriteRule ^.*$ /views/auth/login.php?error=session_expired [R=302,L]
+
+RewriteCond %{QUERY_STRING} error=permission_denied
+
+
+# === CONFIGURAÇÕES SEO FUNDAMENTAIS ===
+<IfModule mod_headers.c>
+    # Headers essenciais para SEO (ADICIONAR)
+    Header set X-Robots-Tag "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"
+    Header set Vary "Accept-Encoding, User-Agent"
+    Header set X-Generator "Klube Cash - Sistema de Cashback Brasileiro"
+    
+    # DNS prefetch para serviços externos (ADICIONAR)
+    Header add Link "<//fonts.googleapis.com>; rel=dns-prefetch"
+    Header add Link "<//fonts.gstatic.com>; rel=dns-prefetch"
+    Header add Link "<//www.google-analytics.com>; rel=dns-prefetch"
+    Header add Link "<//viacep.com.br>; rel=dns-prefetch"
+    
+    # Preconnect para recursos críticos (ADICIONAR)
+    Header add Link "<https://fonts.googleapis.com>; rel=preconnect; crossorigin"
+    Header add Link "<https://fonts.gstatic.com>; rel=preconnect; crossorigin"
+</IfModule>
+
+
+
+
+# === SEGURANÇA AVANÇADA PARA MERCADO PAGO ===
+<IfModule mod_headers.c>
+    # Proteção XSS
+    Header set X-XSS-Protection "1; mode=block"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-Content-Type-Options "nosniff"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # CSP otimizado para o Mercado Pago SDK
+    Header set Content-Security-Policy "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' *.googletagmanager.com *.google-analytics.com *.googleapis.com unpkg.com sdk.mercadopago.com secure.mlstatic.com; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; img-src 'self' data: blob: *.googleusercontent.com *.google.com *.mlstatic.com; connect-src 'self' *.google-analytics.com *.googletagmanager.com viacep.com.br api.mercadopago.com *.mercadopago.com"
+    # HSTS para HTTPS (OBRIGATÓRIO PARA MP)
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=HTTPS
+    
+    # Headers adicionais para Mercado Pago
+    Header set X-Permitted-Cross-Domain-Policies "none"
+    Header set X-Download-Options "noopen"
+</IfModule>
+
+# === FORÇA HTTPS OBRIGATÓRIO ===
+# Redirecionar www para non-www
+RewriteCond %{HTTP_HOST} ^www\.(.*)$ [NC]
+RewriteRule ^(.*)$ https://%1/$1 [R=301,L]
+
+# Forçar HTTPS (OBRIGATÓRIO PARA MERCADO PAGO)
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# === SSL/TLS CONFIGURATION APRIMORADA ===
+<IfModule mod_ssl.c>
+    # Força TLS 1.2+ (OBRIGATÓRIO PARA MP)
+    SSLProtocol TLSv1.2 TLSv1.3
+    SSLCipherSuite ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256
+    SSLHonorCipherOrder on
+    SSLCompression off
+    SSLSessionTickets off
+    
+    # OCSP Stapling
+    SSLUseStapling on
+    SSLStaplingResponderTimeout 5
+    SSLStaplingReturnResponderErrors off
+    
+    # Headers de segurança SSL aprimorados
+    Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" env=HTTPS
+    Header always set X-Content-Type-Options "nosniff" env=HTTPS
+    Header always set X-Frame-Options "SAMEORIGIN" env=HTTPS
+    Header always set X-XSS-Protection "1; mode=block" env=HTTPS
+</IfModule>
+
+# === HEADERS DE SEGURANÇA APRIMORADOS ===
+<IfModule mod_headers.c>
+    # Protocolo HTTPS obrigatório
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=HTTPS
+    
+    # Certificado SSL válido
+    Header set X-SSL-Enabled "true" env=HTTPS
+    Header set X-TLS-Version "1.2+" env=HTTPS
+    
+    # CSP para PCI Compliance
+    Header set Content-Security-Policy "default-src 'self' https:; script-src 'self' 'unsafe-inline' https://sdk.mercadopago.com https://secure.mlstatic.com; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; img-src 'self' data: https:; connect-src 'self' https://api.mercadopago.com https://*.mercadopago.com; frame-src 'self' https://*.mercadopago.com"
+    
+    # Headers para PCI DSS
+    Header set X-Permitted-Cross-Domain-Policies "none"
+    Header set X-Download-Options "noopen"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # Headers específicos para Mercado Pago
+    Header set X-MP-Integration "KlubeCash-v2.1"
+    Header set X-MP-Quality "optimized"
+</IfModule>
+
+
+
+# === PROTEÇÃO DE DADOS SENSÍVEIS ===
+<IfModule mod_rewrite.c>
+    # Bloquear tentativas de acesso direto a endpoints com CPF
+    RewriteCond %{QUERY_STRING} cpf= [NC]
+    RewriteCond %{REQUEST_URI} !^/(cliente|admin|api)/ [NC]
+    RewriteRule ^(.*)$ - [F]
+</IfModule>
+
+# === REGRA PARA INDEX ===
+# Garantir que index.php funcione
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} ^/$
+RewriteRule ^(.*)$ index.php [L]
+# === CONFIGURAÇÕES PCI COMPLIANCE ===
+<IfModule mod_rewrite.c>
+    # Força HTTPS para todas as páginas sensíveis
+    RewriteCond %{HTTPS} off
+    RewriteCond %{REQUEST_URI} ^/(store|admin|cliente|api).*$
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# === CACHE E PERFORMANCE ===
+<IfModule mod_expires.c>
+    ExpiresActive On
+    
+    # Imagens
+    ExpiresByType image/jpg "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType image/x-icon "access plus 1 year"
+    
+    # CSS e JS
+    ExpiresByType text/css "access plus 3 months"
+    ExpiresByType application/javascript "access plus 3 months"
+    ExpiresByType text/javascript "access plus 3 months"
+    
+    # Fontes
+    ExpiresByType font/woff "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType application/font-woff "access plus 1 year"
+    ExpiresByType application/font-woff2 "access plus 1 year"
+    
+    # HTML
+    ExpiresByType text/html "access plus 1 day"
+    
+    # Dados
+    ExpiresByType application/json "access plus 1 day"
+    ExpiresByType application/xml "access plus 1 day"
+    ExpiresByType text/xml "access plus 1 day"
+</IfModule>
+
+# === COMPRESSÃO GZIP ===
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/xml
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE text/javascript
+    AddOutputFilterByType DEFLATE application/xml
+    AddOutputFilterByType DEFLATE application/xhtml+xml
+    AddOutputFilterByType DEFLATE application/rss+xml
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/x-javascript
+    AddOutputFilterByType DEFLATE application/json
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+# === ENVIO DE EMAIL PÚBLICO (DIRETO NA RAIZ) ===
+RewriteRule ^enviar-email/?$ enviar-email.php [L]
+RewriteRule ^email/?$ enviar-email.php [L]
+RewriteRule ^send-email/?$ enviar-email.php [L]
+
+# === ROTAS EXISTENTES (MANTIDAS) ===
+RewriteRule ^login/?$ views/auth/login.php [L,NC]
+RewriteRule ^registro/?$ views/auth/register.php [L]
+RewriteRule ^recuperar-senha/?$ views/auth/recover-password.php [L]
+RewriteRule ^logout/?$ views/auth/logout.php [L,NC]
+# === URLS AMIGÁVEIS PARA SEO ===
+# Homepage otimizada para palavras-chave (ADICIONAR)
+RewriteRule ^sistema-cashback/?$ index.php [L]
+RewriteRule ^cashback-brasil/?$ index.php [L]
+RewriteRule ^programa-fidelidade/?$ index.php [L]
+
+# Páginas de marketing SEO-friendly (ADICIONAR)
+RewriteRule ^como-funciona/?$ views/marketing/como-funciona.php [L]
+RewriteRule ^vantagens-cashback/?$ views/marketing/vantagens.php [L]
+RewriteRule ^sobre-klube-cash/?$ views/marketing/sobre.php [L]
+RewriteRule ^contato/?$ views/marketing/contato.php [L]
+
+# Blog para conteúdo SEO (ADICIONAR)
+RewriteRule ^blog/?$ views/blog/index.php [L]
+RewriteRule ^blog/([a-zA-Z0-9-]+)/?$ views/blog/post.php?slug=$1 [L]
+RewriteRule ^categoria/([a-zA-Z0-9-]+)/?$ views/blog/categoria.php?slug=$1 [L]
+
+# Landing pages para palavras-chave específicas (ADICIONAR)
+RewriteRule ^cashback-para-lojas/?$ views/landing/lojas.php [L]
+RewriteRule ^cashback-para-clientes/?$ views/landing/clientes.php [L]
+RewriteRule ^sistema-cashback-empresas/?$ views/landing/empresas.php [L]
+
+# Melhorar URLs existentes para SEO (ADICIONAR)
+RewriteRule ^cadastro-loja/?$ views/stores/register.php [L]
+RewriteRule ^seja-parceiro/?$ views/stores/register.php [L]
+RewriteRule ^parceria-comercial/?$ views/stores/register.php [L]
+
+# === SITEMAP E ROBOTS ===
+RewriteRule ^sitemap\.xml$ sitemap.php [L]
+RewriteRule ^sitemap-posts\.xml$ sitemap-posts.php [L]
+RewriteRule ^sitemap-lojas\.xml$ sitemap-lojas.php [L]
+RewriteRule ^robots\.txt$ robots.php [L]
+
+# === REDIRECIONAMENTOS SEO (301 permanentes) ===
+# Redirecionar URLs antigas para novas URLs SEO-friendly (ADICIONAR)
+RewriteRule ^index\.php$ / [R=301,L]
+RewriteRule ^home/?$ / [R=301,L]
+RewriteRule ^stores/?$ /lojas-parceiras/ [R=301,L]
+RewriteRule ^about/?$ /sobre-klube-cash/ [R=301,L]
+RewriteRule ^contact/?$ /contato/ [R=301,L]
+# Cliente
+RewriteRule ^cliente/dashboard/?$ views/client/dashboard.php [L]
+RewriteRule ^cliente/extrato/?$ views/client/statement.php [L]
+RewriteRule ^cliente/lojas-parceiras/?$ views/client/partner-stores.php [L]
+RewriteRule ^loja/hub/?$ views/client/partner-stores.php [L]
+RewriteRule ^loja/autogestao/?$ views/client/partner-stores.php [L]
+RewriteRule ^cliente/perfil/?$ views/client/profile.php [L]
+RewriteRule ^cliente/saldo/?$ views/client/balance.php [L]
+RewriteRule ^cliente/actions/?$ controllers/client_actions.php [L,QSA]
+
+
+
+
+# Admin
+RewriteRule ^admin/dashboard/?$ views/admin/dashboard.php [L]
+RewriteRule ^admin/usuarios/?$ views/admin/users.php [L]
+RewriteRule ^admin/lojas/?$ views/admin/stores.php [L]
+RewriteRule ^admin/transacoes/?$ views/admin/purchases.php [L]
+RewriteRule ^admin/transacao/([0-9]+)/?$ views/admin/transaction-details.php?id=$1 [L]
+RewriteRule ^admin/configuracoes/?$ views/admin/settings.php [L]
+RewriteRule ^admin/saldo/?$ views/admin/balance.php [L]
+RewriteRule ^admin/comissoes/?$ views/admin/commissions.php [L]
+RewriteRule ^admin/pagamentos/?$ views/admin/payments.php [L]
+RewriteRule ^admin/cashback-config/?$ views/admin/cashback-config.php [L]
+RewriteRule ^admin/relatorios/?$ views/admin/reports.php [L]
+
+# === ROTAS DE AUDITORIA (SISTEMA SIMPLIFICADO) ===
+RewriteRule ^admin/auditoria/?$ views/admin/audit-log.php [L]
+RewriteRule ^admin/logs-funcionarios/?$ views/admin/employee-logs.php [L]
+RewriteRule ^api/audit/?$ api/audit.php [L,QSA]
+
+
+# PIX e Mercado Pago (OTIMIZADO)
+RewriteRule ^store/pagamento-pix/?$ views/stores/payment-pix.php [L,QSA]
+RewriteRule ^api/mercadopago/?$ api/mercadopago.php [L,QSA]
+RewriteRule ^api/mercadopago-webhook/?$ api/mercadopago-webhook.php [L,QSA]
+RewriteRule ^api/store-payment/?$ api/store-payment.php [L,QSA]
+
+# Lojas
+RewriteRule ^lojas/cadastro/?$ views/stores/register.php [L]
+RewriteRule ^lojas/detalhes/([0-9]+)/?$ views/stores/details.php?id=$1 [L]
+RewriteRule ^store/dashboard/?$ views/stores/dashboard.php [L,QSA]
+RewriteRule ^store/transacoes/?$ views/stores/transactions.php [L,QSA]
+RewriteRule ^store/transacoes-pendentes/?$ views/stores/pending-commissions.php [L,QSA]
+RewriteRule ^store/registrar-transacao/?$ views/stores/register-transaction.php [L,QSA]
+RewriteRule ^store/upload-lote/?$ views/stores/batch-upload.php [L,QSA]
+RewriteRule ^store/pagamento/?$ views/stores/payment.php [L,QSA]
+RewriteRule ^store/historico-pagamentos/?$ views/stores/payment-history.php [L,QSA]
+RewriteRule ^store/perfil/?$ views/stores/profile.php [L,QSA]
+# Redirecionar API de funcionários
+RewriteRule ^api/employees$ api/employees.php [L,QSA]
+
+# Funcionários
+RewriteRule ^store/funcionarios/?$ views/stores/employees.php [L,QSA]
+RewriteRule ^api/employees/?$ api/employees.php [L,QSA]
+
+# NOVA ROTA OPENPIX
+RewriteRule ^api/openpix/?$ api/openpix.php [L]
+# NOVO WEBHOOK OPENPIX
+RewriteRule ^webhook/openpix/?$ webhook/openpix.php [L]
+# Email Marketing
+RewriteRule ^admin/email-marketing/?$ views/admin/email-marketing.php [L]
+RewriteRule ^admin/email-templates/?$ views/admin/email-templates.php [L]
+RewriteRule ^admin/email-campanhas/?$ views/admin/email-campaigns.php [L]
+
+
+# === ENVIO DE EMAIL PÚBLICO ===
+RewriteRule ^enviar-email/?$ views/public/enviar-email.php [L]
+RewriteRule ^email/?$ views/public/enviar-email.php [L]
+RewriteRule ^send-email/?$ views/public/enviar-email.php [L]
+
+# AJAX
+RewriteRule ^admin/ajax/stores/?$ controllers/AdminController.php [L,QSA]
+RewriteRule ^admin/ajax/users/?$ controllers/AdminController.php [L,QSA]
+RewriteRule ^admin/ajax/transactions/?$ controllers/AdminController.php [L,QSA]
+RewriteRule ^admin/ajax/stores-direct/?$ controllers/AjaxStoreController.php [L,QSA]
+
+# API
+RewriteRule ^api/users/?$ api/users.php [L,QSA]
+RewriteRule ^api/users/([0-9]+)/?$ api/users.php?id=$1 [L,QSA]
+RewriteRule ^api/transactions/?$ api/transactions.php [L,QSA]
+
+# Google OAuth
+RewriteRule ^auth/google/auth/?$ auth/google/auth.php [L]
+RewriteRule ^auth/google/register/?$ auth/google/register.php [L]
+RewriteRule ^auth/google/callback/?$ auth/google/callback.php [L]
+# === KLUBE CASH PWA - HEADERS E CACHE ===
+# === PWA OFFLINE STORAGE HEADERS ===
+<IfModule mod_headers.c>
+    # Headers para IndexedDB e Storage API
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    Header always set Cross-Origin-Embedder-Policy "require-corp"
+    
+    # Permitir storage API
+    Header always set Permissions-Policy "storage-access=(), unpartitioned-cookies=()"
+    
+    # Service Worker headers
+    <FilesMatch "\.(js)$">
+        Header set Cache-Control "public, max-age=86400"
+        Header set Service-Worker-Allowed "/"
+    </FilesMatch>
+    
+    # Offline page cache
+    <FilesMatch "offline\.html$">
+        Header set Cache-Control "public, max-age=3600"
+    </FilesMatch>
+</IfModule>
+# Otimização de cache para CSS da sidebar
+<FilesMatch "\.(css)$">
+    ExpiresActive on
+    ExpiresByType text/css "access plus 7 days"
+    Header set Cache-Control "public, must-revalidate"
+</FilesMatch>
+
+# Compressão para melhor performance
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE application/javascript
+</IfModule>
+# === API ENDPOINTS PARA SINCRONIZAÇÃO ===
+RewriteRule ^api/sync/profile/?$ api/pwa/sync.php?table=profile [L,QSA]
+RewriteRule ^api/sync/transactions/?$ api/pwa/sync.php?table=transactions [L,QSA]
+RewriteRule ^api/sync/stores/?$ api/pwa/sync.php?table=stores [L,QSA]
+RewriteRule ^api/sync/cashback/?$ api/pwa/sync.php?table=cashback [L,QSA]
+RewriteRule ^api/sync/notifications/?$ api/pwa/sync.php?table=notifications [L,QSA]
+RewriteRule ^api/sync/generic/?$ api/pwa/sync.php?table=generic [L,QSA]
+
+# === OFFLINE FALLBACK ===
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} !\.(css|js|png|jpg|gif|ico|svg)$ [NC]
+RewriteRule ^(client|admin|store)/ pwa/offline.html [L]
+
+
+
+# Adicionar estas linhas ao arquivo .htaccess existente
+
+# === PUSH NOTIFICATIONS HEADERS ===
+<IfModule mod_headers.c>
+    # Headers para Push API
+    Header always set Push-Policy "push-messaging"
+    Header always set Notification-Policy "notifications"
+    
+    # VAPID headers para service worker
+    <FilesMatch "sw\.js$">
+        Header set Service-Worker-Allowed "/"
+        Header set X-Robots-Tag "noindex"
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+    </FilesMatch>
+    
+    # Headers para manifest push
+    <FilesMatch "manifest\.json$">
+        Header set Content-Type "application/manifest+json"
+        Header set Cache-Control "public, max-age=86400"
+    </FilesMatch>
+    
+    # Headers para notification icons
+    <FilesMatch "\.(png|jpg|jpeg)$">
+        Header set Cross-Origin-Resource-Policy "cross-origin"
+        Header set Access-Control-Allow-Origin "*"
+    </FilesMatch>
+</IfModule>
+
+# === NOTIFICATION API ENDPOINTS ===
+RewriteRule ^api/pwa/config/?$ api/pwa/notifications.php?action=config [L,QSA]
+RewriteRule ^api/pwa/register-subscription/?$ api/pwa/notifications.php?action=register [L,QSA]
+RewriteRule ^api/pwa/unregister-subscription/?$ api/pwa/notifications.php?action=unregister [L,QSA]
+RewriteRule ^api/pwa/validate-subscription/?$ api/pwa/notifications.php?action=validate [L,QSA]
+RewriteRule ^api/pwa/update-preferences/?$ api/pwa/notifications.php?action=preferences [L,QSA]
+RewriteRule ^api/pwa/sync-notifications/?$ api/pwa/notifications.php?action=sync [L,QSA]
+
+# === NOTIFICATION TESTING ===
+RewriteRule ^api/pwa/test-notification/?$ api/pwa/notifications.php?action=test [L,QSA]
+
+# === PUSH NOTIFICATION SECURITY ===
+<IfModule mod_rewrite.c>
+    # Bloquear acesso direto a chaves VAPID
+    RewriteRule ^config/vapid\.(public|private)\.key$ - [F,L]
+    
+    # Proteger endpoints de notificação
+    RewriteCond %{HTTP_REFERER} !^https?://(.*\.)?klubecash\.com [NC]
+    RewriteRule ^api/pwa/(register|unregister)-subscription/?$ - [F,L]
+</IfModule>
+
+
+# Headers de segurança para PWA
+<IfModule mod_headers.c>
+    # Service Worker deve ser servido com MIME type correto
+    <FilesMatch "sw\.js$">
+        Header set Content-Type "application/javascript"
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+    
+    # Manifest.json
+    <FilesMatch "manifest\.json$">
+        Header set Content-Type "application/manifest+json"
+        Header set Cache-Control "public, max-age=86400"
+    </FilesMatch>
+    
+    # Headers PWA essenciais
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options DENY
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # HTTPS obrigatório para PWA
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    
+    # Permissions Policy para PWA
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(self)"
+</IfModule>
+
+# Cache para recursos estáticos PWA
+<IfModule mod_expires.c>
+    ExpiresActive On
+    
+    # Imagens e ícones PWA
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpg "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/gif "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType image/x-icon "access plus 1 year"
+    
+    # CSS e JS versionados
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType text/javascript "access plus 1 month"
+    
+    # Fontes
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType font/woff "access plus 1 year"
+    ExpiresByType application/font-woff "access plus 1 year"
+    
+    # Service Worker (sem cache)
+    <FilesMatch "sw\.js$">
+        ExpiresDefault "access plus 0 seconds"
+    </FilesMatch>
+</IfModule>
+
+# Compressão para melhor performance PWA
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/xml
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE application/xml
+    AddOutputFilterByType DEFLATE application/xhtml+xml
+    AddOutputFilterByType DEFLATE application/rss+xml
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/x-javascript
+    AddOutputFilterByType DEFLATE application/json
+    AddOutputFilterByType DEFLATE application/manifest+json
+</IfModule>
+
+# Fallback para páginas PWA (SPA routing)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Redirecionar HTTP para HTTPS (obrigatório para PWA)
+    RewriteCond %{HTTPS} off
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+    
+    # Service Worker na raiz
+    RewriteRule ^sw\.js$ /pwa/sw.js [L]
+    
+    # Manifest na raiz
+    RewriteRule ^manifest\.json$ /pwa/manifest.json [L]
+    
+    # Páginas offline
+    RewriteRule ^offline\.html$ /pwa/offline.html [L]
+    
+    # Rotas PWA existentes (não alterar as outras regras)
+</IfModule>
+
+# MIME types para PWA
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+    AddType application/manifest+json .json
+    AddType image/webp .webp
+    AddType application/javascript .mjs
+</IfModule>
+# === OTIMIZAÇÕES ESPECIAIS PARA MERCADO PAGO ===
+<IfModule mod_headers.c>
+    # Preload de recursos críticos
+    Header add Link "</assets/css/index-v2.css>; rel=preload; as=style"
+    Header add Link "<https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap>; rel=preload; as=style; crossorigin"
+    Header add Link "</assets/js/index-v2.js>; rel=preload; as=script"
+    
+    # Permitir conexões do SDK do Mercado Pago
+    Header add Access-Control-Allow-Origin "https://sdk.mercadopago.com"
+    Header add Access-Control-Allow-Credentials "true"
+</IfModule>
+
+# === BLOQUEIO DE ARQUIVOS SENSÍVEIS ===
+<FilesMatch "^(\.htaccess|\.htpasswd|\.git|\.env|config\.php|constants\.php)">
+    Order Allow,Deny
+    Deny from all
+    
+</FilesMatch>
+
+
+# === MIME TYPES MODERNOS ===
+<IfModule mod_mime.c>
+    AddType application/ld+json .jsonld
+    AddType application/manifest+json .webmanifest
+    AddType image/webp .webp
+    AddType font/woff .woff
+    AddType font/woff2 .woff2
+    AddType application/font-woff .woff
+    AddType application/font-woff2 .woff2
+    AddType application/json .json
+    AddDefaultCharset UTF-8
+    AddCharset UTF-8 .css .js .xml .json .jsonld
+</IfModule>
+
+# === CONFIGURAÇÕES PHP OTIMIZADAS ===
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 10M
+    php_value post_max_size 10M
+    php_value max_execution_time 300
+    php_value max_input_time 300
+    php_flag display_errors off
+    php_value error_reporting "E_ALL & ~E_NOTICE & ~E_DEPRECATED"
+    php_value memory_limit 256M
+    
+    # Configurações específicas para Mercado Pago
+    php_value user_agent "KlubeCash/2.0 (PHP/7.4; MercadoPago-Optimized)"
+    php_value default_socket_timeout 30
+    
+    php_value output_compression On
+    php_value output_compression_level 6
+    php_value zlib.output_compression On
+    php_value default_charset "UTF-8"
+</IfModule>
+
+
+
+
+# === PÁGINAS DE ERRO ===
+ErrorDocument 404 /views/errors/404.php
+ErrorDocument 500 /views/errors/500.php
+ErrorDocument 403 /views/errors/403.php
+
+# === BLOQUEIO DE NAVEGAÇÃO ===
+Options -Indexes
+
+# === REGRAS FINAIS ===
+# Permitir acesso direto aos controladores para AJAX
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteCond %{REQUEST_URI} /controllers/.*\.php$ [NC]
+RewriteRule ^(.*)$ - [L]
+
+# Permitir arquivos existentes
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}\.php -f
+RewriteRule ^(.*)$ $1.php [L]
+
+
+# === TRATAMENTO DE ERROS PERSONALIZADOS ===
+ErrorDocument 404 /views/errors/404.php
+ErrorDocument 500 /views/errors/500.php
+
+# === CONFIGURAÇÕES DE SEGURANÇA PARA REGISTRO ===
+<Files "register.php">
+    php_flag display_errors off
+    php_flag log_errors on
+    php_value error_log /home/u383946504/domains/klubecash.com/public_html/logs/register_errors.log
+</Files>
+
+# === CONFIGURAÇÕES ESPECÍFICAS PARA DEBUG ===
+RewriteRule ^debug-register/?$ views/auth/debug-register.php [L]

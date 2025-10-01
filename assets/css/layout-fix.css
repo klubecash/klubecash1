@@ -1,0 +1,40 @@
+/* Arquivo para corrigir layouts específicos */
+
+/* Garantir que todas as páginas admin tenham layout consistente */
+body.admin-page .main-content {
+    margin-left: 250px;
+    transition: margin-left 0.3s ease;
+}
+
+/* Para páginas específicas que precisam de ajuste */
+body.stores-page .main-content {
+    margin-left: 250px;
+}
+
+body.dashboard-page .main-content {
+    padding-left: 250px;
+    margin-left: 0;
+}
+
+body.users-page .main-content {
+    padding-left: 250px;
+    margin-left: 0;
+}
+
+body.balance-page .main-content {
+    padding-left: 250px;
+    margin-left: 0;
+}
+
+/* Responsividade global */
+@media (max-width: 1200px) {
+    body.admin-page .main-content,
+    body.stores-page .main-content,
+    body.dashboard-page .main-content,
+    body.users-page .main-content,
+    body.balance-page .main-content {
+        margin-left: 0;
+        padding-left: 0;
+        padding-top: 60px;
+    }
+}

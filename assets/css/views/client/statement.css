@@ -1,0 +1,427 @@
+:root {
+    --primary-color: #FF7A00;
+    --primary-light: #FFF0E6;
+    --white: #FFFFFF;
+    --light-gray: #F5F5F5;
+    --dark-gray: #333333;
+    --medium-gray: #666666;
+    --success-color: #4CAF50;
+    --danger-color: #F44336;
+    --warning-color: #FFC107;
+    --border-radius: 15px;
+    --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Reset e estilos gerais */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: var(--font-family);
+}
+
+body {
+    background-color: #FFF9F2;
+    overflow-x: hidden;
+}
+
+/* Container principal */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Cabeçalho da página */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.page-header h1 {
+    font-size: 28px;
+    color: var(--dark-gray);
+    margin-bottom: 5px;
+}
+
+.page-header p {
+    color: var(--medium-gray);
+    font-size: 16px;
+}
+
+/* Card para o conteúdo */
+.card {
+    background-color: var(--white);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+}
+
+/* Seção de filtros */
+.filters-section {
+    margin-bottom: 20px;
+}
+
+.filter-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: var(--dark-gray);
+    font-size: 14px;
+}
+
+.form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(255, 122, 0, 0.2);
+}
+
+/* Resumo financeiro */
+.summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.summary-card {
+    background-color: var(--primary-light);
+    border-radius: 10px;
+    padding: 15px;
+    text-align: center;
+}
+
+.summary-card-title {
+    font-size: 14px;
+    color: var(--medium-gray);
+    margin-bottom: 5px;
+}
+
+.summary-card-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+/* Tabela de extrato */
+.table-container {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table th, .table td {
+    padding: 12px 15px;
+    text-align: left;
+    font-size: 14px;
+}
+
+.table th {
+    background-color: #f9f9f9;
+    font-weight: 600;
+    color: var(--dark-gray);
+    border-bottom: 2px solid #eee;
+}
+
+.table td {
+    border-bottom: 1px solid #eee;
+}
+
+.table tr:last-child td {
+    border-bottom: none;
+}
+
+.table tr:hover {
+    background-color: var(--primary-light);
+}
+
+/* Badges de status */
+.badge {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.badge-success {
+    background-color: #E6F7E6;
+    color: var(--success-color);
+}
+
+.badge-warning {
+    background-color: #FFF8E6;
+    color: var(--warning-color);
+}
+
+.badge-danger {
+    background-color: #FFEAE6;
+    color: var(--danger-color);
+}
+
+/* Paginação */
+.pagination {
+    display: flex;
+    justify-content: center;
+    list-style: none;
+    padding: 0;
+    margin-top: 20px;
+}
+
+.pagination-item {
+    margin: 0 5px;
+}
+
+.pagination-link {
+    display: block;
+    padding: 8px 12px;
+    background-color: var(--white);
+    border-radius: 5px;
+    color: var(--dark-gray);
+    text-decoration: none;
+    transition: all 0.3s;
+    border: 1px solid #eee;
+}
+
+.pagination-link:hover {
+    background-color: var(--primary-light);
+    color: var(--primary-color);
+}
+
+.pagination-link.active {
+    background-color: var(--primary-color);
+    color: var(--white);
+    border-color: var(--primary-color);
+}
+
+/* Estilos de botões */
+.btn {
+    padding: 10px 20px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.3s;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #E06E00;
+}
+
+.btn-outline {
+    background-color: transparent;
+    border: 1px solid var(--primary-color);
+    color: var(--primary-color);
+}
+
+.btn-outline:hover {
+    background-color: var(--primary-light);
+}
+
+.btn-actions {
+    display: flex;
+    gap: 10px;
+}
+
+/* Ícones nas ações */
+.btn-icon {
+    display: flex;
+    align-items: center;
+}
+
+.btn-icon svg {
+    margin-right: 5px;
+}
+
+/* Alertas */
+.alert {
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.alert-danger {
+    background-color: #FFEAE6;
+    color: var(--danger-color);
+    border: 1px solid var(--danger-color);
+}
+
+/* Modal para detalhes da transação */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background-color: var(--white);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    width: 100%;
+    max-width: 600px;
+    padding: 30px;
+    position: relative;
+}
+
+.modal-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--medium-gray);
+}
+
+.transaction-detail-title {
+    font-size: 18px;
+    margin-bottom: 20px;
+    color: var(--dark-gray);
+}
+
+.transaction-detail-row {
+    display: flex;
+    margin-bottom: 15px;
+}
+
+.detail-label {
+    width: 40%;
+    font-weight: 600;
+    color: var(--medium-gray);
+}
+
+.detail-value {
+    width: 60%;
+    color: var(--dark-gray);
+}
+/* Adicionar ao final do arquivo CSS */
+
+/* Cards de resumo de saldo */
+.saldo-summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.saldo-summary-card {
+    background-color: #F0F8FF;
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+    border: 1px solid #E3F2FD;
+}
+
+.saldo-summary-title {
+    font-size: 14px;
+    color: var(--medium-gray);
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+.saldo-summary-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1976D2;
+}
+
+.saldo-info {
+    background-color: #F5F5F5;
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 15px;
+}
+
+.saldo-info p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--medium-gray);
+    line-height: 1.5;
+}
+
+/* Melhorias na tabela */
+.table td:nth-child(4) {
+    text-align: center;
+}
+
+/* Responsividade para novos elementos */
+@media (max-width: 768px) {
+    .saldo-summary-cards {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .saldo-summary-cards {
+        grid-template-columns: 1fr;
+    }
+}
+/* Responsividade */
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .summary-cards {
+        grid-template-columns: 1fr;
+    }
+    
+    .filter-form {
+        grid-template-columns: 1fr;
+    }
+    
+    .btn-actions {
+        flex-direction: column;
+        width: 100%;
+        margin-top: 15px;
+    }
+    
+    .btn {
+        width: 100%;
+    }
+}

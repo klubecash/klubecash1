@@ -1,0 +1,535 @@
+/*
+ * KLUBE CASH - Mobile-First CSS
+ * Sistema de design responsivo com abordagem mobile-first
+ * Touch targets, typography responsiva e otimizações mobile
+ */
+
+/* ===== VARIÁVEIS CSS PARA MOBILE ===== */
+:root {
+  /* Breakpoints Mobile-First */
+  --breakpoint-xs: 320px;   /* Smartphones pequenos */
+  --breakpoint-sm: 480px;   /* Smartphones */
+  --breakpoint-md: 768px;   /* Tablets */
+  --breakpoint-lg: 1024px;  /* Desktop pequeno */
+  --breakpoint-xl: 1200px;  /* Desktop */
+  --breakpoint-xxl: 1440px; /* Desktop grande */
+  
+  /* Touch Targets (mínimo 44px recomendado) */
+  --touch-target-min: 44px;
+  --touch-target-comfortable: 48px;
+  --touch-target-large: 56px;
+  
+  /* Typography Responsiva - Base Mobile */
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 28px;
+  --font-size-4xl: 32px;
+  
+  /* Line Heights Otimizadas */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.4;
+  --line-height-relaxed: 1.6;
+  
+  /* Espaçamentos Mobile */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+  
+  /* Z-index Stack */
+  --z-sticky: 100;
+  --z-modal: 1000;
+  --z-overlay: 1010;
+  --z-dropdown: 1020;
+  --z-tooltip: 1030;
+}
+
+/* ===== RESET E BASE MOBILE ===== */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px; /* Base 16px para cálculos rem */
+  -webkit-text-size-adjust: 100%; /* Previne zoom automático iOS */
+  -webkit-tap-highlight-color: transparent; /* Remove highlight azul */
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== TYPOGRAPHY RESPONSIVA ===== */
+
+/* Headlines Mobile-First */
+h1, .h1 {
+  font-size: var(--font-size-3xl);
+  font-weight: 700;
+  line-height: var(--line-height-tight);
+  margin: 0 0 var(--spacing-lg) 0;
+}
+
+h2, .h2 {
+  font-size: var(--font-size-2xl);
+  font-weight: 600;
+  line-height: var(--line-height-tight);
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+h3, .h3 {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  line-height: var(--line-height-normal);
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+h4, .h4 {
+  font-size: var(--font-size-lg);
+  font-weight: 500;
+  line-height: var(--line-height-normal);
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+h5, .h5 {
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  line-height: var(--line-height-normal);
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+/* Texto Corrido */
+p {
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-relaxed);
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+/* Textos Utilitários */
+.text-sm {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.text-xs {
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+.text-lg {
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ===== TOUCH TARGETS E INTERAÇÕES ===== */
+
+/* Botões com Touch Targets Apropriados */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  user-select: none;
+  transition: all 0.2s ease;
+  touch-action: manipulation; /* Previne zoom duplo */
+}
+
+.btn-lg {
+  min-height: var(--touch-target-comfortable);
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-size: var(--font-size-lg);
+}
+
+.btn-xl {
+  min-height: var(--touch-target-large);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  font-size: var(--font-size-xl);
+}
+
+/* Links com Área de Toque Adequada */
+.link-touch {
+  display: inline-block;
+  min-height: var(--touch-target-min);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  margin: -var(--spacing-xs) -var(--spacing-sm);
+}
+
+/* Inputs com Touch Targets */
+.form-input {
+  width: 100%;
+  min-height: var(--touch-target-min);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-base);
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  transition: border-color 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary-color, #FF7A00);
+  box-shadow: 0 0 0 3px rgba(255, 122, 0, 0.1);
+}
+
+/* ===== LAYOUT MOBILE-FIRST ===== */
+
+/* Container Responsivo */
+.container {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0 var(--spacing-md);
+}
+
+/* Grid System Mobile-First */
+.grid {
+  display: grid;
+  gap: var(--spacing-md);
+}
+
+.grid-1 { grid-template-columns: 1fr; }
+.grid-auto { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+
+/* Flexbox Utilities */
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.gap-sm { gap: var(--spacing-sm); }
+.gap-md { gap: var(--spacing-md); }
+.gap-lg { gap: var(--spacing-lg); }
+
+/* ===== COMPONENTES MOBILE ===== */
+
+/* Cards Responsivos */
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: var(--spacing-md);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-touchable {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.card-touchable:active {
+  transform: scale(0.98);
+}
+
+/* Navigation Mobile */
+.nav-mobile {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top: 1px solid #E5E7EB;
+  z-index: var(--z-sticky);
+}
+
+.nav-mobile-list {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: var(--spacing-sm) 0;
+  margin: 0;
+  list-style: none;
+}
+
+.nav-mobile-item {
+  flex: 1;
+}
+
+.nav-mobile-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-sm);
+  min-height: var(--touch-target-min);
+  color: #6B7280;
+  text-decoration: none;
+  font-size: var(--font-size-xs);
+  transition: color 0.2s ease;
+}
+
+.nav-mobile-link.active {
+  color: var(--primary-color, #FF7A00);
+}
+
+/* Modais Mobile */
+.modal-mobile {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: var(--z-modal);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.modal-mobile.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal-content {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-radius: 20px 20px 0 0;
+  padding: var(--spacing-lg);
+  max-height: 90vh;
+  overflow-y: auto;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+
+.modal-mobile.active .modal-content {
+  transform: translateY(0);
+}
+
+/* ===== MEDIA QUERIES MOBILE-FIRST ===== */
+
+/* Smartphones (≥480px) */
+@media (min-width: 480px) {
+  :root {
+    --font-size-xl: 22px;
+    --font-size-2xl: 26px;
+    --font-size-3xl: 30px;
+    --font-size-4xl: 36px;
+  }
+  
+  .container {
+    padding: 0 var(--spacing-lg);
+  }
+  
+  .grid-sm-2 { grid-template-columns: repeat(2, 1fr); }
+  
+  .btn {
+    padding: var(--spacing-md) var(--spacing-lg);
+  }
+}
+
+/* Tablets (≥768px) */
+@media (min-width: 768px) {
+  :root {
+    --font-size-xl: 24px;
+    --font-size-2xl: 30px;
+    --font-size-3xl: 36px;
+    --font-size-4xl: 42px;
+  }
+  
+  .container {
+    max-width: 720px;
+    padding: 0 var(--spacing-xl);
+  }
+  
+  .grid-md-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-md-3 { grid-template-columns: repeat(3, 1fr); }
+  
+  /* Typography escalada para tablets */
+  h1, .h1 { font-size: var(--font-size-4xl); }
+  h2, .h2 { font-size: var(--font-size-3xl); }
+  
+  /* Ocultar navegação mobile em tablets */
+  .nav-mobile {
+    display: none;
+  }
+}
+
+/* Desktop (≥1024px) */
+@media (min-width: 1024px) {
+  :root {
+    --font-size-xl: 26px;
+    --font-size-2xl: 32px;
+    --font-size-3xl: 40px;
+    --font-size-4xl: 48px;
+  }
+  
+  .container {
+    max-width: 960px;
+  }
+  
+  .grid-lg-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-lg-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-lg-4 { grid-template-columns: repeat(4, 1fr); }
+  
+  /* Hover states para desktop */
+  .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  
+  .card-touchable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  }
+}
+
+/* Desktop Grande (≥1200px) */
+@media (min-width: 1200px) {
+  .container {
+    max-width: 1140px;
+  }
+  
+  .grid-xl-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-xl-5 { grid-template-columns: repeat(5, 1fr); }
+}
+
+/* Desktop Extra Grande (≥1440px) */
+@media (min-width: 1440px) {
+  .container {
+    max-width: 1320px;
+  }
+}
+
+/* ===== UTILIDADES RESPONSIVAS ===== */
+
+/* Visibilidade por Breakpoint */
+.hidden-mobile { display: none; }
+
+@media (min-width: 768px) {
+  .hidden-tablet { display: none; }
+  .show-tablet { display: block; }
+  .hidden-mobile { display: block; }
+}
+
+@media (min-width: 1024px) {
+  .hidden-desktop { display: none; }
+  .show-desktop { display: block; }
+}
+
+/* Espaçamentos Responsivos */
+.p-responsive {
+  padding: var(--spacing-md);
+}
+
+.m-responsive {
+  margin: var(--spacing-md);
+}
+
+@media (min-width: 768px) {
+  .p-responsive {
+    padding: var(--spacing-lg);
+  }
+  
+  .m-responsive {
+    margin: var(--spacing-lg);
+  }
+}
+
+@media (min-width: 1024px) {
+  .p-responsive {
+    padding: var(--spacing-xl);
+  }
+  
+  .m-responsive {
+    margin: var(--spacing-xl);
+  }
+}
+
+/* ===== ACESSIBILIDADE E PERFORMANCE ===== */
+
+/* Preferências de movimento reduzido */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Preferência por esquema escuro */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-color: #1F2937;
+    --text-color: #F9FAFB;
+    --border-color: #374151;
+  }
+}
+
+/* Focus visível para navegação por teclado */
+*:focus-visible {
+  outline: 2px solid var(--primary-color, #FF7A00);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ===== OTIMIZAÇÕES MOBILE ===== */
+
+/* Scroll suave */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Otimização de scroll em iOS */
+.scroll-smooth {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Performance de animações */
+.animate-optimized {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Prevenir zoom em inputs no iOS */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+textarea,
+select {
+  font-size: 16px; /* Previne zoom no iOS */
+}
+
+@supports (-webkit-touch-callout: none) {
+  /* Estilos específicos para iOS */
+  .ios-fix {
+    -webkit-appearance: none;
+    border-radius: 0;
+  }
+}

@@ -1,0 +1,131 @@
+.chart-container {
+        height: 300px;
+        padding: 10px;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    
+    .status-aprovado {
+        background-color: #e6f7ee;
+        color: #0d6832;
+    }
+    
+    .status-pendente {
+        background-color: #fff7e6;
+        color: #7a5600;
+    }
+    
+    .status-cancelado {
+        background-color: #ffe6e6;
+        color: #c10000;
+    }
+    
+    .top-stores-list {
+        padding: 10px 0;
+    }
+    
+    .store-item {
+        display: flex;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .store-item:last-child {
+        border-bottom: none;
+    }
+    
+    .store-rank {
+        width: 30px;
+        height: 30px;
+        background-color: #FF7A00;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 0.9rem;
+        margin-right: 12px;
+    }
+    
+    .store-info {
+        flex: 1;
+    }
+    
+    .store-name {
+        font-weight: 600;
+        color: #2d3748;
+        margin-bottom: 3px;
+    }
+    
+    .store-details {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    /* Estilos para o card de saldo da Klube Cash */
+.klubecash-balance-card {
+    margin-bottom: 30px;
+}
+
+.klubecash-balance-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 15px 20px;
+}
+
+.balance-item {
+    flex: 1;
+    min-width: 150px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.balance-item.total {
+    background-color: #FFF0E6;
+}
+
+.balance-label {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.balance-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.badge {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.badge-success {
+    background-color: #e6f7ee;
+    color: #0d6832;
+}
+
+.badge-danger {
+    background-color: #ffe6e6;
+    color: #c10000;
+}
+
+@media (max-width: 768px) {
+    .klubecash-balance-container {
+        flex-direction: column;
+    }
+}

@@ -1,0 +1,675 @@
+:root {
+    --primary-color: #FF7A00;
+    --primary-light: #FFF0E6;
+    --text-color-dark: #333;
+    --text-color-light: #666;
+    --background-light: #f9f9f9;
+    --card-background: #fff;
+    --border-color: #eee;
+    --success-color: #4CAF50;
+    --warning-color: #FFC107;
+    --danger-color: #F44336;
+    --shadow-light: rgba(0, 0, 0, 0.08);
+    --shadow-medium: rgba(0, 0, 0, 0.12);
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: var(--background-light);
+    color: var(--text-color-dark);
+    line-height: 1.6;
+    /* Garante que não haja rolagem horizontal indesejada */
+    overflow-x: hidden; 
+}
+
+.container {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 0 15px; /* Reduz o padding lateral para telas menores */
+}
+
+/* --- Header do Dashboard --- */
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    flex-wrap: wrap; /* Permite que os itens quebrem para a próxima linha */
+    gap: 15px;
+}
+
+.dashboard-header h1 {
+    font-size: 2.2em;
+    color: var(--primary-color);
+    margin: 0;
+    font-weight: 600;
+}
+
+.dashboard-subtitle {
+    color: var(--text-color-light);
+    font-size: 1.1em;
+    margin-top: 5px;
+}
+
+.dashboard-header div:last-child {
+    display: flex;
+    gap: 10px;
+    /* Permite que os botões quebrem para a próxima linha em telas pequenas */
+    flex-wrap: wrap; 
+}
+
+.btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    white-space: nowrap; 
+    /* Adiciona flex-grow para que os botões se expandam em telas pequenas */
+    flex-grow: 1; 
+    text-align: center;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: #fff;
+    border: 1px solid var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: #e66c00; 
+    border-color: #e66c00;
+}
+
+.btn-secondary {
+    background-color: transparent;
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+}
+
+.btn-secondary:hover {
+    background-color: var(--primary-light);
+    color: var(--primary-color);
+}
+
+/* --- Alertas --- */
+.alert {
+    padding: 15px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 1em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.alert-danger {
+    background-color: #ffebee;
+    color: var(--danger-color);
+    border: 1px solid #ffcdd2;
+}
+
+/* --- Cards de Resumo --- */
+.summary-cards {
+    display: grid;
+    /* Ajusta minmax para permitir menos cards por linha em telas menores */
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); 
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.card {
+    background-color: var(--card-background);
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 4px 15px var(--shadow-light);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    /* Garante que o conteúdo não transborde do card */
+    overflow: hidden; 
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px var(--shadow-medium);
+}
+
+.card-title {
+    font-size: 1.1em;
+    color: var(--text-color-light);
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-weight: 500;
+    white-space: nowrap; /* Evita quebra de linha no título do card */
+    overflow: hidden; /* Oculta o texto que transborda */
+    text-overflow: ellipsis; /* Adiciona "..." ao texto que transborda */
+}
+
+.summary-card .card-value {
+    font-size: 2.2em;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.summary-card .card-change {
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-color-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.summary-card .card-change.positive {
+    color: var(--success-color);
+}
+
+.summary-card .card-change.warning {
+    color: var(--warning-color);
+}
+
+.summary-card .card-change svg {
+    width: 18px;
+    height: 18px;
+    min-width: 18px; /* Impede que o ícone diminua */
+}
+
+/* --- Grid Principal do Dashboard --- */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr; 
+    gap: 30px;
+}
+
+/* --- Tabelas --- */
+.table-container {
+    /* Essencial para rolagem horizontal em tabelas grandes */
+    overflow-x: auto; 
+    margin-bottom: 15px;
+    /* Adiciona um pequeno padding interno para que o conteúdo não fique colado nas bordas */
+    padding-bottom: 10px; 
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+    /* Garante que a tabela não transborde o container pai */
+    min-width: 600px; /* Define uma largura mínima para a tabela, evitando que as colunas fiquem muito apertadas */
+}
+
+.table th,
+.table td {
+    padding: 12px 10px; /* Reduz o padding das células */
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap; /* Impede a quebra de linha nas células da tabela */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.table th {
+    background-color: var(--primary-light);
+    color: var(--primary-color);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.table tbody tr:hover {
+    background-color: #f5f5f5;
+}
+
+.badge {
+    padding: 6px 10px; /* Ajusta o padding do badge */
+    border-radius: 20px;
+    font-size: 0.75em; /* Reduz o tamanho da fonte do badge */
+    font-weight: 600;
+    text-transform: capitalize;
+    color: #fff;
+    white-space: nowrap;
+}
+
+.badge-success {
+    background-color: var(--success-color);
+}
+
+.badge-warning {
+    background-color: var(--warning-color);
+}
+
+.badge-danger {
+    background-color: var(--danger-color);
+}
+
+.see-all {
+    display: block;
+    text-align: right;
+    margin-top: 15px;
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.3s ease;
+}
+
+.see-all:hover {
+    color: #e66c00;
+}
+
+/* --- Movimentações de Saldo --- */
+.movements-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.movement-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.movement-item:last-child {
+    border-bottom: none;
+}
+
+.movement-icon {
+    flex-shrink: 0;
+    width: 35px;
+    height: 35px;
+    background-color: var(--primary-light);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.movement-icon svg {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+}
+
+.movement-details {
+    flex-grow: 1;
+    min-width: 0; /* Permite que o flex-item encolha */
+}
+
+.movement-description {
+    font-weight: 600;
+    color: var(--text-color-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.movement-date {
+    font-size: 0.85em;
+    color: var(--text-color-light);
+    white-space: nowrap;
+}
+
+.movement-amount {
+    font-weight: 700;
+    font-size: 1.1em;
+    white-space: nowrap;
+    flex-shrink: 0; /* Impede que o valor do amount encolha */
+}
+
+.movement-amount.positive {
+    color: var(--success-color);
+}
+
+.movement-amount.negative {
+    color: var(--danger-color);
+}
+
+/* --- Saldos por Loja --- */
+.balance-by-store {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.store-balance-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.store-balance-item:last-child {
+    border-bottom: none;
+}
+
+.store-logo {
+    flex-shrink: 0;
+    width: 45px;
+    height: 45px;
+    background-color: var(--primary-color);
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.2em;
+    font-weight: 700;
+}
+
+.store-info {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.store-name {
+    margin: 0;
+    font-size: 1em;
+    color: var(--text-color-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.store-balance {
+    margin: 0;
+    font-size: 0.9em;
+    color: var(--primary-color);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.store-stats {
+    font-size: 0.8em;
+    color: var(--text-color-light);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* --- Saldos Pendentes --- */
+.pending-balances {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.pending-info {
+    background-color: var(--warning-color);
+    color: #fff;
+    padding: 10px 15px;
+    border-radius: 8px;
+    font-size: 0.9em;
+    /* Reduz o tamanho da fonte e padding em telas muito pequenas */
+    line-height: 1.4;
+}
+
+.pending-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.pending-item:last-child {
+    border-bottom: none;
+}
+
+.pending-store {
+    font-weight: 600;
+    color: var(--text-color-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-basis: 60%; /* Dá mais espaço para o nome da loja */
+}
+
+.pending-details {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-size: 0.9em;
+    flex-basis: 40%; /* Dá menos espaço para os detalhes */
+    justify-content: flex-end; /* Alinha os detalhes à direita */
+}
+
+.pending-amount {
+    color: var(--warning-color);
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.pending-count {
+    color: var(--text-color-light);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* --- Lojas Onde Mais Usa Saldo --- */
+.top-stores-usage {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.usage-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.usage-item:last-child {
+    border-bottom: none;
+}
+
+.usage-store {
+    font-weight: 600;
+    color: var(--text-color-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-basis: 60%;
+}
+
+.usage-stats {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-size: 0.9em;
+    flex-basis: 40%;
+    justify-content: flex-end;
+}
+
+.usage-amount {
+    color: var(--primary-color);
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.usage-count {
+    color: var(--text-color-light);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+
+/* --- Gráfico de Cashback --- */
+.chart-container {
+    position: relative;
+    height: 300px; 
+    width: 100%;
+}
+
+/* --- Responsividade --- */
+@media (max-width: 992px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr; /* Uma coluna em telas menores */
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .dashboard-header div:last-child {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        flex-grow: 1; 
+        text-align: center;
+        margin-bottom: 5px; /* Espaço entre os botões */
+    }
+
+    .summary-cards {
+        /* Permite 2 colunas em telas de tablet, mas pode quebrar para 1 em telas menores se o conteúdo for grande */
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
+    }
+
+    .card {
+        width: 340px;
+        padding: 20px; /* Reduz o padding dos cards */
+    }
+
+    .card-title {
+        font-size: 1em; /* Reduz o tamanho da fonte do título do card */
+    }
+
+    .summary-card .card-value {
+        font-size: 2em; /* Reduz o tamanho da fonte do valor do card */
+    }
+
+    .table th,
+    .table td {
+        padding: 8px 5px; /* Reduz ainda mais o padding das células da tabela */
+        font-size: 0.8em; /* Reduz a fonte da tabela */
+    }
+
+    .table {
+        min-width: 500px; /* Reduz a largura mínima da tabela para telas menores */
+    }
+
+    .badge {
+        padding: 3px 6px;
+        font-size: 0.65em;
+    }
+
+    .movement-details, .store-info, .pending-store, .usage-store {
+        min-width: unset; /* Reseta o min-width para telas pequenas */
+    }
+
+    .movement-description, .store-name, .pending-store, .usage-store {
+        white-space: normal; /* Permite que o texto quebre em várias linhas */
+        overflow: visible;
+        text-overflow: clip;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 0 10px; /* Padding menor para celulares */
+    }
+
+    .dashboard-header h1 {
+        font-size: 1.8em;
+    }
+
+    .dashboard-subtitle {
+        font-size: 0.9em;
+    }
+
+    .btn {
+        padding: 8px 15px; /* Reduz o padding dos botões */
+        font-size: 0.9em;
+    }
+
+    .summary-cards {
+        grid-template-columns: 1fr; /* Uma coluna em celulares */
+    }
+
+    .summary-card .card-value {
+        font-size: 1.8em;
+    }
+
+    .card {
+        padding: 15px;
+        width: 380px;
+    }
+    
+    .card-title {
+        font-size: 0.9em; /* Ajusta o tamanho da fonte para mobile */
+    }
+
+    .table {
+        min-width: 400px; /* Largura mínima menor para garantir a rolagem */
+        font-size: 0.75em;
+    }
+
+    .movement-item, .store-balance-item, .pending-item, .usage-item {
+        flex-direction: column; /* Itens em coluna para melhor aproveitamento do espaço */
+        align-items: flex-start;
+        gap: 5px; /* Reduz o espaçamento entre itens */
+    }
+
+    .movement-icon, .store-logo {
+        margin-bottom: 5px; /* Espaço abaixo dos ícones/logos */
+    }
+
+    .movement-amount, .store-balance, .pending-amount, .usage-amount {
+        font-size: 1em; /* Ajusta o tamanho da fonte para mobile */
+        width: 100%; /* Ocupa a largura total */
+        text-align: right; /* Alinha o valor à direita */
+    }
+
+    .movement-date, .store-stats, .pending-count, .usage-count {
+        font-size: 0.75em; /* Reduz o tamanho da fonte das datas/stats */
+        width: 100%;
+        text-align: right;
+    }
+    
+    .pending-details, .usage-stats {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .pending-info {
+        font-size: 0.8em;
+        padding: 8px 10px;
+    }
+}
+
+/* Para telas muito pequenas, como iPhone SE */
+@media (max-width: 375px) {
+    .dashboard-header h1 {
+        font-size: 1.6em;
+    }
+
+    .btn {
+        font-size: 0.85em;
+        padding: 7px 12px;
+    }
+
+    .summary-card .card-value {
+        font-size: 1.6em;
+    }
+
+    .table {
+        min-width: 350px;
+    }
+}

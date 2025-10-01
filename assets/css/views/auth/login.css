@@ -1,0 +1,546 @@
+/* Estilos específicos para a página de login */
+:root {
+    --primary-color: #FF7A00;
+    --white: #FFFFFF;
+    --light-gray: #F5F5F5;
+    --dark-gray: #333333;
+    --medium-gray: #666666;
+    --border-radius: 20px;
+    --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    --success-color: #28a745;
+    --error-color: #dc3545;
+    --warning-color: #ffc107;
+    --info-color: #17a2b8;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: var(--primary-color);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.logo-container {
+    text-align: center;
+    margin: 20px 0;
+    padding: 10px;
+}
+
+.logo-container img {
+    height: 50px;
+}
+
+.login-container {
+    background-color: var(--white);
+    border-radius: var(--border-radius);
+    padding: 30px;
+    width: 90%;
+    max-width: 450px;
+    box-shadow: var(--shadow);
+    margin: 0 auto;
+    position: relative;
+}
+
+.login-header h1 {
+    font-size: 18px;
+    color: var(--dark-gray);
+    margin-bottom: 5px;
+}
+
+.login-header span {
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+.login-header h2 {
+    font-size: 32px;
+    margin-bottom: 30px;
+    color: var(--dark-gray);
+}
+
+.social-login {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+}
+
+.social-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background-color: var(--light-gray);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.social-btn:hover {
+    background-color: #e0e0e0;
+    transform: translateY(-1px);
+}
+
+.social-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.google-btn {
+    flex: 2;
+    background-color: #FFF1E6;
+    color: var(--primary-color);
+}
+
+.facebook-btn, .apple-btn {
+    flex: 1;
+}
+
+.social-btn img {
+    height: 24px;
+    margin-right: 10px;
+}
+
+.google-btn img {
+    height: 20px;
+}
+
+.input-group {
+    margin-bottom: 25px;
+}
+
+.input-group label {
+    display: block;
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: var(--dark-gray);
+}
+
+.input-group input {
+    width: 100%;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.input-group input:focus {
+    border-color: var(--primary-color);
+}
+
+.password-field {
+    position: relative;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #999;
+}
+
+.forgot-password {
+    text-align: right;
+    margin-bottom: 25px;
+}
+
+.forgot-password a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.login-btn {
+    display: block;
+    width: 100%;
+    padding: 15px;
+    background-color: var(--primary-color);
+    color: var(--white);
+    border: none;
+    border-radius: 10px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.login-btn:hover {
+    background-color: #E86E00;
+    transform: translateY(-1px);
+}
+
+.login-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.register-link {
+    margin-top: 20px;
+    text-align: center;
+    color: var(--medium-gray);
+    font-size: 14px;
+}
+
+.register-link a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.or-divider {
+    display: flex;
+    align-items: center;
+    margin: 20px 0;
+    color: var(--medium-gray);
+    font-size: 14px;
+}
+
+.or-divider::before,
+.or-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background-color: #ddd;
+    margin: 0 10px;
+}
+
+/* Toast Messages - Sistema moderno de notificações */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    max-width: 400px;
+    width: 100%;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(10px);
+    transform: translateX(100%);
+    opacity: 0;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+    overflow: hidden;
+}
+
+.toast.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.toast.hide {
+    transform: translateX(100%);
+    opacity: 0;
+}
+
+/* Tipos de toast */
+.toast.success {
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.95), rgba(40, 167, 69, 0.85));
+    color: white;
+    border-left: 4px solid #28a745;
+}
+
+.toast.error {
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.95), rgba(220, 53, 69, 0.85));
+    color: white;
+    border-left: 4px solid #dc3545;
+}
+
+.toast.warning {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.95), rgba(255, 193, 7, 0.85));
+    color: #212529;
+    border-left: 4px solid #ffc107;
+}
+
+.toast.info {
+    background: linear-gradient(135deg, rgba(23, 162, 184, 0.95), rgba(23, 162, 184, 0.85));
+    color: white;
+    border-left: 4px solid #17a2b8;
+}
+
+.toast-icon {
+    font-size: 20px;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.toast-content {
+    flex: 1;
+}
+
+.toast-title {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 4px;
+}
+
+.toast-message {
+    font-size: 14px;
+    opacity: 0.9;
+    line-height: 1.4;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 18px;
+    cursor: pointer;
+    opacity: 0.7;
+    margin-left: 12px;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.toast-close:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Barra de progresso do toast */
+.toast-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 0 0 12px 12px;
+    animation: toast-progress 5s linear forwards;
+}
+
+@keyframes toast-progress {
+    from { width: 100%; }
+    to { width: 0%; }
+}
+
+/* Spinner/Loader */
+.spinner-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    backdrop-filter: blur(5px);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.spinner-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.loader {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: inline-block;
+    position: relative;
+    border: 3px solid;
+    border-color: #FFF #FFF transparent transparent;
+    box-sizing: border-box;
+    animation: rotation 1s linear infinite;
+}
+
+.loader::after, 
+.loader::before {
+    content: '';
+    box-sizing: border-box;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+    border: 3px solid;
+    border-color: transparent transparent #FF3D00 #FF3D00;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    box-sizing: border-box;
+    animation: rotationBack 0.5s linear infinite;
+    transform-origin: center center;
+}
+
+.loader::before {
+    width: 32px;
+    height: 32px;
+    border-color: #FFF #FFF transparent transparent;
+    animation: rotation 1.5s linear infinite;
+}
+
+@keyframes rotation {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes rotationBack {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(-360deg); }
+}
+
+/* Remover os estilos antigos de error/success message */
+.error-message,
+.success-message {
+    display: none;
+}
+
+/* Responsividade para toast */
+@media (max-width: 768px) {
+    .toast-container {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+    
+    .toast {
+        transform: translateY(-100%);
+    }
+    
+    .toast.show {
+        transform: translateY(0);
+    }
+    
+    .toast.hide {
+        transform: translateY(-100%);
+    }
+}
+
+/* Resto do CSS existente para desktop e mobile... */
+@media (max-width: 991px) {
+    .login-page .left-panel {
+        display: none;
+    }
+
+    .login-page .right-panel {
+        width: 100%;
+    }
+
+    .illustrations, 
+    .illustration-left, 
+    .illustration-right {
+        display: none;
+    }
+
+    .logo-container {
+        display: block;
+    }
+
+    .login-container {
+        width: 90%;
+        margin: 0 auto;
+        max-width: 450px;
+    }
+
+    body {
+        background-color: var(--primary-color);
+        flex-direction: column;
+    }
+}
+
+@media (min-width: 992px) {
+    body {
+        background-color: var(--white);
+        flex-direction: row;
+    }
+
+    .login-page {
+        display: flex;
+        width: 100%;
+        height: 100vh;
+    }
+
+    .left-panel {
+        background-color: var(--primary-color);
+        width: 50%;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        position: relative;
+    }
+
+    .right-panel {
+        width: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: var(--white);
+    }
+
+    .logo-container-desktop {
+        text-align: left;
+        margin: 20px;
+    }
+
+    .illustrations {
+        display: flex;
+        justify-content: space-between;
+        margin-top: auto;
+    }
+
+    .illustration-left, .illustration-right {
+        width: 180px;
+        position: absolute;
+        bottom: 30px;
+    }
+
+    .illustration-left {
+        left: 50px;
+    }
+
+    .illustration-right {
+        right: -90px;
+        bottom: 50px;
+        z-index: 2;
+    }
+
+    .login-container {
+        margin: 0;
+        width: 400px;
+        max-width: 90%;
+    }
+
+    .social-login {
+        flex-direction: row;
+        margin-top: 20px;
+    }
+
+    .logo-container {
+        display: none;
+    }
+}
