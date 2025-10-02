@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // controllers/TransactionController.php
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/constants.php';
@@ -1516,7 +1516,7 @@ class TransactionController {
             $db = Database::getConnection();
             
             // Verificar cliente
-            $userStmt = $db->prepare("SELECT id, nome, email FROM usuarios WHERE id = ? AND tipo = ? AND status = ?");
+            $userStmt = $db->prepare("SELECT id, nome, email, telefone FROM usuarios WHERE id = ? AND tipo = ? AND status = ?");
             $userStmt->execute([$data['usuario_id'], USER_TYPE_CLIENT, USER_ACTIVE]);
             $user = $userStmt->fetch(PDO::FETCH_ASSOC);
             
@@ -1693,8 +1693,8 @@ class TransactionController {
             if ($isStoreMvp && $valorCashbackCliente > 0) {
                 require_once __DIR__ . '/../models/CashbackBalance.php';
                 $balanceModel = new CashbackBalance();
-                $descricaoCashback = "Cashback MVP instantâneo - Código: " . $data['codigo_transacao'];
-                
+                $descricaoCashback = "Cashback MVP instantaneo - Codigo: " . $data['codigo_transacao'];
+
                 $creditResult = $balanceModel->addBalance(
                     $data['usuario_id'],
                     $data['loja_id'],
@@ -1702,10 +1702,51 @@ class TransactionController {
                     $descricaoCashback,
                     $transactionId
                 );
-                
+
                 $cashbackCreditado = $creditResult;
             }
-            
+
+            $whatsappConfirmation = null;
+            $whatsappAck = null;
+            if ($isStoreMvp && defined('WHATSAPP_ENABLED') && WHATSAPP_ENABLED) {
+                try {
+                    if (!class_exists('WhatsAppBot')) {
+                        require_once __DIR__ . '/../utils/WhatsAppBot.php';
+                    }
+
+                    if (!empty($user['telefone'])) {
+                        $whatsAppData = [
+                            'nome_loja' => $store['nome_fantasia'] ?? 'Loja parceira',
+                            'valor_total' => $data['valor_total'],
+                            'valor_cashback' => $valorCashbackCliente,
+                            'codigo_transacao' => $data['codigo_transacao'],
+                        ];
+
+                        $whatsAppOptions = [
+                            'custom_footer' => 'Transacao confirmada! Seu cashback ja esta disponivel.',
+                            'tag' => 'transaction:mvp_confirmation',
+                        ];
+
+                        $whatsAppResult = WhatsAppBot::sendNewTransactionNotification(
+                            $user['telefone'],
+                            $whatsAppData,
+                            $whatsAppOptions
+                        );
+
+                        $whatsappConfirmation = $whatsAppResult['success'];
+                        $whatsappAck = $whatsAppResult['ack'] ?? null;
+
+                        if (!$whatsAppResult['success']) {
+                            error_log('WhatsApp MVP Confirmation - Falha: ' . ($whatsAppResult['message'] ?? 'sem mensagem'));
+                        }
+                    } else {
+                        error_log('WhatsApp MVP Confirmation - Cliente sem telefone cadastrado: ' . $data['usuario_id']);
+                    }
+                } catch (Throwable $whatsException) {
+                    error_log('WhatsApp MVP Confirmation - Erro: ' . $whatsException->getMessage());
+                }
+            }
+
             return [
                 'status' => true,
                 'message' => $successMessage,
@@ -1715,7 +1756,9 @@ class TransactionController {
                     'valor_cashback' => $valorCashbackCliente,
                     'is_mvp' => $isStoreMvp,
                     'status_transacao' => $transactionStatus,
-                    'cashback_creditado' => $cashbackCreditado
+                    'cashback_creditado' => $cashbackCreditado,
+                    'whatsapp_confirmation' => $whatsappConfirmation,
+                    'whatsapp_ack' => $whatsappAck
                 ]
             ];
             
@@ -3587,3 +3630,4 @@ if (basename($_SERVER['PHP_SELF']) === 'TransactionController.php') {
 }
 
 ?>
+
