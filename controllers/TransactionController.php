@@ -401,6 +401,47 @@ class TransactionController {
         }
     }
     /**
+     * Envia notificação WhatsApp para nova transação
+     * Integra com o sistema existente de notificações
+     */
+    private static function sendWhatsAppNotificationNewTransaction($userId, $transactionData) {
+        try {
+            // Verificar se WhatsApp está habilitado
+            if (!defined('WHATSAPP_ENABLED') || !WHATSAPP_ENABLED) {
+                return ['status' => false, 'message' => 'WhatsApp desabilitado'];
+            }
+            
+            // Incluir a classe WhatsApp se ainda não estiver carregada
+            if (!class_exists('WhatsAppBot')) {
+                require_once __DIR__ . '/../utils/WhatsAppBot.php';
+            }
+            
+            // Obter telefone do usuário
+            $db = Database::getConnection();
+            $userStmt = $db->prepare("SELECT telefone FROM usuarios WHERE id = ?");
+            $userStmt->execute([$userId]);
+            $user = $userStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$user || empty($user['telefone'])) {
+                error_log("WhatsApp: Usuário {$userId} sem telefone cadastrado");
+                return ['status' => false, 'message' => 'Usuário sem telefone'];
+            }
+            
+            // Enviar notificação via WhatsApp
+            $result = WhatsAppBot::sendNewTransactionNotification($user['telefone'], $transactionData);
+            
+            if ($result['success']) {
+                error_log("WhatsApp: Notificação de nova transação enviada para {$user['telefone']}");
+            }
+            
+            return $result;
+            
+        } catch (Exception $e) {
+            error_log("WhatsApp: Erro ao enviar notificação de nova transação: " . $e->getMessage());
+            return ['status' => false, 'error' => $e->getMessage()];
+        }
+    }
+    /**
      * NOVO MÉTODO: createNewPixPayment
      * Gera uma nova transação PIX a cada clique, mantendo transações pendentes visíveis
      */
@@ -1144,6 +1185,87 @@ class TransactionController {
                     error_log("[TRACE] TransactionController::registerTransaction() - Transação criada com ID: {$transactionId}", 3, 'integration_trace.log');
                 }
                 
+                // === INTEGRAÇÃO AUTOMÁTICA: Sistema de Notificação Corrigido ===
+                // Disparar notificação para transações pendentes E aprovadas
+                if ($transactionStatus === TRANSACTION_PENDING || $transactionStatus === TRANSACTION_APPROVED) {
+                    try {
+                        // Log de início da notificação
+                        error_log("[FIXED] TransactionController::registerTransaction() - Iniciando notificação para ID: {$transactionId}, status: {$transactionStatus}");
+
+                        // NOTIFICAÇÃO ULTRA DIRETA VIA WHATSAPP (Máxima Prioridade)
+                        $ultraDirectPath = __DIR__ . '/../classes/UltraDirectNotifier.php';
+                        $immediateSystemPath = __DIR__ . '/../classes/ImmediateNotificationSystem.php';
+                        $fallbackSystemPath = __DIR__ . '/../classes/FixedBrutalNotificationSystem.php';
+
+                        $result = ['success' => false, 'message' => 'Nenhum sistema encontrado'];
+                        $systemUsed = 'none';
+
+                        // 1️⃣ PRIORIDADE MÁXIMA: UltraDirectNotifier (Direto no bot)
+                        if (file_exists($ultraDirectPath)) {
+                            require_once $ultraDirectPath;
+                            if (class_exists('UltraDirectNotifier')) {
+                                error_log("[ULTRA] Usando UltraDirectNotifier para transação {$transactionId}");
+                                $notifier = new UltraDirectNotifier();
+
+                                // Buscar dados da transação para envio (método estático)
+                                $db = Database::getConnection();
+                                $stmt = $db->prepare("
+                                    SELECT t.*, u.nome as cliente_nome, u.telefone as cliente_telefone, l.nome_fantasia as loja_nome
+                                    FROM transacoes_cashback t
+                                    LEFT JOIN usuarios u ON t.usuario_id = u.id
+                                    LEFT JOIN lojas l ON t.loja_id = l.id
+                                    WHERE t.id = :id
+                                ");
+                                $stmt->bindParam(':id', $transactionId);
+                                $stmt->execute();
+                                $transactionData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                                if ($transactionData && !empty($transactionData['cliente_telefone'])) {
+                                    $result = $notifier->notifyTransaction($transactionData);
+                                    $systemUsed = 'UltraDirectNotifier';
+                                    error_log("[ULTRA] Resultado: " . ($result['success'] ? 'SUCESSO' : 'FALHA') . " em " . ($result['time_ms'] ?? 0) . "ms");
+                                } else {
+                                    error_log("[ULTRA] Dados insuficientes para UltraDirectNotifier");
+                                }
+                            }
+                        }
+
+                        // 2️⃣ Fallback: Sistema imediato
+                        if (!$result['success'] && file_exists($immediateSystemPath)) {
+                            require_once $immediateSystemPath;
+                            if (class_exists('ImmediateNotificationSystem')) {
+                                error_log("[IMMEDIATE] Usando sistema de notificação imediata para transação {$transactionId}");
+                                $notificationSystem = new ImmediateNotificationSystem();
+                                $result = $notificationSystem->sendImmediateNotification($transactionId);
+                                $systemUsed = 'ImmediateNotificationSystem (fallback)';
+                            }
+                        }
+
+                        // Se sistema imediato falhou, usar fallback
+                        if (!$result['success'] && file_exists($fallbackSystemPath)) {
+                            require_once $fallbackSystemPath;
+                            if (class_exists('FixedBrutalNotificationSystem')) {
+                                error_log("[FALLBACK] Usando sistema fallback para transação {$transactionId}");
+                                $notificationSystem = new FixedBrutalNotificationSystem();
+                                $result = $notificationSystem->forceNotifyTransaction($transactionId);
+                                $systemUsed = 'FixedBrutalNotificationSystem (fallback)';
+                            }
+                        }
+
+                        // Log detalhado do resultado
+                        if ($result['success']) {
+                            $method = $result['method_used'] ?? 'unknown';
+                            $timeInfo = isset($result['all_results']) ? $this->getTimeInfo($result['all_results']) : '';
+                            error_log("[SUCCESS] TransactionController - Notificação enviada via {$systemUsed} usando método {$method} para transação {$transactionId}{$timeInfo}");
+                        } else {
+                            error_log("[FAIL] TransactionController - Falha na notificação para transação {$transactionId} via {$systemUsed}: " . $result['message']);
+                        }
+
+                    } catch (Exception $e) {
+                        // Log de erro mas não quebrar o fluxo principal
+                        error_log("[FIXED] TransactionController - Erro na notificação para transação {$transactionId}: " . $e->getMessage());
+                    }
+                }
                 
                 // MVP será processado APÓS o commit para evitar transações aninhadas
                 
@@ -1229,6 +1351,44 @@ class TransactionController {
                     //     $notificationMessage,
                     //     'info'
                     // );
+                }
+                // INTEGRAÇÃO WHATSAPP: Com tratamento de erro aprimorado
+                if (defined('WHATSAPP_ENABLED') && WHATSAPP_ENABLED) {
+                    try {
+                        // Carregar as classes necessárias para WhatsApp
+                        if (!class_exists('WhatsAppBot')) {
+                            require_once __DIR__ . '/../utils/WhatsAppBot.php';
+                        }
+                        
+                        // Buscar o telefone do cliente que fez a compra
+                        $userStmt = $db->prepare("SELECT telefone, nome FROM usuarios WHERE id = ?");
+                        $userStmt->execute([$data['usuario_id']]);
+                        $userData = $userStmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        // Verificar se o cliente tem WhatsApp cadastrado
+                        if ($userData && !empty($userData['telefone'])) {
+                            // Preparar as informações da transação para a mensagem WhatsApp
+                            $whatsappData = [
+                                'valor_cashback' => $valorCashbackCliente, // Valor do cashback desta transação
+                                'valor_usado' => $valorSaldoUsado ?? 0, // Valor usado do saldo (se aplicável)
+                                'nome_loja' => $store['nome_fantasia'] // Nome da loja onde a compra foi realizada
+                            ];
+                            
+                            // Enviar a notificação via WhatsApp usando nosso template específico
+                            $whatsappResult = WhatsAppBot::sendNewTransactionNotification(
+                                $userData['telefone'], 
+                                $whatsappData
+                            );
+                            
+                            // O resultado será automaticamente registrado em nosso sistema de logs
+                            // Você poderá acompanhar o sucesso ou falha na interface de monitoramento
+                        }
+                    } catch (Throwable $e) {
+                        // Capturar TODOS os tipos de erro (Exception, Error, etc.) sem interromper a transação
+                        // Isso garante que o sistema principal continue funcionando mesmo se houver problema crítico com WhatsApp
+                        error_log("WhatsApp Nova Transação - Erro crítico: " . $e->getMessage() . " em " . $e->getFile() . ":" . $e->getLine());
+                        // Não relançar a exceção para não afetar o fluxo principal
+                    }
                 }
                 // Enviar email para o cliente (opcional, pode remover se não quiser)
                 if (!empty($user['email'])) {
@@ -1476,6 +1636,48 @@ class TransactionController {
             
             $transactionId = $db->lastInsertId();
 
+            // === INTEGRAÇÃO AUTOMÁTICA: UltraDirectNotifier (PRIORIDADE MÁXIMA) ===
+            try {
+                error_log("[ULTRA] TransactionController::registerTransactionFixed() - Disparando notificação ULTRA para transação {$transactionId}");
+
+                // 🚀 PRIORIDADE 1: UltraDirectNotifier (Direto no bot)
+                $ultraPath = __DIR__ . '/../classes/UltraDirectNotifier.php';
+                if (file_exists($ultraPath)) {
+                    require_once $ultraPath;
+                    if (class_exists('UltraDirectNotifier')) {
+                        $notifier = new UltraDirectNotifier();
+
+                        // Preparar dados da transação (usando ID recém-criado)
+                        $transactionData = [
+                            'transaction_id' => $transactionId,
+                            'cliente_telefone' => 'brutal_system', // Será resolvido pelo UltraDirectNotifier
+                            'additional_data' => json_encode([
+                                'transaction_id' => $transactionId,
+                                'system' => 'registerTransactionFixed',
+                                'timestamp' => date('Y-m-d H:i:s')
+                            ])
+                        ];
+
+                        $result = $notifier->notifyTransaction($transactionData);
+                        error_log("[ULTRA] registerTransactionFixed - Resultado: " . ($result['success'] ? 'SUCESSO' : 'FALHA') . " em " . ($result['time_ms'] ?? 0) . "ms");
+                    } else {
+                        error_log("[ULTRA] TransactionController::registerTransactionFixed() - Classe UltraDirectNotifier não encontrada");
+                        $result = ['success' => false, 'message' => 'Classe UltraDirectNotifier não encontrada'];
+                    }
+                } else {
+                    error_log("[ULTRA] TransactionController::registerTransactionFixed() - Arquivo não encontrado: {$ultraPath}");
+                    $result = ['success' => false, 'message' => 'UltraDirectNotifier não encontrado'];
+                }
+
+                if ($result['success']) {
+                    error_log("[ULTRA] TransactionController::registerTransactionFixed() - Notificação ULTRA enviada com sucesso!");
+                } else {
+                    error_log("[ULTRA] TransactionController::registerTransactionFixed() - Falha na notificação ULTRA: " . ($result['error'] ?? $result['message']));
+                }
+
+            } catch (Exception $e) {
+                error_log("[ULTRA] TransactionController::registerTransactionFixed() - Erro na notificação ULTRA: " . $e->getMessage());
+            }
 
             // Commit
             $db->commit();
@@ -2489,35 +2691,72 @@ class TransactionController {
 
     /**
      * Enviar notificação de cashback liberado para o cliente
+     * Versão integrada que inclui notificação automática via WhatsApp
      */
     private static function sendCashbackNotification($userId, $cashbackValue, $lojaId) {
         try {
             $db = Database::getConnection();
-
-            // Buscar informações da loja
+            
+            // Buscar informações completas da loja e do cliente em uma consulta otimizada
             $stmt = $db->prepare("
-                SELECT l.nome_fantasia as loja_nome
+                SELECT 
+                    l.nome_fantasia as loja_nome,
+                    u.telefone as cliente_telefone,
+                    u.nome as cliente_nome
                 FROM lojas l
-                WHERE l.id = ?
+                CROSS JOIN usuarios u 
+                WHERE l.id = ? AND u.id = ?
             ");
-            $stmt->execute([$lojaId]);
+            $stmt->execute([$lojaId, $userId]);
             $notificationData = $stmt->fetch(PDO::FETCH_ASSOC);
-
+            
             $nomeLoja = $notificationData ? $notificationData['loja_nome'] : 'Loja Parceira';
-
-            // Criar notificação interna
+            
+            // FUNCIONALIDADE EXISTENTE: Criar notificação interna (preservada integralmente)
             $notifStmt = $db->prepare("
-                INSERT INTO notificacoes (usuario_id, titulo, mensagem, tipo)
+                INSERT INTO notificacoes (usuario_id, titulo, mensagem, tipo) 
                 VALUES (?, ?, ?, 'success')
             ");
             $notifStmt->execute([
                 $userId,
                 'Cashback Liberado!',
-                "Seu cashback de R$ " . number_format($cashbackValue, 2, ',', '.') .
+                "Seu cashback de R$ " . number_format($cashbackValue, 2, ',', '.') . 
                 " da loja {$nomeLoja} foi liberado e está disponível para uso!"
             ]);
-
+            
+            // NOVA FUNCIONALIDADE: Notificação automática via WhatsApp
+            if (defined('WHATSAPP_ENABLED') && WHATSAPP_ENABLED && 
+                $notificationData && !empty($notificationData['cliente_telefone'])) {
+                
+                try {
+                    // Carregar a classe WhatsApp
+                    if (!class_exists('WhatsAppBot')) {
+                        require_once __DIR__ . '/../utils/WhatsAppBot.php';
+                    }
+                    
+                    // Preparar dados estruturados para o template de cashback liberado
+                    $whatsappTransactionData = [
+                        'valor_cashback' => $cashbackValue,
+                        'nome_loja' => $nomeLoja
+                    ];
+                    
+                    // Enviar notificação via WhatsApp usando template específico
+                    WhatsAppBot::sendCashbackReleasedNotification(
+                        $notificationData['cliente_telefone'], 
+                        $whatsappTransactionData
+                    );
+                    
+                    // O resultado será automaticamente registrado em nosso sistema de logs
+                    // Você poderá monitorar o sucesso na interface que acabamos de validar
+                    
+                } catch (Exception $whatsappException) {
+                    // Log específico para erros de WhatsApp sem afetar o fluxo principal
+                    error_log("WhatsApp Cashback Liberado - Erro: " . $whatsappException->getMessage());
+                }
+            }
+            
         } catch (Exception $e) {
+            // Log de erro geral mantendo a funcionalidade do sistema intacta
             error_log('Erro na notificação de cashback liberado: ' . $e->getMessage());
         }
     }

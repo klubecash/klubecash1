@@ -1,0 +1,5 @@
+Funcao registerTransactionFixed($data)
+- Definicao: controllers/TransactionController.php:1496 - Metodo estatico no TransactionController responsavel por validar dados de nova transacao, calcular cashback, inserir registros e lidar com notificacoes MVP/ULTRA.
+- Logs internos: controllers/TransactionController.php:1641,1656,1662,1664,1668,1673,1675,1679,1726 - Pontos de log que monitoram notificacoes ULTRA e tratam excecoes dentro do proprio metodo.
+- Uso direto: views/stores/register-transaction.php:171-173 - Formulario de nova venda da loja monta $transactionData e chama TransactionController::registerTransactionFixed ao processar o POST.
+- Observacao: Nao foram encontrados outros pontos chamando esta funcao; verificacao realizada com `rg "registerTransactionFixed"` na raiz do projeto.

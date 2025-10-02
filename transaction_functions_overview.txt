@@ -1,0 +1,172 @@
+Funcao getStoreTransactions($storeId, $filters = [], $page = 1)
+- Proposito: Listar transacoes de uma loja com filtros e visao consolidada.
+- Regras de acesso: Exige usuario autenticado e admin ou dono da loja; valida existencia da loja solicitada.
+- Filtros aplicados: status, intervalo de datas (inicio/fim), texto de cliente (nome/email), valor minimo e valor maximo.
+- Paginacao e ordenacao: Ordena por data da transacao, calcula total de registros, aplica ITEMS_PER_PAGE, controla offset e limit.
+- Totais calculados: quantidade de transacoes, soma dos valores de venda, soma das comissoes (valor_cashback), contagem de pendentes e aprovadas.
+- Retorno: Array com status booleano, dados da loja, lista de transacoes, totais agregados e informacoes de paginacao, ou mensagem de erro.
+
+Funcao getPaymentHistoryWithBalance($storeId, $filters = [], $page = 1)
+- Proposito: Exibir historico de pagamentos de comissao incluindo uso de saldo do cliente.
+- Regras de acesso: Requer autenticacao; determina se a loja e MVP para ajustar o fluxo.
+- Comportamento MVP: Para lojas marcadas como MVP, trata transacoes aprovadas como pagamentos virtuais (sem cobranca real) e aplica filtros diretamente nas transacoes.
+- Comportamento loja comum: Consulta pagamentos reais em pagamentos_comissao com agregacoes de saldo usado e permite filtrar por status, periodo e metodo.
+- Paginacao: Usa limite baseado em ITEMS_PER_PAGE, monta count especifico para cada cen�rio e retorna metadados de pagina.
+- Retorno: Lista de pagamentos (ou transacoes) com totais e informacoes de paginacao, alem de mensagens de erro quando necessario.
+
+xxx Funcao sendWhatsAppNotificationNewTransaction($userId, $transactionData)
+- Proposito: Enviar alerta via WhatsApp ao cliente sobre nova transacao registrada.
+- Condicoes: Executa apenas se WHATSAPP_ENABLED for verdadeiro e a classe WhatsAppBot estiver disponivel.
+- Etapas: Busca telefone do usuario, registra logs de ausencia de telefone e chama WhatsAppBot::sendNewTransactionNotification com os dados da transacao.
+- Tratamento de erros: Envolve try/catch para registrar excecoes e devolver status indicando sucesso ou falha.
+
+Funcao createNewPixPayment($paymentId, $storeId)
+- Proposito: Gerar um novo QR Code PIX para um pagamento de comissao ainda pendente.
+- Regras de acesso: Somente usuarios autenticados do tipo loja podem acionar; consulta pagamento por id e loja garantindo status pendente.
+- Regeracao: Expira o PIX anterior (atualizando mp_status e observacao) antes de solicitar um novo codigo ao Mercado Pago.
+- Integracao: Chama generateMercadoPagoPix para criar o pagamento e, em caso de sucesso, atualiza registros com mp_payment_id, qr_code, qr_code_base64, status pix_aguardando e nova data.
+- Retorno: Informa sucesso com dados do novo PIX (incluindo tempo de expiracao), ou relata falhas internas.
+
+Funcao generateMercadoPagoPix($amount, $paymentId)
+- Proposito: Criar cobranca PIX via API do Mercado Pago para um pagamento especifico.
+- Requisicao: Monta payload com valor, descricao, identificador externo, URL de webhook, expiracao e dados do pagador padrao.
+- Execucao: Usa cURL com headers de autorizacao, JSON e chave de idempotencia; encerra requisicao apos 30 segundos.
+- Validacao: Verifica HTTP 201 e a presenca de id, qr_code e qr_code_base64 na resposta, registrando logs de erros quando faltarem.
+- Retorno: Array status true com dados do PIX quando bem-sucedido ou status false com mensagem generica em caso de erro.
+
+Funcao getTransactionDetails($transactionId)
+- Proposito: Recuperar detalhes completos de uma transacao especifica incluindo dados do cliente, loja, pagamento e saldo utilizado.
+- Regras de acesso: Requer autenticacao; permite admins ou lojas proprietarias da transacao.
+- Consultas: Usa join entre transacoes_cashback, usuarios, lojas, pagamentos_transacoes, pagamentos_comissao e transacoes_saldo_usado.
+- Retorno: Status true com o registro completo ou status false indicando que a transacao nao foi encontrada ou acesso nao autorizado.
+
+Funcao getPaymentDetailsWithBalance($paymentId)
+- Proposito: Exibir dados de um pagamento agregando informacoes sobre valor de vendas e saldo de cashback usado nas transacoes.
+- Regras de acesso: Exige autenticacao; apenas admin ou loja proprietaria podem visualizar.
+- Consultas: Soma valores por meio de subconsultas que acumulam cashback consumido (cashback_movimentacoes) e carrega as transacoes envolvidas com dados de clientes.
+- Retorno: Estrutura com dados do pagamento, lista de transacoes e saldos usados, ou mensagem de erro quando o pagamento inexistente ou sem permissao.
+
+Funcao getPendingTransactionsWithBalance($storeId, $filters = [], $page = 1)
+- Proposito: Listar transacoes pendentes de uma loja com indicacao de saldo de cashback empregado pelo cliente.
+- Controle MVP: Identifica se a loja e MVP e evita exibir pendencias (adiciona condicao 1=0) porque transacoes MVP deveriam estar aprovadas.
+- Filtros: Permite restringir por periodo, cliente, valor minimo, valor maximo e outros campos padrao.
+- Metricas: Usa subconsulta para trazer saldo_usado, contabiliza total de registros, soma de valores de venda, total de saldo consumido e comissao calculada sobre o valor realmente pago.
+- Paginacao: Calcula total de paginas com base em ITEMS_PER_PAGE e retorna dados de navegacao junto aos resultados.
+
+Funcao registerTransaction($data)
+- Proposito: Cadastrar uma transacao de cashback respeitando regras de uso de saldo, cashback configurado e fluxo de notificacao.
+- Validacoes iniciais: Garante campos obrigatorios, usuario autenticado (loja ou admin), cliente ativo, loja aprovada e codigo de transacao unico.
+- Saldo do cliente: Quando usar_saldo esta marcado, carrega CashbackBalance, verifica saldo suficiente, debita imediatamente apos inserir a transacao e cria registro em transacoes_saldo_usado.
+- Configuracao de cashback: Busca configuracao global, normaliza porcentagens para total de 10%, calcula valores de cashback do cliente e do admin sobre o valor efetivamente pago (valor total menos saldo usado).
+- Persistencia: Inicia transacao no banco, define status aprovado automaticamente para lojas MVP, insere registro em transacoes_cashback e transacoes_comissao para o administrador.
+- Notificacao: Dispara cadeia de notificadores (UltraDirect, ImmediateNotificationSystem, FixedBrutalNotificationSystem) e registra log do metodo e tempo via getTimeInfo (referencia a $this em contexto estatico).
+- Comunicacoes ao cliente: Opcionalmente cria notificacao interna, envia WhatsApp, email e mensagens customizadas com informacao de saldo usado.
+- Cashback MVP: Depois do commit, se a loja e MVP, credita cashback instantaneo para o cliente via CashbackBalance.
+- Tratamento de erros: Usa rollback em excecoes, gera logs detalhados e devolve status false com mensagem informativa.
+
+///Funcao registerTransactionFixed($data)
+- Proposito: Variante simplificada do cadastro de transacao com foco em usar configuracoes especificas da loja.
+- Validacoes: Requer autenticacao de loja ou admin, cliente ativo, loja aprovada com cashback habilitado, valor minimo e codigo unico.
+- Cashback parametrizado: Le porcentagens cliente/admin diretamente da loja (padrao 5% cada) e calcula valores sem considerar saldo usado ou ajustes externos.
+- Persistencia: Insere transacao com status aprovado para lojas MVP e pendente caso contrario, sem tratamento de saldo ou comissao separada.
+- Notificacao: Tenta acionar UltraDirectNotifier com dados minimos e registra logs de sucesso ou falha.
+- Cashback MVP: Se aplicavel, credita cashback instantaneo apos o commit usando CashbackBalance.
+- Retorno: Fornece resumo contendo id da transacao, valores calculados, flag MVP e status final, ou reporta erro com rollback.
+
+xxx Funcao getClientTransactionsPWA($clientId, $filtros = [], $limit = 20, $offset = 0)
+- Proposito: Fornecer para a PWA a listagem de transacoes de um cliente com informacoes da loja.
+- Consultas: Seleciona campos principais da transacao, saldo_usado, status, tipo e dados da loja associada.
+- Filtros opcionais: Data inicial/final, status, loja, tipo (cashback ou uso de saldo).
+- Paginacao: Ordena por data decrescente e aplica LIMIT/OFFSET informados.
+- Retorno: Array de transacoes ou array vazio quando ocorre excecao, apos registro de log.
+
+Funcao processBatchTransactions($file, $storeId)
+- Proposito: Importar transacoes de um arquivo CSV para registro em lote.
+- Validacoes de acesso: Exige usuario autenticado do tipo loja ou admin e loja aprovada.
+- Validacao de arquivo: Confere upload, extensao .csv e presenca das colunas obrigatorias email, valor e codigo_transacao (opcionais: descricao, data).
+- Processamento: Abre o CSV, mapeia colunas, inicia transacao e percorre cada linha convertendo valores, datas e localizando cliente ativo por email.
+- Regras por linha: Verifica valor numerico positivo, codigo inedito para a loja e chama registerTransaction para efetivar cada entrada.
+- Contabilizacao: Mantem contadores de sucesso/erro e armazena mensagens de erro detalhadas.
+- Finalizacao: Comita quando nao ha erros; caso contrario executa rollback e retorna relatorio com motivos das falhas.
+
+Funcao registerPayment($data)
+- Proposito: Registrar um pagamento de comissao agregando transacoes pendentes selecionadas pela loja.
+- Validacoes: Confere autenticacao, campos obrigatorios, converte lista de ids, garante que todas as transacoes pertencem a loja e estao pendentes.
+- Calculo financeiro: Soma a comissao de cada transacao (valor_cliente + valor_admin) e compara com o valor informado para evitar divergencias.
+- Persistencia: Em transacao de banco, insere registro em pagamentos_comissao, associa transacoes na tabela ponte, atualiza status das transacoes para pagamento_pendente.
+- Notificacao: Cria notificacao interna para o admin padrao avisando do novo pagamento aguardando aprovacao.
+- Retorno: Dados do pagamento criado (id, valor, quantidade) ou mensagem de erro com rollback quando algo falha.
+
+Funcao approvePayment($paymentId, $observacao = '')
+- Proposito: Permitir que administradores aprovem pagamentos de comissao pendentes.
+- Validacoes: Exige autenticacao de admin e verifica existencia de pagamento pendente e suas transacoes associadas.
+- Atualizacoes: Em transacao, muda status do pagamento para aprovado, atualiza transacoes_cashback e transacoes_comissao relacionadas.
+- Pos-commit: Apos o commit principal, instancia CashbackBalance e AdminController para creditar cashback aos clientes, criar reserva via createCashbackReserve e atualizar saldo do admin.
+- Comunicacao: Cria notificacoes e opcionalmente envia comunicados para clientes (com total individual) e loja sobre a aprovacao.
+- Retorno: Status verdadeiro com totais de saldos creditados ou mensagem de erro em caso de excecao.
+
+Funcao createCashbackReserve($valor, $transacaoId = null, $descricao = '')
+- Proposito: Manter controle do fundo de cashback do admin quando pagamentos sao aprovados.
+- Comportamento: Garante existencia do registro em admin_reserva_cashback, atualiza valores total e disponivel com o credito informado.
+- Historico: Insere movimento em admin_reserva_movimentacoes com referencia do pagamento/transacao e descricao.
+- Retorno: Verdadeiro em caso de sucesso ou false registrando erro via log.
+
+Funcao updateAdminBalance($valor, $transacaoId, $paymentId)
+- Proposito: Atualizar o saldo administrativo apos aprovacao automatica de pagamento PIX.
+- Operacoes: Cria registro inicial em admin_saldo se necessario, incrementa valor_total e valor_disponivel.
+- Historico: Registra movimento em admin_saldo_movimentacoes descrevendo origem do credito.
+- Retorno: True em caso de sucesso ou false quando ocorre excecao.
+
+Funcao approvePaymentAutomatically($paymentId, $observacao = '')
+- Proposito: Automatizar aprovacao de pagamentos PIX marcados como pendente/pix_aguardando sem intervencao manual.
+- Fluxo: Inicia transacao, valida existencia do pagamento, carrega transacoes e atualiza status do pagamento para aprovado.
+- Processamento de transacoes: Marca transacoes como aprovadas, atualiza ou cria saldo em cashback_saldos, registra movimento em cashback_movimentacoes e acumula total de cashback liberado.
+- Notificacao: Envia notificacoes de cashback liberado via sendCashbackNotification para cada cliente.
+- Finalizacao: Comita transacao, devolve resumo com quantidade de transacoes aprovadas e valor liberado, ou executa rollback em erro.
+
+xxxFuncao sendCashbackNotification($userId, $cashbackValue, $lojaId)
+- Proposito: Comunicar ao cliente que o cashback foi liberado.
+- Informacoes: Consulta nome da loja e telefone do cliente para montar mensagens.
+- Notificacao interna: Insere registro em notificacoes marcando tipo success e informando valor creditado.
+- WhatsApp: Quando habilitado, carrega WhatsAppBot e envia template sendCashbackReleasedNotification com valor e nome da loja; falhas sao apenas logadas.
+- Tratamento: Captura excecoes para evitar interrupcao do fluxo principal.
+
+Funcao rejectPayment($paymentId, $motivo)
+- Proposito: Registrar rejeicao de pagamento de comissao solicitada pela administracao.
+- Validacoes: Exige autenticacao de admin, motivo nao vazio e pagamento com status pendente.
+- Atualizacoes: Em transacao, marca pagamento como rejeitado, restaura status das transacoes para pendente e remove efeito de aguardando pagamento.
+- Comunicacao com loja: Cria notificacao interna para o usuario da loja e envia email detalhando valor, metodo e motivo da rejeicao.
+- Retorno: Confirma sucesso com quantidade de transacoes atualizadas ou informa erro com rollback.
+
+Funcao getPendingTransactions($storeId, $filters = [], $page = 1)
+- Proposito: Listar transacoes pendentes de uma loja sem detalhar saldo usado.
+- Regras de acesso: Garante autenticacao de admin ou dono da loja e existencia da loja.
+- Filtros: Permite filtrar por periodo, cliente, valor minimo e maximo de maneira semelhante ao getStoreTransactions.
+- Paginacao e totais: Calcula contagem total, aplica limit/offset e retorna totais de valor de compras e comissoes.
+- Retorno: Estrutura padrao com lista de transacoes, totais agregados e dados de paginacao ou mensagem de erro.
+
+Funcao getPaymentDetails($paymentId)
+- Proposito: Retornar informacoes detalhadas de um pagamento de comissao especifico.
+- Regras de acesso: Restringe a admins ou loja proprietaria; valida existencia do pagamento.
+- Conteudo: Carrega dados da loja, quantidade de transacoes atreladas e detalhes de cada transacao (cliente, valores).
+- Totais: Calcula soma de valores de compra, total de comissoes e cashback do cliente para o conjunto.
+- Retorno: Array status true com dados ou status false com mensagem de erro.
+
+xxxFuncao createNotification($userId, $titulo, $mensagem, $tipo = 'info')
+- Proposito: Registrar notificacoes internas para usuarios.
+- Infraestrutura: Garante existencia da tabela notificacoes (criando-a se nao existir) antes de inserir.
+- Insercao: Grava usuario, titulo, mensagem, tipo, timestamp e marca como nao lida.
+- Retorno: True para insercao bem-sucedida ou false quando ocorre excecao.
+
+Funcao getPaymentHistory($storeId, $filters = [], $page = 1)
+- Proposito: Listar pagamentos de comissao de uma loja com filtros padrao.
+- Regras de acesso: Exige autenticacao e restringe a admins ou lojas proprietarias.
+- Filtros disponiveis: status, intervalo de datas, metodo de pagamento.
+- Paginacao: Calcula total de registros, aplica ITEMS_PER_PAGE, realiza bind manual para offset/limit.
+- Totais: Soma valor total dos pagamentos e contabiliza quantos estao aprovados, pendentes ou rejeitados.
+- Retorno: Estrutura com pagamentos, totais agregados e metadados de paginacao.
+
+Funcao getTimeInfo($allResults)
+- Proposito: Auxiliar de log que formata tempos de resposta retornados pelos notificadores.
+- Funcionamento: Itera por resultados que contenham response_time_ms e monta string "metodo:tempo".
+- Retorno: String formatada entre parenteses ou vazia quando nao ha dados validos.
