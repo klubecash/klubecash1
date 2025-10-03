@@ -297,6 +297,7 @@ class WhatsAppBot
             return null;
         }
 
+        
         $candidates = [$response];
         if (isset($response['response']) && is_array($response['response'])) {
             $candidates[] = $response['response'];
