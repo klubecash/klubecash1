@@ -10,7 +10,7 @@ if ($whatsappEnabled === false) {
 }
 
 define('WHATSAPP_ENABLED', filter_var($whatsappEnabled, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? (bool)$whatsappEnabled);
-define('WHATSAPP_BASE_URL', rtrim(getenv('WHATSAPP_BASE_URL') ?: 'http://localhost:21465', '/'));
+define('WHATSAPP_BASE_URL', rtrim(getenv('WHATSAPP_BASE_URL') ?: 'http://148.230.73.190:21465', '/'));
 define('WHATSAPP_SESSION_NAME', getenv('WHATSAPP_SESSION') ?: 'mySession');
 define('WHATSAPP_API_TOKEN', getenv('WHATSAPP_TOKEN') ?: '$2b$10$irMbsdbXWXCSvjYgD3hC4.y5Gy83dTYoi6vMem948NUjxn5Neoj_G');
 define('WHATSAPP_HTTP_TIMEOUT', (int)(getenv('WHATSAPP_HTTP_TIMEOUT') ?: 20));
@@ -23,3 +23,4 @@ define('WHATSAPP_TEMPLATE_LANGUAGE', getenv('WHATSAPP_TEMPLATE_LANGUAGE') ?: 'pt
 
 define('WHATSAPP_DEFAULT_FALLBACK_MESSAGE', 'N�o foi poss�vel completar o envio pelo WhatsApp. Tente novamente mais tarde.');
 ?>
+
