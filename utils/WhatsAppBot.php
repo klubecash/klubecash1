@@ -194,16 +194,16 @@ class WhatsAppBot
         }
 
         $lines = [
-            "✨ Olha só, {$clientDisplay}!",
+            "Olha so, {$clientDisplay}!",
             $giftbackLine,
-            "🔄 Você pode reutilizar esse valor em próximas compras no {$storeName}, continue colecionando benefícios!",
-            "",
-            "🧡 Lembrando: esse giftback está disponível apenas onde você comprou."
+            "Voce pode reutilizar esse valor em proximas compras no {$storeName}, continue colecionando beneficios!",
+            '',
+            "Lembrando: esse giftback esta disponivel apenas onde voce comprou."
         ];
 
-        return implode("
-", $lines);
+        return implode("\n", $lines);
     }
+
 
 
     private static function buildCashbackMessage(array $data, array $options = []): string
