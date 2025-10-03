@@ -244,7 +244,6 @@ try {
                                 </th>
                                 <th>Usuário</th>
                                 <th>Tipo/Subtipo</th>
-                                <th>MVP</th>
                                 <th>Loja Vinculada</th>
                                 <th>Status</th>
                                 <th>Cadastro</th>
@@ -255,11 +254,11 @@ try {
                         <tbody>
                             <?php if (empty($users)): ?>
                                 <tr>
-                                    <td colspan="9" class="no-data">
+                                    <td colspan="8" class="no-data">
                                         <div class="no-data-content">
                                             <i class="fas fa-users"></i>
                                             <h4>Nenhum usuário encontrado</h4>
-                                            <p>Nao há usuários que atendam aos critérios de busca.</p>
+                                            <p>Não há usuários que atendam aos critérios de busca.</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -310,19 +309,6 @@ try {
                                                 }
                                                 ?>
                                             </span>
-                                        </td>
-                                        <td>
-                                            <?php if ($user['tipo'] === 'loja'): ?>
-                                                <span class="badge <?php echo ($user['loja_mvp'] === 'sim') ? 'badge-success' : 'badge-secondary'; ?>">
-                                                    <?php echo ($user['loja_mvp'] === 'sim') ? 'Sim' : 'Nao'; ?>
-                                                </span>
-                                            <?php elseif ($user['tipo'] === 'funcionario' && !empty($user['nome_loja_vinculada'])): ?>
-                                                <span class="badge <?php echo ($user['loja_vinculada_mvp'] === 'sim') ? 'badge-success' : 'badge-secondary'; ?>">
-                                                    <?php echo ($user['loja_vinculada_mvp'] === 'sim') ? 'Sim' : 'Nao'; ?>
-                                                </span>
-                                            <?php else: ?>
-                                                <span class="text-muted">-</span>
-                                            <?php endif; ?>
                                         </td>
                                         <td>
                                             <?php if ($user['tipo'] === 'funcionario' && !empty($user['nome_loja_vinculada'])): ?>
@@ -550,15 +536,6 @@ try {
                             <label class="form-label" for="storeCategory">Categoria</label>
                             <input type="text" class="form-control" id="storeCategory" readonly>
                         </div>
-                    </div>
-
-                    <div class="form-group" id="storeMvpField" style="display: none;">
-                        <label class="form-label" for="storeMvp">Loja MVP</label>
-                        <select class="form-select" id="storeMvp" name="loja_mvp">
-                            <option value="nao">Nao</option>
-                            <option value="sim">Sim</option>
-                        </select>
-                        <small class="form-text">Defina como “Sim” para lojas com fluxo MVP.</small>
                     </div>
 
                     <div class="form-group">

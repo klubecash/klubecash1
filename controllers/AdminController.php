@@ -407,27 +407,183 @@ public static function getTransactionDetailsWithBalance($transactionId) {
         
         $stmt = $db->prepare("
             SELECT 
-                u.id,
-                u.nome,
-                u.email,
-                u.telefone,
-                u.tipo,
-                u.status,
-                u.data_criacao,
-                u.ultimo_login,
-                loja_propria.id AS loja_id,
-                loja_propria.nome_fantasia AS loja_nome,
-                u.mvp AS loja_mvp,
-                loja_vinculada.id AS loja_vinculada_id,
-                loja_vinculada.nome_fantasia AS loja_vinculada_nome,
-                dono_loja_vinculada.mvp AS loja_vinculada_mvp
-            FROM usuarios u
-            LEFT JOIN lojas loja_propria ON loja_propria.usuario_id = u.id
-            LEFT JOIN lojas loja_vinculada ON u.loja_vinculada_id = loja_vinculada.id
-            LEFT JOIN usuarios dono_loja_vinculada ON loja_vinculada.usuario_id = dono_loja_vinculada.id
-            WHERE u.id = :user_id
-        " );
+                t.*, 
+                u.nome as cliente_nome, 
+                u.email as cliente_email,
+                l.nome_fantasia as loja_nome,
+                COALESCE(tsu.valor_usado, 0) as saldo_usado,
+                pc.id as pagamento_id,
+                pc.status as status_pagamento,
+                pc.metodo_pagamento,
+                pc.data_aprovacao as data_pagamento
+            FROM transacoes_cashback t
+            JOIN usuarios u ON t.usuario_id = u.id
+            JOIN lojas l ON t.loja_id = l.id
+            LEFT JOIN transacoes_saldo_usado tsu ON t.id = tsu.transacao_id
+            LEFT JOIN pagamentos_transacoes pt ON t.id = pt.transacao_id
+            LEFT JOIN pagamentos_comissao pc ON pt.pagamento_id = pc.id
+            WHERE t.id = ?
+        ");
+        
+        $stmt->execute([$transactionId]);
+        $transaction = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$transaction) {
+            return ['status' => false, 'message' => 'Transação não encontrada'];
+        }
+        
+        return ['status' => true, 'data' => $transaction];
+        
+    } catch (Exception $e) {
+        error_log('Erro getTransactionDetailsWithBalance: ' . $e->getMessage());
+        return ['status' => false, 'message' => 'Erro interno'];
+    }
+}
 
+    /**
+    * Gerencia usuários do sistema incluindo funcionários vinculados às lojas
+    * 
+    * @param array $filters Filtros para a listagem
+    * @param int $page Página atual
+    * @return array Lista de usuários
+    */
+    public static function manageUsers($filters = [], $page = 1) {
+        try {
+            // Verificar se é um administrador
+            if (!self::validateAdmin()) {
+                return ['status' => false, 'message' => 'Acesso restrito a administradores.'];
+            }
+            
+            $db = Database::getConnection();
+            
+            // Construir condições WHERE
+            $whereConditions = [];
+            $params = [];
+            
+            // Aplicar filtros
+            if (!empty($filters['tipo']) && $filters['tipo'] !== 'todos') {
+                $whereConditions[] = "u.tipo = ?";
+                $params[] = $filters['tipo'];
+            }
+            
+            if (!empty($filters['status']) && $filters['status'] !== 'todos') {
+                $whereConditions[] = "u.status = ?";
+                $params[] = $filters['status'];
+            }
+            
+            if (!empty($filters['busca'])) {
+                $whereConditions[] = "(u.nome LIKE ? OR u.email LIKE ?)";
+                $searchTerm = '%' . $filters['busca'] . '%';
+                $params[] = $searchTerm;
+                $params[] = $searchTerm;
+            }
+            
+            $whereClause = empty($whereConditions) ? '' : 'WHERE ' . implode(' AND ', $whereConditions);
+            
+            // Query principal com JOIN para obter informações da loja vinculada
+            $query = "
+                SELECT 
+                    u.id, 
+                    u.nome, 
+                    u.email, 
+                    u.tipo, 
+                    u.status, 
+                    u.data_criacao, 
+                    u.ultimo_login,
+                    u.subtipo_funcionario,
+                    u.loja_vinculada_id,
+                    l.nome_fantasia as nome_loja_vinculada
+                FROM usuarios u
+                LEFT JOIN lojas l ON u.loja_vinculada_id = l.id
+                $whereClause
+                ORDER BY u.data_criacao DESC
+            ";
+            
+            // Calcular total de registros para paginação
+            $countQuery = "SELECT COUNT(*) as total FROM usuarios u $whereClause";
+            $countStmt = $db->prepare($countQuery);
+            $countStmt->execute($params);
+            $totalCount = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+            
+            // Adicionar paginação
+            $perPage = defined('ITEMS_PER_PAGE') ? ITEMS_PER_PAGE : 10;
+            $page = max(1, (int)$page);
+            $offset = ($page - 1) * $perPage;
+            $query .= " LIMIT $offset, $perPage";
+            
+            // Executar consulta
+            $stmt = $db->prepare($query);
+            $stmt->execute($params);
+            $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Estatísticas dos usuários incluindo funcionários
+            $statsQuery = "
+                SELECT 
+                    COUNT(*) as total_usuarios,
+                    SUM(CASE WHEN tipo = 'cliente' THEN 1 ELSE 0 END) as total_clientes,
+                    SUM(CASE WHEN tipo = 'admin' THEN 1 ELSE 0 END) as total_admins,
+                    SUM(CASE WHEN tipo = 'loja' THEN 1 ELSE 0 END) as total_lojas,
+                    SUM(CASE WHEN tipo = 'funcionario' THEN 1 ELSE 0 END) as total_funcionarios,
+                    SUM(CASE WHEN tipo = 'funcionario' AND subtipo_funcionario = 'financeiro' THEN 1 ELSE 0 END) as total_funcionarios_financeiro,
+                    SUM(CASE WHEN tipo = 'funcionario' AND subtipo_funcionario = 'gerente' THEN 1 ELSE 0 END) as total_funcionarios_gerente,
+                    SUM(CASE WHEN tipo = 'funcionario' AND subtipo_funcionario = 'vendedor' THEN 1 ELSE 0 END) as total_funcionarios_vendedor,
+                    SUM(CASE WHEN status = 'ativo' THEN 1 ELSE 0 END) as total_ativos,
+                    SUM(CASE WHEN status = 'inativo' THEN 1 ELSE 0 END) as total_inativos,
+                    SUM(CASE WHEN status = 'bloqueado' THEN 1 ELSE 0 END) as total_bloqueados
+                FROM usuarios
+            ";
+            
+            $statsStmt = $db->prepare($statsQuery);
+            $statsStmt->execute();
+            $statistics = $statsStmt->fetch(PDO::FETCH_ASSOC);
+            
+            // Calcular informações de paginação
+            $totalPages = ceil($totalCount / $perPage);
+            
+            return [
+                'status' => true,
+                'data' => [
+                    'usuarios' => $users,
+                    'estatisticas' => $statistics,
+                    'paginacao' => [
+                        'total' => $totalCount,
+                        'por_pagina' => $perPage,
+                        'pagina_atual' => $page,
+                        'total_paginas' => $totalPages
+                    ]
+                ]
+            ];
+            
+        } catch (PDOException $e) {
+            error_log('Erro ao gerenciar usuários: ' . $e->getMessage());
+            return [
+                'status' => false, 
+                'message' => 'Erro ao carregar usuários: ' . $e->getMessage()
+            ];
+        }
+    }
+    
+    /**
+ * Obtém detalhes de um usuário específico
+ * 
+ * @param int $userId ID do usuário
+ * @return array Dados do usuário
+ */
+public static function getUserDetails($userId) {
+    try {
+        // Verificar se é um administrador
+        if (!self::validateAdmin()) {
+            return ['status' => false, 'message' => 'Acesso restrito a administradores.'];
+        }
+        
+        $db = Database::getConnection();
+        
+        // Obter dados do usuário
+        $stmt = $db->prepare("
+            SELECT id, nome, email, telefone, tipo, status, data_criacao, ultimo_login
+            FROM usuarios
+            WHERE id = :user_id
+        ");
         $stmt->bindParam(':user_id', $userId);
         $stmt->execute();
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -436,14 +592,6 @@ public static function getTransactionDetailsWithBalance($transactionId) {
             return ['status' => false, 'message' => 'Usuário não encontrado.'];
         }
         
-        if ($user['tipo'] === USER_TYPE_STORE) {
-            $user['loja_mvp'] = $user['loja_mvp'] ?? 'nao';
-        }
-
-        if (!empty($user['loja_vinculada_id'])) {
-            $user['loja_vinculada_mvp'] = $user['loja_vinculada_mvp'] ?? 'nao';
-        }
-
         return [
             'status' => true,
             'data' => [
@@ -724,47 +872,54 @@ public static function manageStoresWithBalance($filters = [], $page = 1) {
     */
     public static function updateUser($userId, $data) {
         try {
+            // Verificar se é um administrador
             if (!self::validateAdmin()) {
                 return ['status' => false, 'message' => 'Acesso restrito a administradores.'];
             }
-
+            
             $db = Database::getConnection();
-
+            
+            // Verificar se o usuário existe
             $checkStmt = $db->prepare("SELECT id FROM usuarios WHERE id = :user_id");
             $checkStmt->bindParam(':user_id', $userId);
             $checkStmt->execute();
-
+            
             if ($checkStmt->rowCount() == 0) {
                 return ['status' => false, 'message' => 'Usuário não encontrado.'];
             }
-
+            
+            // Criar array de campos a serem atualizados
             $updateFields = [];
             $params = [':user_id' => $userId];
-
+            
+            // Nome
             if (isset($data['nome']) && !empty($data['nome'])) {
                 $updateFields[] = "nome = :nome";
                 $params[':nome'] = trim($data['nome']);
             }
-
+            
+            // Email - validar se não existe em outro usuário
             if (isset($data['email']) && !empty($data['email'])) {
                 $emailCheckStmt = $db->prepare("SELECT id FROM usuarios WHERE email = :email AND id != :user_id");
                 $emailCheckStmt->bindParam(':email', $data['email']);
                 $emailCheckStmt->bindParam(':user_id', $userId);
                 $emailCheckStmt->execute();
-
+                
                 if ($emailCheckStmt->rowCount() > 0) {
                     return ['status' => false, 'message' => 'Este email já está sendo usado por outro usuário.'];
                 }
-
+                
                 $updateFields[] = "email = :email";
                 $params[':email'] = trim($data['email']);
             }
-
+            
+            // Telefone
             if (isset($data['telefone'])) {
                 $updateFields[] = "telefone = :telefone";
                 $params[':telefone'] = trim($data['telefone']);
             }
-
+            
+            // Tipo
             if (isset($data['tipo']) && !empty($data['tipo'])) {
                 $validTypes = [USER_TYPE_CLIENT, USER_TYPE_ADMIN, USER_TYPE_STORE];
                 if (in_array($data['tipo'], $validTypes)) {
@@ -772,7 +927,8 @@ public static function manageStoresWithBalance($filters = [], $page = 1) {
                     $params[':tipo'] = $data['tipo'];
                 }
             }
-
+            
+            // Status
             if (isset($data['status']) && !empty($data['status'])) {
                 $validStatus = [USER_ACTIVE, USER_INACTIVE, USER_BLOCKED];
                 if (in_array($data['status'], $validStatus)) {
@@ -780,73 +936,43 @@ public static function manageStoresWithBalance($filters = [], $page = 1) {
                     $params[':status'] = $data['status'];
                 }
             }
-
+            
+            // Senha (opcional) - só incluir se foi fornecida e não está vazia
             if (isset($data['senha']) && !empty(trim($data['senha']))) {
                 $senha = trim($data['senha']);
-
+                
+                // Validar comprimento mínimo apenas se a senha foi fornecida
                 if (strlen($senha) < PASSWORD_MIN_LENGTH) {
                     return ['status' => false, 'message' => 'A senha deve ter no mínimo ' . PASSWORD_MIN_LENGTH . ' caracteres.'];
                 }
-
+                
                 $senha_hash = password_hash($senha, PASSWORD_DEFAULT);
                 $updateFields[] = "senha_hash = :senha_hash";
                 $params[':senha_hash'] = $senha_hash;
             }
-
-            $storeMvpValue = null;
-            if (isset($data['loja_mvp']) && $data['loja_mvp'] !== '') {
-                $storeMvpValue = strtolower($data['loja_mvp']) === 'sim' ? 'sim' : 'nao';
-            }
-
-            if (empty($updateFields) && $storeMvpValue === null) {
+            
+            // Se não houver campos para atualizar
+            if (empty($updateFields)) {
                 return ['status' => false, 'message' => 'Nenhum dado válido para atualizar.'];
             }
-
-            $db->beginTransaction();
-
-            if (!empty($updateFields)) {
-                $query = "UPDATE usuarios SET " . implode(', ', $updateFields) . " WHERE id = :user_id";
-                $stmt = $db->prepare($query);
-
-                foreach ($params as $param => $value) {
-                    $stmt->bindValue($param, $value);
-                }
-
-                if (!$stmt->execute()) {
-                    $db->rollBack();
-                    return ['status' => false, 'message' => 'Falha ao atualizar usuário no banco de dados.'];
-                }
+            
+            // Construir e executar a query de atualização
+            $query = "UPDATE usuarios SET " . implode(', ', $updateFields) . " WHERE id = :user_id";
+            $stmt = $db->prepare($query);
+            
+            foreach ($params as $param => $value) {
+                $stmt->bindValue($param, $value);
             }
-
-            if ($storeMvpValue !== null) {
-                $storeStmt = $db->prepare("SELECT id FROM lojas WHERE usuario_id = :user_id LIMIT 1");
-                $storeStmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
-                $storeStmt->execute();
-                $store = $storeStmt->fetch(PDO::FETCH_ASSOC);
-
-                if ($store) {
-                    $updateStoreStmt = $db->prepare("UPDATE lojas SET mvp = :mvp WHERE id = :store_id");
-                    $updateStoreStmt->bindParam(':mvp', $storeMvpValue);
-                    $updateStoreStmt->bindParam(':store_id', $store['id'], PDO::PARAM_INT);
-
-                    if (!$updateStoreStmt->execute()) {
-                        $db->rollBack();
-                        return ['status' => false, 'message' => 'Falha ao atualizar configuracao MVP da loja.'];
-                    }
-                } else {
-                    $db->rollBack();
-                    return ['status' => false, 'message' => 'Loja vinculada nao encontrada para atualizar o MVP.'];
-                }
+            
+            $success = $stmt->execute();
+            
+            if ($success) {
+                return ['status' => true, 'message' => 'Usuário atualizado com sucesso.'];
+            } else {
+                return ['status' => false, 'message' => 'Falha ao atualizar usuário no banco de dados.'];
             }
-
-            $db->commit();
-
-            return ['status' => true, 'message' => 'Usuário atualizado com sucesso.'];
-
+            
         } catch (PDOException $e) {
-            if (isset($db) && $db instanceof PDO && $db->inTransaction()) {
-                $db->rollBack();
-            }
             error_log('Erro ao atualizar usuário: ' . $e->getMessage());
             return ['status' => false, 'message' => 'Erro ao atualizar usuário: ' . $e->getMessage()];
         }
@@ -1060,14 +1186,13 @@ public static function getAvailableStores() {
         
         $db = Database::getConnection();
         
-        // Buscar lojas aprovadas sem usuario vinculado
+        // Buscar lojas aprovadas sem usuário vinculado
         $stmt = $db->prepare("
-            SELECT l.id, l.nome_fantasia, l.razao_social, l.cnpj, l.email, l.telefone, l.categoria, COALESCE(u.mvp, 'nao') as mvp
-            FROM lojas l
-            LEFT JOIN usuarios u ON l.usuario_id = u.id
-            WHERE l.status = :status AND (l.usuario_id IS NULL OR l.usuario_id = 0)
-            ORDER BY l.nome_fantasia ASC
-        " );
+            SELECT id, nome_fantasia, razao_social, cnpj, email, telefone, categoria
+            FROM lojas 
+            WHERE status = :status AND (usuario_id IS NULL OR usuario_id = 0)
+            ORDER BY nome_fantasia ASC
+        ");
         $status = STORE_APPROVED;
         $stmt->bindParam(':status', $status);
         $stmt->execute();
@@ -1102,11 +1227,10 @@ public static function getAvailableStores() {
             
             // Buscar loja pelo email
             $stmt = $db->prepare("
-                SELECT l.id, l.nome_fantasia, l.razao_social, l.cnpj, l.email, l.telefone, l.categoria, COALESCE(u.mvp, 'nao') as mvp
-                FROM lojas l
-                LEFT JOIN usuarios u ON l.usuario_id = u.id
-                WHERE l.email = :email AND l.status = :status AND (l.usuario_id IS NULL OR l.usuario_id = 0)
-            " );
+                SELECT id, nome_fantasia, razao_social, cnpj, email, telefone, categoria
+                FROM lojas 
+                WHERE email = :email AND status = :status AND (usuario_id IS NULL OR usuario_id = 0)
+            ");
             $stmt->bindParam(':email', $email);
             $status = STORE_APPROVED;
             $stmt->bindParam(':status', $status);
