@@ -234,24 +234,37 @@ function populateStoreSelect() {
 function handleUserTypeChange(type) {
     const isStore = type === 'loja';
     isStoreUser = isStore;
-    
+
     const emailContainer = document.getElementById('emailSelectContainer');
     const emailInput = document.getElementById('userEmail');
     const storeFields = document.getElementById('storeDataFields');
-    
-    if (isStore && !isEditMode) {
-        // Mostrar seleção de loja
-        if (emailContainer) emailContainer.style.display = 'block';
-        if (emailInput) emailInput.style.display = 'none';
-        if (storeFields) storeFields.style.display = 'block';
-        
-        if (emailInput) emailInput.required = false;
-        
-        if (availableStores.length === 0) {
-            loadAvailableStores();
+    const storeMvpField = document.getElementById('storeMvpField');
+
+    if (isStore) {
+        if (storeMvpField) storeMvpField.style.display = 'block';
+
+        if (!isEditMode) {
+            if (emailContainer) emailContainer.style.display = 'block';
+            if (emailInput) {
+                emailInput.style.display = 'none';
+                emailInput.required = false;
+            }
+            if (storeFields) storeFields.style.display = 'block';
+
+            if (availableStores.length === 0) {
+                loadAvailableStores();
+            }
+        } else {
+            if (emailContainer) emailContainer.style.display = 'none';
+            if (emailInput) {
+                emailInput.style.display = 'block';
+                emailInput.required = true;
+                emailInput.readOnly = false;
+            }
+            if (storeFields) storeFields.style.display = 'none';
         }
     } else {
-        // Mostrar input normal
+        if (storeMvpField) storeMvpField.style.display = 'none';
         resetStoreFields();
     }
 }
@@ -304,7 +317,7 @@ function fillStoreFields(store) {
     if (phoneInput) phoneInput.value = store.telefone || '';
     if (storeNameInput) storeNameInput.value = store.nome_fantasia;
     if (storeDocumentInput) storeDocumentInput.value = store.cnpj;
-    if (storeCategoryInput) storeCategoryInput.value = store.categoria || 'Não informado';
+    if (storeCategoryInput) storeCategoryInput.value = store.categoria || 'Nao informado';
     
     // Tornar campos principais read-only
     if (emailInput) emailInput.readOnly = true;
@@ -322,14 +335,16 @@ function clearStoreFields() {
     const storeNameInput = document.getElementById('storeName');
     const storeDocumentInput = document.getElementById('storeDocument');
     const storeCategoryInput = document.getElementById('storeCategory');
-    
+    const storeMvpSelect = document.getElementById('storeMvp');
+
     if (emailInput) emailInput.value = '';
     if (nameInput) nameInput.value = '';
     if (phoneInput) phoneInput.value = '';
     if (storeNameInput) storeNameInput.value = '';
     if (storeDocumentInput) storeDocumentInput.value = '';
     if (storeCategoryInput) storeCategoryInput.value = '';
-    
+    if (storeMvpSelect) storeMvpSelect.value = 'nao';
+
     // Reabilitar edição
     if (emailInput) emailInput.readOnly = false;
     if (nameInput) nameInput.readOnly = false;
@@ -343,6 +358,8 @@ function resetStoreFields() {
     const emailContainer = document.getElementById('emailSelectContainer');
     const emailInput = document.getElementById('userEmail');
     const storeFields = document.getElementById('storeDataFields');
+    const storeMvpField = document.getElementById('storeMvpField');
+    const storeMvpSelect = document.getElementById('storeMvp');
     
     if (emailContainer) emailContainer.style.display = 'none';
     if (emailInput) {
@@ -351,6 +368,8 @@ function resetStoreFields() {
         emailInput.readOnly = false;
     }
     if (storeFields) storeFields.style.display = 'none';
+    if (storeMvpField) storeMvpField.style.display = 'none';
+    if (storeMvpSelect) storeMvpSelect.value = 'nao';
     
     clearStoreFields();
     isStoreUser = false;
@@ -485,6 +504,18 @@ function fillUserForm(userData) {
         document.getElementById('userPhone').value = userData.telefone;
     }
     
+    handleUserTypeChange(userData.tipo);
+
+    if (userData.tipo === 'loja') {
+        const storeMvpField = document.getElementById('storeMvpField');
+        const storeMvpSelect = document.getElementById('storeMvp');
+        if (storeMvpField) storeMvpField.style.display = 'block';
+        if (storeMvpSelect) storeMvpSelect.value = (userData.loja_mvp === 'sim') ? 'sim' : 'nao';
+    } else {
+        const storeMvpField = document.getElementById('storeMvpField');
+        if (storeMvpField) storeMvpField.style.display = 'none';
+    }
+    
     // Limpar campo de senha
     document.getElementById('userPassword').value = '';
 }
@@ -530,25 +561,46 @@ function viewUser(userId) {
 function displayUserDetails(userData) {
     const content = document.getElementById('userViewContent');
     if (!content) return;
-    
+
     const tipoLabels = {
         'cliente': 'Cliente',
         'loja': 'Loja',
         'admin': 'Administrador'
     };
-    
+
     const statusLabels = {
         'ativo': 'Ativo',
         'inativo': 'Inativo',
         'bloqueado': 'Bloqueado'
     };
-    
+
     const statusClass = {
         'ativo': 'badge-success',
         'inativo': 'badge-warning',
         'bloqueado': 'badge-danger'
     };
-    
+
+    const storeNameDetail = userData.tipo === 'loja' && userData.loja_nome
+        ? `<div class="detail-item">
+                <label>Loja:</label>
+                <span>${userData.loja_nome}</span>
+           </div>`
+        : '';
+
+    const storeMvpDetail = userData.tipo === 'loja'
+        ? `<div class="detail-item">
+                <label>Loja MVP:</label>
+                <span>${userData.loja_mvp === 'sim' ? 'Sim' : 'Nao'}</span>
+           </div>`
+        : '';
+
+    const linkedStoreDetail = userData.loja_vinculada_nome
+        ? `<div class="detail-item">
+                <label>Loja Vinculada:</label>
+                <span>${userData.loja_vinculada_nome}${userData.loja_vinculada_mvp ? ' • ' + (userData.loja_vinculada_mvp === 'sim' ? 'MVP' : 'Convencional') : ''}</span>
+           </div>`
+        : '';
+
     content.innerHTML = `
         <div class="user-details">
             <div class="user-detail-header">
@@ -568,7 +620,9 @@ function displayUserDetails(userData) {
                         ${tipoLabels[userData.tipo] || userData.tipo}
                     </span>
                 </div>
-                
+                ${storeNameDetail}
+                ${storeMvpDetail}
+                ${linkedStoreDetail}
                 <div class="detail-item">
                     <label>Status:</label>
                     <span class="badge ${statusClass[userData.status] || 'badge-secondary'}">
@@ -578,7 +632,7 @@ function displayUserDetails(userData) {
                 
                 <div class="detail-item">
                     <label>Telefone:</label>
-                    <span>${userData.telefone || 'Não informado'}</span>
+                    <span>${userData.telefone || 'Nao informado'}</span>
                 </div>
                 
                 <div class="detail-item">
@@ -587,12 +641,14 @@ function displayUserDetails(userData) {
                 </div>
                 
                 <div class="detail-item">
-                    <label>Último Login:</label>
+                    <label>Ultimo Login:</label>
                     <span>${userData.ultimo_login ? new Date(userData.ultimo_login).toLocaleString('pt-BR') : 'Nunca'}</span>
                 </div>
             </div>
         </div>
     `;
+}
+
 }
 
 /**

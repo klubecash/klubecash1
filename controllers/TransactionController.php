@@ -1370,9 +1370,10 @@ class TransactionController {
                         if ($userData && !empty($userData['telefone'])) {
                             // Preparar as informações da transação para a mensagem WhatsApp
                             $whatsappData = [
-                                'valor_cashback' => $valorCashbackCliente, // Valor do cashback desta transação
-                                'valor_usado' => $valorSaldoUsado ?? 0, // Valor usado do saldo (se aplicável)
-                                'nome_loja' => $store['nome_fantasia'] // Nome da loja onde a compra foi realizada
+                                'valor_cashback' => $valorCashbackCliente, // Valor do cashback desta transa��o
+                                'valor_usado' => $valorSaldoUsado ?? 0, // Valor usado do saldo (se aplic�vel)
+                                'nome_loja' => $store['nome_fantasia'], // Nome da loja onde a compra foi realizada
+                                'cliente_nome' => $userData['nome'] ?? null
                             ];
                             
                             // Enviar a notificação via WhatsApp usando nosso template específico
@@ -1720,6 +1721,7 @@ class TransactionController {
                             'valor_total' => $data['valor_total'],
                             'valor_cashback' => $valorCashbackCliente,
                             'codigo_transacao' => $data['codigo_transacao'],
+                            'cliente_nome' => $user['nome'] ?? null,
                         ];
 
                         $whatsAppOptions = [
