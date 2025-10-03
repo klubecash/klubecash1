@@ -183,31 +183,28 @@ class WhatsAppBot
     private static function buildNewTransactionMessage(array $data, array $options = []): string
     {
         $storeName = $data['nome_loja'] ?? $data['loja_nome'] ?? $data['loja'] ?? 'sua loja parceira';
-        $total = isset($data['valor_total']) ? number_format((float)$data['valor_total'], 2, ',', '.') : null;
         $cashback = isset($data['valor_cashback']) ? number_format((float)$data['valor_cashback'], 2, ',', '.') : null;
-        $code = $data['codigo_transacao'] ?? $data['transaction_code'] ?? null;
-
-        $lines = [
-            '*Nova transacao registrada!*',
-            "Loja: {$storeName}",
-        ];
-
-        if ($total) {
-            $lines[] = "Valor da compra: R$ {$total}";
-        }
+        $clientName = trim($data['cliente_nome'] ?? $data['cliente'] ?? '');
+        $clientDisplay = $clientName !== '' ? $clientName : 'cliente';
 
         if ($cashback) {
-            $lines[] = "Cashback previsto: R$ {$cashback}";
+            $giftbackLine = "Sua compra no {$storeName} voltou como R$ {$cashback} de Giftback direto no seu saldo KlubeCash.";
+        } else {
+            $giftbackLine = "Sua compra no {$storeName} voltou como Giftback direto no seu saldo KlubeCash.";
         }
 
-        if ($code) {
-            $lines[] = "Codigo da transacao: {$code}";
-        }
+        $lines = [
+            "✨ Olha só, {$clientDisplay}!",
+            $giftbackLine,
+            "🔄 Você pode reutilizar esse valor em próximas compras no {$storeName}, continue colecionando benefícios!",
+            "",
+            "🧡 Lembrando: esse giftback está disponível apenas onde você comprou."
+        ];
 
-        $lines[] = $options['custom_footer'] ?? 'Acompanhe seu saldo pelo app Klube Cash.';
-
-        return implode("\n", $lines);
+        return implode("
+", $lines);
     }
+
 
     private static function buildCashbackMessage(array $data, array $options = []): string
     {
