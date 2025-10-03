@@ -1,0 +1,101 @@
+Relatorio de Integracao WhatsApp - 03/10/2025
+===========================================
+
+Resumo Geral
+------------
+- Plataforma do bot: WPPConnect Server (v2.8.6)
+- VPS: 148.230.73.190 (Ubuntu 24.04.3 LTS)
+- Dominio/Subdominio: klubezap.klubecash.com
+- Porta HTTP publica: 8080 (Nginx proxy ? WPPConnect porta 21465)
+- Token atual: $2b$10$irMbsdbXWXCSvjYgD3hC4.y5Gy83dTYoi6vMem948NUjxn5Neoj_G
+- Sessao ativa: mySession (pareamento ja concluido)
+
+Infraestrutura na VPS
+---------------------
+1. Codigo do WPPConnect
+   - Diretorio: /root/wa
+   - Build gerada em: /root/wa/dist
+   - Arquivo principal em producao: /root/wa/dist/server.js
+
+2. Gerenciamento do servico (PM2)
+   - Processo: wpp (ID 1)
+   - Comando registrado: pm2 start dist/server.js --name wpp -- --port 21465 --token "TOKEN" --session mySession
+   - Reinicio diario automatico: 04:00 (UTC) via pm2 restart wpp --cron "0 4 * * *"
+   - Persistencia pos-reboot: pm2 save + pm2 startup systemd ? servico pm2-root habilitado
+   - Comandos uteis:
+     * pm2 status
+     * pm2 logs wpp
+     * pm2 restart wpp
+     * pm2 delete wpp (se precisar remover)
+
+3. Proxy HTTP (Nginx)
+   - Arquivo de configuracao: /etc/nginx/sites-available/klubezap
+   - Conteudo principal:
+     server {
+         listen 8080;
+         server_name klubezap.klubecash.com;
+         location / {
+             proxy_pass http://127.0.0.1:21465;
+             proxy_set_header Host $host;
+             proxy_set_header X-Real-IP $remote_addr;
+             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+             proxy_set_header X-Forwarded-Proto $scheme;
+         }
+     }
+   - Link simbolico ativo: /etc/nginx/sites-enabled/klubezap
+   - Porta 80 segue ocupada por docker-proxy (nao alterada). O proxy opera apenas em 8080.
+   - Teste rapido:
+     curl -H "Authorization: Bearer TOKEN" http://klubezap.klubecash.com:8080/api/mySession/status-session
+
+Aplicacao KlubeCash (codigo PHP)
+--------------------------------
+- Arquivo de configuracao: config/whatsapp.php
+  * WHATSAPP_BASE_URL ? http://klubezap.klubecash.com:8080
+  * WHATSAPP_API_TOKEN ? TOKEN atual
+  * WHATSAPP_SESSION_NAME ? mySession
+  * Log padrao: logs/whatsapp.log
+
+- Utilitario de teste: scripts/demo_whatsapp_tx.php
+  * Uso: php scripts/demo_whatsapp_tx.php <telefone>
+  * Resposta esperada: JSON com success true e ack success
+
+- TransactionController.php
+  * Metodo registerTransactionFixed envia confirmacao via WhatsAppBot quando a transacao e MVP
+  * Retorno inclui whatsapp_confirmation e whatsapp_ack
+
+Logs e Diretorios Importantes
+-----------------------------
+- VPS:
+  * /root/wa/logs ? logs internos do WPPConnect (se habilitados)
+  * /root/.pm2/logs ? logs do PM2/wpp
+- Projeto PHP local/producao:
+  * logs/whatsapp.log ? registros das tentativas de envio
+  * config/whatsapp.php ? ajustar quando trocar dominio/token
+
+Procedimentos Operacionais
+--------------------------
+1. Validar status do bot:
+   pm2 status
+   pm2 logs wpp
+
+2. Testar envio manual:
+   php scripts/demo_whatsapp_tx.php 5538991045205
+
+3. Atualizar token ou URL:
+   - Editar config/whatsapp.php
+   - Reiniciar PM2 se token mudar no servidor
+
+4. Atualizar WPPConnect:
+   cd /root/wa
+   git pull (se houver repo) / npm install
+   npm run build
+   pm2 restart wpp
+
+5. Certificados:
+   - Atualmente HTTP sem TLS (porta 8080). Se for ativar HTTPS, configurar Certbot e ajustar WHATSAPP_BASE_URL para https://klubezap.klubecash.com.
+
+Observacoes Finais
+------------------
+- Sessao permanece valida mesmo com reinicio (dados armazenados pelo WPPConnect).
+- Se o PM2 cair, basta rodar pm2 resurrect (caso o servico pm2-root nao suba automaticamente).
+- Monitorar o arquivo logs/whatsapp.log para detectar falhas futuras (ex.: Connection refused ou token invalido).
