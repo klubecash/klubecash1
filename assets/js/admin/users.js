@@ -719,6 +719,13 @@ function submitUserForm(event) {
     const formData = new FormData(form);
     const userId = formData.get('id');
     const isEditing = userId !== '';
+
+    const storeMvpSelect = document.getElementById('storeMvp');
+    if (formData.get('tipo') === 'loja' && storeMvpSelect) {
+        formData.set('loja_mvp', storeMvpSelect.value || 'nao');
+    } else {
+        formData.delete('loja_mvp');
+    }
     
     // Validação específica para senha
     const senha = formData.get('senha');

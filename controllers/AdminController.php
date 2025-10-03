@@ -407,195 +407,6 @@ public static function getTransactionDetailsWithBalance($transactionId) {
         
         $stmt = $db->prepare("
             SELECT 
-                t.*, 
-                u.nome as cliente_nome, 
-                u.email as cliente_email,
-                l.nome_fantasia as loja_nome,
-                COALESCE(tsu.valor_usado, 0) as saldo_usado,
-                pc.id as pagamento_id,
-                pc.status as status_pagamento,
-                pc.metodo_pagamento,
-                pc.data_aprovacao as data_pagamento
-            FROM transacoes_cashback t
-            JOIN usuarios u ON t.usuario_id = u.id
-            JOIN lojas l ON t.loja_id = l.id
-            LEFT JOIN transacoes_saldo_usado tsu ON t.id = tsu.transacao_id
-            LEFT JOIN pagamentos_transacoes pt ON t.id = pt.transacao_id
-            LEFT JOIN pagamentos_comissao pc ON pt.pagamento_id = pc.id
-            WHERE t.id = ?
-        ");
-        
-        $stmt->execute([$transactionId]);
-        $transaction = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if (!$transaction) {
-            return ['status' => false, 'message' => 'Transação não encontrada'];
-        }
-        
-        return ['status' => true, 'data' => $transaction];
-        
-    } catch (Exception $e) {
-        error_log('Erro getTransactionDetailsWithBalance: ' . $e->getMessage());
-        return ['status' => false, 'message' => 'Erro interno'];
-    }
-}
-
-    /**
-    * Gerencia usuários do sistema incluindo funcionários vinculados às lojas
-    * 
-    * @param array $filters Filtros para a listagem
-    * @param int $page Página atual
-    * @return array Lista de usuários
-    */
-    public static function manageUsers($filters = [], $page = 1) {
-        try {
-            // Verificar se é um administrador
-            if (!self::validateAdmin()) {
-                return ['status' => false, 'message' => 'Acesso restrito a administradores.'];
-            }
-            
-            $db = Database::getConnection();
-            
-            // Construir condições WHERE
-            $whereConditions = [];
-            $params = [];
-            
-            // Aplicar filtros
-            if (!empty($filters['tipo']) && $filters['tipo'] !== 'todos') {
-                $whereConditions[] = "u.tipo = ?";
-                $params[] = $filters['tipo'];
-            }
-            
-            if (!empty($filters['status']) && $filters['status'] !== 'todos') {
-                $whereConditions[] = "u.status = ?";
-                $params[] = $filters['status'];
-            }
-            
-            if (!empty($filters['busca'])) {
-                $whereConditions[] = "(u.nome LIKE ? OR u.email LIKE ?)";
-                $searchTerm = '%' . $filters['busca'] . '%';
-                $params[] = $searchTerm;
-                $params[] = $searchTerm;
-            }
-            
-            $whereClause = empty($whereConditions) ? '' : 'WHERE ' . implode(' AND ', $whereConditions);
-            
-            // Query principal com JOIN para obter informações da loja vinculada
-            $query = "
-                SELECT 
-                    u.id, 
-                    u.nome, 
-                    u.email, 
-                    u.tipo, 
-                    u.status, 
-                    u.data_criacao, 
-                    u.ultimo_login,
-                    u.subtipo_funcionario,
-                    u.loja_vinculada_id,
-                    loja_vinculada.nome_fantasia as nome_loja_vinculada,
-                    loja_vinculada.mvp as loja_vinculada_mvp,
-                    loja_propria.id as loja_propria_id,
-                    loja_propria.nome_fantasia as nome_loja_propria,
-                    loja_propria.mvp as loja_mvp
-                FROM usuarios u
-                LEFT JOIN lojas loja_vinculada ON u.loja_vinculada_id = loja_vinculada.id
-                LEFT JOIN lojas loja_propria ON loja_propria.usuario_id = u.id
-                $whereClause
-                ORDER BY u.data_criacao DESC
-            ";
-            
-            // Calcular total de registros para paginação
-            $countQuery = "SELECT COUNT(*) as total FROM usuarios u $whereClause";
-            $countStmt = $db->prepare($countQuery);
-            $countStmt->execute($params);
-            $totalCount = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
-            
-            // Adicionar paginação
-            $perPage = defined('ITEMS_PER_PAGE') ? ITEMS_PER_PAGE : 10;
-            $page = max(1, (int)$page);
-            $offset = ($page - 1) * $perPage;
-            $query .= " LIMIT $offset, $perPage";
-            
-            // Executar consulta
-            $stmt = $db->prepare($query);
-            $stmt->execute($params);
-            $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            foreach ($users as &$user) {
-                if ($user['tipo'] === USER_TYPE_STORE) {
-                    $user['loja_mvp'] = $user['loja_mvp'] ?? 'nao';
-                }
-                if (!empty($user['loja_vinculada_id'])) {
-                    $user['loja_vinculada_mvp'] = $user['loja_vinculada_mvp'] ?? 'nao';
-                }
-            }
-            unset($user);
-            
-            // Estatísticas dos usuários incluindo funcionários
-            $statsQuery = "
-                SELECT 
-                    COUNT(*) as total_usuarios,
-                    SUM(CASE WHEN tipo = 'cliente' THEN 1 ELSE 0 END) as total_clientes,
-                    SUM(CASE WHEN tipo = 'admin' THEN 1 ELSE 0 END) as total_admins,
-                    SUM(CASE WHEN tipo = 'loja' THEN 1 ELSE 0 END) as total_lojas,
-                    SUM(CASE WHEN tipo = 'funcionario' THEN 1 ELSE 0 END) as total_funcionarios,
-                    SUM(CASE WHEN tipo = 'funcionario' AND subtipo_funcionario = 'financeiro' THEN 1 ELSE 0 END) as total_funcionarios_financeiro,
-                    SUM(CASE WHEN tipo = 'funcionario' AND subtipo_funcionario = 'gerente' THEN 1 ELSE 0 END) as total_funcionarios_gerente,
-                    SUM(CASE WHEN tipo = 'funcionario' AND subtipo_funcionario = 'vendedor' THEN 1 ELSE 0 END) as total_funcionarios_vendedor,
-                    SUM(CASE WHEN status = 'ativo' THEN 1 ELSE 0 END) as total_ativos,
-                    SUM(CASE WHEN status = 'inativo' THEN 1 ELSE 0 END) as total_inativos,
-                    SUM(CASE WHEN status = 'bloqueado' THEN 1 ELSE 0 END) as total_bloqueados
-                FROM usuarios
-            ";
-            
-            $statsStmt = $db->prepare($statsQuery);
-            $statsStmt->execute();
-            $statistics = $statsStmt->fetch(PDO::FETCH_ASSOC);
-            
-            // Calcular informações de paginação
-            $totalPages = ceil($totalCount / $perPage);
-            
-            return [
-                'status' => true,
-                'data' => [
-                    'usuarios' => $users,
-                    'estatisticas' => $statistics,
-                    'paginacao' => [
-                        'total' => $totalCount,
-                        'por_pagina' => $perPage,
-                        'pagina_atual' => $page,
-                        'total_paginas' => $totalPages
-                    ]
-                ]
-            ];
-            
-        } catch (PDOException $e) {
-            error_log('Erro ao gerenciar usuários: ' . $e->getMessage());
-            return [
-                'status' => false, 
-                'message' => 'Erro ao carregar usuários: ' . $e->getMessage()
-            ];
-        }
-    }
-    
-    /**
- * Obtém detalhes de um usuário específico
- * 
- * @param int $userId ID do usuário
- * @return array Dados do usuário
- */
-public static function getUserDetails($userId) {
-    try {
-        // Verificar se é um administrador
-        if (!self::validateAdmin()) {
-            return ['status' => false, 'message' => 'Acesso restrito a administradores.'];
-        }
-        
-        $db = Database::getConnection();
-        
-        // Obter dados do usuário
-        $stmt = $db->prepare("
-            SELECT 
                 u.id,
                 u.nome,
                 u.email,
@@ -606,15 +417,17 @@ public static function getUserDetails($userId) {
                 u.ultimo_login,
                 loja_propria.id AS loja_id,
                 loja_propria.nome_fantasia AS loja_nome,
-                loja_propria.mvp AS loja_mvp,
+                u.mvp AS loja_mvp,
                 loja_vinculada.id AS loja_vinculada_id,
                 loja_vinculada.nome_fantasia AS loja_vinculada_nome,
-                loja_vinculada.mvp AS loja_vinculada_mvp
+                dono_loja_vinculada.mvp AS loja_vinculada_mvp
             FROM usuarios u
             LEFT JOIN lojas loja_propria ON loja_propria.usuario_id = u.id
             LEFT JOIN lojas loja_vinculada ON u.loja_vinculada_id = loja_vinculada.id
+            LEFT JOIN usuarios dono_loja_vinculada ON loja_vinculada.usuario_id = dono_loja_vinculada.id
             WHERE u.id = :user_id
-        ");
+        " );
+
         $stmt->bindParam(':user_id', $userId);
         $stmt->execute();
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -1247,13 +1060,14 @@ public static function getAvailableStores() {
         
         $db = Database::getConnection();
         
-        // Buscar lojas aprovadas sem usuário vinculado
+        // Buscar lojas aprovadas sem usuario vinculado
         $stmt = $db->prepare("
-            SELECT id, nome_fantasia, razao_social, cnpj, email, telefone, categoria, mvp
-            FROM lojas 
-            WHERE status = :status AND (usuario_id IS NULL OR usuario_id = 0)
-            ORDER BY nome_fantasia ASC
-        ");
+            SELECT l.id, l.nome_fantasia, l.razao_social, l.cnpj, l.email, l.telefone, l.categoria, COALESCE(u.mvp, 'nao') as mvp
+            FROM lojas l
+            LEFT JOIN usuarios u ON l.usuario_id = u.id
+            WHERE l.status = :status AND (l.usuario_id IS NULL OR l.usuario_id = 0)
+            ORDER BY l.nome_fantasia ASC
+        " );
         $status = STORE_APPROVED;
         $stmt->bindParam(':status', $status);
         $stmt->execute();
@@ -1288,10 +1102,11 @@ public static function getAvailableStores() {
             
             // Buscar loja pelo email
             $stmt = $db->prepare("
-                SELECT id, nome_fantasia, razao_social, cnpj, email, telefone, categoria, mvp
-                FROM lojas 
-                WHERE email = :email AND status = :status AND (usuario_id IS NULL OR usuario_id = 0)
-            ");
+                SELECT l.id, l.nome_fantasia, l.razao_social, l.cnpj, l.email, l.telefone, l.categoria, COALESCE(u.mvp, 'nao') as mvp
+                FROM lojas l
+                LEFT JOIN usuarios u ON l.usuario_id = u.id
+                WHERE l.email = :email AND l.status = :status AND (l.usuario_id IS NULL OR l.usuario_id = 0)
+            " );
             $stmt->bindParam(':email', $email);
             $status = STORE_APPROVED;
             $stmt->bindParam(':status', $status);
