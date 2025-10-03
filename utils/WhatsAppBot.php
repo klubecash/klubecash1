@@ -188,17 +188,17 @@ class WhatsAppBot
         $clientDisplay = $clientName !== '' ? $clientName : 'cliente';
 
         if ($cashback) {
-            $giftbackLine = "Sua compra no {$storeName} voltou como R$ {$cashback} de Giftback direto no seu saldo KlubeCash.";
+            $giftbackLine = "Sua compra no {$storeName} voltou como R$ {$cashback} de Giftback direto no seu saldo KlubeCash! \u{1F4B8}";
         } else {
-            $giftbackLine = "Sua compra no {$storeName} voltou como Giftback direto no seu saldo KlubeCash.";
+            $giftbackLine = "Sua compra no {$storeName} voltou como Giftback direto no seu saldo KlubeCash! \u{1F4B8}";
         }
 
         $lines = [
-            "Olha so, {$clientDisplay}!",
+            "Olha s\u{00F3}, {$clientDisplay}! \u{1F389}",
             $giftbackLine,
-            "Voce pode reutilizar esse valor em proximas compras no {$storeName}, continue colecionando beneficios!",
+            "Voc\u{00EA} pode reutilizar esse valor em pr\u{00F3}ximas compras no {$storeName} e continuar colecionando benef\u{00ED}cios! \u{2728}",
             '',
-            "Lembrando: esse giftback esta disponivel apenas onde voce comprou."
+            "Lembrando: esse giftback est\u{00E1} dispon\u{00ED}vel apenas onde voc\u{00EA} comprou. \u{1F3E2}"
         ];
 
         return implode("\n", $lines);
