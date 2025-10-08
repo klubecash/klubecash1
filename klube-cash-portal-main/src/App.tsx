@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import Dashboard from "./pages/Dashboard";
 import NovaVenda from "./pages/NovaVenda";
@@ -15,8 +15,21 @@ import Perfil from "./pages/Perfil";
 import DetalhesLoja from "./pages/DetalhesLoja";
 import Importacao from "./pages/Importacao";
 import NotFound from "./pages/NotFound";
+import Login from "./pages/Login";
+import { authService } from "@/services/authService";
 
 const queryClient = new QueryClient();
+
+// Protected Route Component
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const isAuthenticated = authService.isAuthenticated();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -25,16 +38,17 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Layout><Dashboard /></Layout>} />
-          <Route path="/nova-venda" element={<Layout><NovaVenda /></Layout>} />
-          <Route path="/transacoes" element={<Layout><Transacoes /></Layout>} />
-          <Route path="/pendentes" element={<Layout><Pendentes /></Layout>} />
-          <Route path="/pagamentos-pix" element={<Layout><PagamentosPix /></Layout>} />
-          <Route path="/historico-pagamentos" element={<Layout><HistoricoPagamentos /></Layout>} />
-          <Route path="/funcionarios" element={<Layout><Funcionarios /></Layout>} />
-          <Route path="/perfil" element={<Layout><Perfil /></Layout>} />
-          <Route path="/detalhes-loja" element={<Layout><DetalhesLoja /></Layout>} />
-          <Route path="/importacao" element={<Layout><Importacao /></Layout>} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
+          <Route path="/nova-venda" element={<ProtectedRoute><Layout><NovaVenda /></Layout></ProtectedRoute>} />
+          <Route path="/transacoes" element={<ProtectedRoute><Layout><Transacoes /></Layout></ProtectedRoute>} />
+          <Route path="/pendentes" element={<ProtectedRoute><Layout><Pendentes /></Layout></ProtectedRoute>} />
+          <Route path="/pagamentos-pix" element={<ProtectedRoute><Layout><PagamentosPix /></Layout></ProtectedRoute>} />
+          <Route path="/historico-pagamentos" element={<ProtectedRoute><Layout><HistoricoPagamentos /></Layout></ProtectedRoute>} />
+          <Route path="/funcionarios" element={<ProtectedRoute><Layout><Funcionarios /></Layout></ProtectedRoute>} />
+          <Route path="/perfil" element={<ProtectedRoute><Layout><Perfil /></Layout></ProtectedRoute>} />
+          <Route path="/detalhes-loja" element={<ProtectedRoute><Layout><DetalhesLoja /></Layout></ProtectedRoute>} />
+          <Route path="/importacao" element={<ProtectedRoute><Layout><Importacao /></Layout></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

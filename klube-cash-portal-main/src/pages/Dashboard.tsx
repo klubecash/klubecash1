@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { DollarSign, ShoppingCart, Clock, TrendingUp, Eye, EyeOff } from "lucide-react";
+import { DollarSign, ShoppingCart, Clock, TrendingUp, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { KPICard } from "@/components/KPICard";
 import { Button } from "@/components/ui/button";
@@ -14,22 +14,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-
-// Mock data
-const kpiData = {
-  totalVendas: 248,
-  valorTotal: 125480.50,
-  pendentes: 12,
-  comissoes: 8450.20,
-};
-
-const recentTransactions = [
-  { id: 1, date: "2025-01-05", client: "João Silva", code: "TRX001", value: 1250.00, status: "aprovado" },
-  { id: 2, date: "2025-01-05", client: "Maria Santos", code: "TRX002", value: 890.50, status: "pendente" },
-  { id: 3, date: "2025-01-04", client: "Pedro Costa", code: "TRX003", value: 2100.00, status: "aprovado" },
-  { id: 4, date: "2025-01-04", client: "Ana Oliveira", code: "TRX004", value: 450.00, status: "pago" },
-  { id: 5, date: "2025-01-03", client: "Carlos Souza", code: "TRX005", value: 1680.00, status: "aprovado" },
-];
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useApi } from "@/hooks/useApi";
+import { dashboardService } from "@/services/dashboardService";
+import { DashboardKPI, Transaction } from "@/lib/api";
 
 const statusColors = {
   pendente: "bg-amber-100 text-amber-800",
@@ -41,6 +30,49 @@ const statusColors = {
 export default function Dashboard() {
   const navigate = useNavigate();
   const [showValues, setShowValues] = useState(true);
+  const [kpiData, setKpiData] = useState<DashboardKPI | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await dashboardService.getDashboardData();
+
+      if (response.status && response.data) {
+        setKpiData(response.data.kpi);
+        setTransactions(response.data.recentTransactions);
+      } else {
+        // If API fails, use mock data as fallback
+        setKpiData({
+          totalVendas: 248,
+          valorTotal: 125480.50,
+          pendentes: 12,
+          comissoes: 8450.20,
+        });
+        setTransactions([
+          { id: 1, date: "2025-01-05", client: "João Silva", code: "TRX001", value: 1250.00, status: "aprovado" },
+          { id: 2, date: "2025-01-05", client: "Maria Santos", code: "TRX002", value: 890.50, status: "pendente" },
+          { id: 3, date: "2025-01-04", client: "Pedro Costa", code: "TRX003", value: 2100.00, status: "aprovado" },
+          { id: 4, date: "2025-01-04", client: "Ana Oliveira", code: "TRX004", value: 450.00, status: "pago" },
+          { id: 5, date: "2025-01-03", client: "Carlos Souza", code: "TRX005", value: 1680.00, status: "aprovado" },
+        ]);
+        setError('Usando dados de demonstração. Verifique a conexão com o backend.');
+      }
+    } catch (err) {
+      console.error('Error loading dashboard:', err);
+      setError('Erro ao carregar dados do dashboard');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const formatCurrency = (value: number) => {
     if (!showValues) return "••••••";
@@ -63,33 +95,55 @@ export default function Dashboard() {
       />
 
       <div className="p-4 lg:p-6 space-y-6">
+        {/* Error Alert */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Aviso</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard
-            title="Total de Vendas"
-            value={kpiData.totalVendas}
-            icon={ShoppingCart}
-            variant="info"
-          />
-          <KPICard
-            title="Valor Total"
-            value={formatCurrency(kpiData.valorTotal)}
-            icon={DollarSign}
-            variant="success"
-          />
-          <KPICard
-            title="Transações Pendentes"
-            value={kpiData.pendentes}
-            icon={Clock}
-            variant="warning"
-          />
-          <KPICard
-            title="Total de Comissões"
-            value={formatCurrency(kpiData.comissoes)}
-            icon={TrendingUp}
-            variant="default"
-          />
-        </div>
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-6">
+                  <Skeleton className="h-4 w-20 mb-2" />
+                  <Skeleton className="h-8 w-32" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : kpiData ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard
+              title="Total de Vendas"
+              value={kpiData.totalVendas}
+              icon={ShoppingCart}
+              variant="info"
+            />
+            <KPICard
+              title="Valor Total"
+              value={formatCurrency(kpiData.valorTotal)}
+              icon={DollarSign}
+              variant="success"
+            />
+            <KPICard
+              title="Transações Pendentes"
+              value={kpiData.pendentes}
+              icon={Clock}
+              variant="warning"
+            />
+            <KPICard
+              title="Total de Comissões"
+              value={formatCurrency(kpiData.comissoes)}
+              icon={TrendingUp}
+              variant="default"
+            />
+          </div>
+        ) : null}
 
         {/* Sales Chart Placeholder */}
         <Card>
@@ -112,40 +166,58 @@ export default function Dashboard() {
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentTransactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell>{new Date(transaction.date).toLocaleDateString("pt-BR")}</TableCell>
-                      <TableCell className="font-medium">{transaction.client}</TableCell>
-                      <TableCell className="font-mono text-sm">{transaction.code}</TableCell>
-                      <TableCell>{formatCurrency(transaction.value)}</TableCell>
-                      <TableCell>
-                        <Badge className={statusColors[transaction.status as keyof typeof statusColors]}>
-                          {transaction.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="sm">
-                          Ver detalhes
-                        </Button>
-                      </TableCell>
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex items-center space-x-4">
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Ações</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {transactions.length > 0 ? (
+                      transactions.map((transaction) => (
+                        <TableRow key={transaction.id}>
+                          <TableCell>{new Date(transaction.date).toLocaleDateString("pt-BR")}</TableCell>
+                          <TableCell className="font-medium">{transaction.client}</TableCell>
+                          <TableCell className="font-mono text-sm">{transaction.code}</TableCell>
+                          <TableCell>{formatCurrency(transaction.value)}</TableCell>
+                          <TableCell>
+                            <Badge className={statusColors[transaction.status as keyof typeof statusColors]}>
+                              {transaction.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="sm">
+                              Ver detalhes
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground">
+                          Nenhuma transação encontrada
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
 

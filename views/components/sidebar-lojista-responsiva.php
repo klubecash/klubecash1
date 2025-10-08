@@ -64,6 +64,11 @@ $itens_menu_principal = [
 ];
 ?>
 
+<?php
+// Injeta assets do build (/dist) quando presentes
+include_once __DIR__ . '/dist-loader.php';
+?>
+
 <!-- Overlay para Mobile -->
 <div class="overlay-sidebar-mobile" id="overlaySidebarMobile"></div>
 

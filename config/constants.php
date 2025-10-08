@@ -52,6 +52,18 @@ define('VIEWS_DIR', ROOT_DIR . '/views');
 define('UPLOADS_DIR', ROOT_DIR . '/uploads');
 define('LOGS_DIR', ROOT_DIR . '/logs');
 define('ASSETS_DIR', ROOT_DIR . '/assets');
+// Build (dist) assets configuration
+if (!defined('DIST_DIR')) {
+    define('DIST_DIR', ROOT_DIR . '/dist');
+}
+if (!defined('DIST_URL')) {
+    define('DIST_URL', SITE_URL . '/dist');
+}
+// Auto-enable dist when a manifest is present; can be overridden by defining USE_DIST_ASSETS earlier
+if (!defined('USE_DIST_ASSETS')) {
+    $___manifestPath = @realpath(DIST_DIR . '/manifest.json');
+    define('USE_DIST_ASSETS', $___manifestPath && file_exists($___manifestPath));
+}
 define('DISPLAY_DEBUG_LOGS', false);
 
 // === CONFIGURAÇÕES DE CASHBACK ===
@@ -747,4 +759,3 @@ if (!defined('PASSWORD_MIN_LENGTH')) {
     define('PASSWORD_MIN_LENGTH', 8);
 }
 ?>
-

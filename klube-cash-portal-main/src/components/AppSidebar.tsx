@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -13,6 +13,7 @@ import {
   Upload,
   LogOut,
 } from "lucide-react";
+import { authService } from "@/services/authService";
 import {
   Sidebar,
   SidebarContent,
@@ -51,16 +52,27 @@ const menuItems = [
 
 export function AppSidebar() {
   const { state } = useSidebar();
+  const navigate = useNavigate();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [userName, setUserName] = useState("Loja Exemplo");
+  const [userType, setUserType] = useState("Lojista");
   const isCollapsed = state === "collapsed";
 
   const principalItems = menuItems.filter((item) => item.section === "principal");
   const contaItems = menuItems.filter((item) => item.section === "conta");
 
-  const handleLogout = () => {
-    // TODO: Implement actual logout logic
-    console.log("Logout");
+  useEffect(() => {
+    const user = authService.getCurrentUser();
+    if (user) {
+      setUserName(user.storeName || user.name);
+      setUserType(user.type === 'loja' ? 'Lojista' : user.type === 'funcionario' ? 'Funcionário' : 'Usuário');
+    }
+  }, []);
+
+  const handleLogout = async () => {
+    await authService.logout();
     setShowLogoutDialog(false);
+    navigate("/login");
   };
 
   return (
@@ -82,14 +94,14 @@ export function AppSidebar() {
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                 <Avatar className="h-10 w-10">
                   <AvatarFallback className="bg-primary text-primary-foreground">
-                    LJ
+                    {userName.substring(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">
-                    Loja Exemplo
+                    {userName}
                   </p>
-                  <p className="text-xs text-muted-foreground">Lojista</p>
+                  <p className="text-xs text-muted-foreground">{userType}</p>
                 </div>
               </div>
             )}
