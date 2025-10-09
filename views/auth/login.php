@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Por favor, preencha todos os campos.';
     } else {
         // Usar AuthController::login()
-        $result = AuthController::login($email, $password);
+        $result = AuthController::login($email, $password, false, $origem_post);
         
         if ($result['status']) {
             // CORREÇÃO LINHA 48 - Login bem-sucedido
@@ -683,16 +683,17 @@ if (!empty($urlError)) {
             </div>
 
             <form method="post" action="" class="login-form" id="login-form">
+                <input type="hidden" name="origem" value="<?php echo htmlspecialchars($origem); ?>">
                 <div class="input-group">
                     <label for="email" class="input-label">E-mail</label>
                     <div class="input-wrapper">
-                        <input 
-                            type="email" 
-                            id="email" 
-                            name="email" 
-                            class="input-field" 
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            class="input-field"
                             placeholder="Digite seu e-mail"
-                            required 
+                            required
                             autocomplete="email"
                         >
                     </div>
