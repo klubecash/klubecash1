@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(unzip:*)",
+      "Read(//c/Users/Kaua/Documents/Projetos/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
