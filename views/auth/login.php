@@ -4,6 +4,12 @@ require_once '../../config/constants.php';
 require_once '../../config/database.php';
 require_once '../../controllers/AuthController.php';
 
+
+if ($origem === 'sest-senat' && $_SESSION['user_type'] === 'cliente') {
+    // Redireciona para a URL exata do seu front-end em React
+    header('Location: https://sest-senat.klubecash.com');
+    exit;
+}
 // Verificar se já existe uma sessão ativa
 session_start();
 if (isset($_SESSION['user_id']) && !isset($_GET['force_login'])) {
