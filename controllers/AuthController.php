@@ -174,6 +174,14 @@ public static function login($email, $senha, $remember = false) {
         $updateStmt->execute([$user['id']]);
         
         error_log("LOGIN: Último login atualizado");
+        $tokenPayload = [
+                        'id'   => intval($user['id']),
+                        'nome' => $user['nome'],
+                        'tipo' => $user['tipo'],
+                        'exp'  => time() + (60 * 60 * 24) // Token JWT válido por 24 horas
+                    ];
+                       $token = Security::generateJWT($tokenPayload);
+            error_log("LOGIN: Token JWT gerado para o usuário ID: {$user['id']}");
 
         // LOG FINAL COMPLETO
         error_log("=== LOGIN CONCLUÍDO ===");
@@ -182,16 +190,17 @@ public static function login($email, $senha, $remember = false) {
         error_log("Store ID na sessão: " . ($_SESSION['store_id'] ?? 'NÃO DEFINIDO'));
         error_log("Sessão completa: " . json_encode($_SESSION));
 
-        return [
-            'status' => true,
-            'message' => 'Login realizado com sucesso!',
-            'user_data' => [
-                'id' => intval($user['id']),
-                'nome' => $user['nome'],
-                'email' => $user['email'],
-                'tipo' => $user['tipo']
-            ]
-        ];
+ return [
+                'status' => true,
+                'message' => 'Login realizado com sucesso!',
+                'user_data' => [
+                    'id' => intval($user['id']),
+                    'nome' => $user['nome'],
+                    'email' => $user['email'],
+                    'tipo' => $user['tipo']
+                ],
+                'token' => $token // O token agora é retornado aqui!
+            ];
 
     } catch (Exception $e) {
         error_log('LOGIN ERRO CRÍTICO: ' . $e->getMessage());

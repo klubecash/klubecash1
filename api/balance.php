@@ -1,11 +1,5 @@
 <?php
 // api/balance.php
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: https://sest-senat.klubecash.com'); // ALTERAR PARA O DOMINIO DA VPS
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE');
-header('Access-Control-Allow-Headers: Content-Type');
-header("Access-Control-Allow-Credentials: true");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
 require_once '../config/database.php';
 require_once '../config/constants.php';
@@ -14,9 +8,41 @@ require_once '../controllers/ClientController.php';
 require_once '../models/CashbackBalance.php';
 
 
+// Lista de domínios permitidos para acessar esta API
+$allowed_origins = [
+    'https://sest-senat.klubecash.com',
+    'https://sdk.mercadopago.com'
+    // Adicione outros domínios se necessário, ex: 'http://localhost:5173'
+];
+
+// Verifica a origem da requisição
+if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowed_origins)) {
+    // Se a origem for permitida, responda autorizando especificamente ela
+    header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
+} else {
+    // Se a origem não for permitida, você pode bloquear ou não enviar o header
+    // Para segurança, é melhor não enviar o header se a origem não for conhecida.
+}
+
+header('Content-Type: application/json; charset=UTF-8');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header("Access-Control-Allow-Credentials: true");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+// Configura o cookie de sessão para funcionar em todos os subdomínios
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path'     => '/',
+    'domain'   => '.klubecash.com',
+    'secure'   => true,
+    'httponly' => true,
+    'samesite' => 'Lax'
+]);
+
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     exit(0);
 }
+
 session_start();
 
 // Verificar autenticação
