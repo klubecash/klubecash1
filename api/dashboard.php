@@ -2,23 +2,30 @@
 // api/dashboard.php
 // API para obter dados do dashboard
 
+// Remover headers CORS existentes para evitar duplicação
+header_remove('Access-Control-Allow-Origin');
+header_remove('Access-Control-Allow-Methods');
+header_remove('Access-Control-Allow-Headers');
+header_remove('Access-Control-Allow-Credentials');
+
+// Definir headers CORS corretos
 header('Content-Type: application/json; charset=UTF-8');
 
-// Permitir CORS de qualquer origem
 $allowedOrigins = ['http://localhost:5173', 'http://localhost:3000', 'https://klubecash.com'];
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
 if (in_array($origin, $allowedOrigins)) {
-    header("Access-Control-Allow-Origin: $origin");
+    header("Access-Control-Allow-Origin: $origin", true);
+    header('Access-Control-Allow-Credentials: true', true);
 } else {
-    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Origin: *', true);
 }
 
-header('Access-Control-Allow-Credentials: true');
-header('Access-Control-Allow-Methods: GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Allow-Methods: GET, OPTIONS', true);
+header('Access-Control-Allow-Headers: Content-Type, Authorization', true);
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
     exit(0);
 }
 

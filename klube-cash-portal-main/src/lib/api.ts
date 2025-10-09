@@ -4,6 +4,12 @@ const API_ENDPOINT = import.meta.env.VITE_API_ENDPOINT || '/api';
 
 export const API_URL = `${API_BASE_URL}${API_ENDPOINT}`;
 
+// Debug: Log the API URL being used
+console.log('🔧 API Configuration:');
+console.log('  VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
+console.log('  VITE_API_ENDPOINT:', import.meta.env.VITE_API_ENDPOINT);
+console.log('  Final API_URL:', API_URL);
+
 export interface ApiResponse<T = any> {
   status: boolean;
   data?: T;
@@ -48,8 +54,13 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
+    const fullUrl = `${this.baseUrl}${endpoint}`;
+
+    // Debug: Log every request
+    console.log(`🌐 API Request: ${options.method || 'GET'} ${fullUrl}`);
+
     try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      const response = await fetch(fullUrl, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
@@ -57,6 +68,8 @@ class ApiClient {
         },
         credentials: 'include', // Important for session cookies
       });
+
+      console.log(`✅ API Response: ${response.status} ${response.statusText}`);
 
       const data = await response.json();
 
@@ -66,7 +79,8 @@ class ApiClient {
 
       return data;
     } catch (error) {
-      console.error('API Error:', error);
+      console.error('❌ API Error:', error);
+      console.error('   URL was:', fullUrl);
       return {
         status: false,
         message: error instanceof Error ? error.message : 'Erro desconhecido',
