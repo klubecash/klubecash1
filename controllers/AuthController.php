@@ -28,13 +28,13 @@ class AuthController {
     /**
  * Método de login COM LOGS FORÇADOS para debug
  */
-public static function login($email, $senha, $remember = false, $origem = '') {
+public static function login($email, $senha, $remember = false) {
     // LOG INICIAL FORÇADO
-    error_log("=== LOGIN INICIADO === Email: {$email}, Origem: {$origem}");
-
+    error_log("=== LOGIN INICIADO === Email: {$email}");
+    
     try {
         $db = Database::getConnection();
-
+        
         // Buscar usuário
         $stmt = $db->prepare("
             SELECT id, nome, email, senha_hash, tipo, senat, status, loja_vinculada_id, subtipo_funcionario
@@ -42,52 +42,28 @@ public static function login($email, $senha, $remember = false, $origem = '') {
             WHERE email = ? AND tipo IN ('cliente', 'admin', 'loja', 'funcionario')
         ");
         $stmt->execute([$email]);
-
+        
         if ($stmt->rowCount() === 0) {
             error_log("LOGIN ERRO: Usuário não encontrado - {$email}");
             return ['status' => false, 'message' => 'E-mail ou senha incorretos.'];
         }
-
+        
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         error_log("LOGIN: Usuário encontrado - ID: {$user['id']}, Tipo: {$user['tipo']}");
-
+        
         // Validar senha
         if (!password_verify($senha, $user['senha_hash'])) {
             error_log("LOGIN ERRO: Senha incorreta para {$email}");
             return ['status' => false, 'message' => 'E-mail ou senha incorretos.'];
         }
-
+        
         // Verificar status
         if ($user['status'] !== 'ativo') {
             error_log("LOGIN ERRO: Conta inativa - {$email}");
             return ['status' => false, 'message' => 'Sua conta está inativa. Entre em contato com o suporte.'];
         }
-
+        
         error_log("LOGIN: Validações OK, configurando sessão...");
-
-        // === VERIFICAÇÃO E ATUALIZAÇÃO SENAT ===
-        if ($origem === 'sest-senat' && $user['tipo'] === 'cliente') {
-            error_log("LOGIN: Detectado acesso SEST-SENAT para cliente ID: {$user['id']}");
-
-            // Verificar se já está marcado como SENAT
-            if ($user['senat'] === 'Não') {
-                try {
-                    $updateStmt = $db->prepare("UPDATE usuarios SET senat = 'Sim' WHERE id = ? AND tipo = 'cliente'");
-                    $updateStmt->execute([$user['id']]);
-
-                    if ($updateStmt->rowCount() > 0) {
-                        error_log("LOGIN: ✅ Usuário ID {$user['id']} marcado como SENAT = 'Sim'");
-                        $user['senat'] = 'Sim'; // Atualizar variável local
-                    } else {
-                        error_log("LOGIN: ⚠️ Falha ao atualizar SENAT para usuário ID {$user['id']}");
-                    }
-                } catch (Exception $e) {
-                    error_log("LOGIN ERRO: Exceção ao atualizar SENAT - " . $e->getMessage());
-                }
-            } else {
-                error_log("LOGIN: Usuário ID {$user['id']} já está marcado como SENAT = 'Sim'");
-            }
-        }
         
         // Configurar sessão
         if (session_status() === PHP_SESSION_NONE) {
@@ -198,6 +174,14 @@ public static function login($email, $senha, $remember = false, $origem = '') {
         $updateStmt->execute([$user['id']]);
         
         error_log("LOGIN: Último login atualizado");
+        $tokenPayload = [
+                        'id'   => intval($user['id']),
+                        'nome' => $user['nome'],
+                        'tipo' => $user['tipo'],
+                        'exp'  => time() + (60 * 60 * 24) // Token JWT válido por 24 horas
+                    ];
+                       $token = Security::generateJWT($tokenPayload);
+            error_log("LOGIN: Token JWT gerado para o usuário ID: {$user['id']}");
 
         // LOG FINAL COMPLETO
         error_log("=== LOGIN CONCLUÍDO ===");
@@ -206,16 +190,17 @@ public static function login($email, $senha, $remember = false, $origem = '') {
         error_log("Store ID na sessão: " . ($_SESSION['store_id'] ?? 'NÃO DEFINIDO'));
         error_log("Sessão completa: " . json_encode($_SESSION));
 
-        return [
-            'status' => true,
-            'message' => 'Login realizado com sucesso!',
-            'user_data' => [
-                'id' => intval($user['id']),
-                'nome' => $user['nome'],
-                'email' => $user['email'],
-                'tipo' => $user['tipo']
-            ]
-        ];
+ return [
+                'status' => true,
+                'message' => 'Login realizado com sucesso!',
+                'user_data' => [
+                    'id' => intval($user['id']),
+                    'nome' => $user['nome'],
+                    'email' => $user['email'],
+                    'tipo' => $user['tipo']
+                ],
+                'token' => $token // O token agora é retornado aqui!
+            ];
 
     } catch (Exception $e) {
         error_log('LOGIN ERRO CRÍTICO: ' . $e->getMessage());
@@ -1106,9 +1091,8 @@ if (basename($_SERVER['PHP_SELF']) === 'AuthController.php') {
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $email = $_POST['email'] ?? '';
                 $password = $_POST['password'] ?? '';
-                $origem = $_POST['origem'] ?? '';
-
-                $result = AuthController::login($email, $password, false, $origem);
+                
+                $result = AuthController::login($email, $password);
                 
                 if ($result['status']) {
                     // CORREÇÃO: Redirecionar baseado no tipo correto
