@@ -1,13 +1,6 @@
 <?php
 // api/balance.php
 
-require_once '../config/database.php';
-require_once '../config/constants.php';
-require_once '../controllers/AuthController.php';
-require_once '../controllers/ClientController.php';
-require_once '../models/CashbackBalance.php';
-
-
 // Lista de domínios permitidos para acessar esta API
 $allowed_origins = [
     'https://sest-senat.klubecash.com',
@@ -19,9 +12,6 @@ $allowed_origins = [
 if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowed_origins)) {
     // Se a origem for permitida, responda autorizando especificamente ela
     header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
-} else {
-    // Se a origem não for permitida, você pode bloquear ou não enviar o header
-    // Para segurança, é melhor não enviar o header se a origem não for conhecida.
 }
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -45,12 +35,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 
 session_start();
 
+// Incluir arquivos necessários
+require_once '../config/database.php';
+require_once '../config/constants.php';
+require_once '../controllers/AuthController.php';
+require_once '../controllers/ClientController.php';
+require_once '../models/CashbackBalance.php';
+
 // Verificar autenticação
 if (!AuthController::isAuthenticated()) {
-    echo json_encode(['status' => false, 'message' => 'Usuário não autenticado']);
+    echo json_encode(['status' => false, 'message' => 'Usuário não autenticado. Sessão não encontrada.']);
     exit;
 }
 
+// O restante do seu código continua exatamente o mesmo...
 $userId = AuthController::getCurrentUserId();
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -149,3 +147,4 @@ function handlePostRequest($userId) {
     }
 }
 ?>
+
