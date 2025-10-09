@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * Utilitario para integrar com WPPConnect (WhatsApp) usando cURL nativo.
  */
@@ -220,6 +220,7 @@ class WhatsAppBot
             $lines[] = "Voce recebeu: R$ {$cashback}";
         }
 
+        
         $lines[] = $options['custom_footer'] ?? 'O valor ja esta disponivel para usar nas proximas compras!';
 
         return implode("\n", $lines);
