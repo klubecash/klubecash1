@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Utilitario para integrar com WPPConnect (WhatsApp) usando cURL nativo.
  */
@@ -204,71 +204,7 @@ class WhatsAppBot
         return implode("\n", $lines);
     }
 
-    private static function buildBalanceSummaryMessage(array $data): string
-    {
-        $name = trim($data['nome'] ?? '');
-        $firstName = $name !== '' ? explode(' ', $name)[0] : 'cliente';
-        $total = number_format((float)($data['total'] ?? 0), 2, ',', '.');
-        $stores = is_array($data['lojas'] ?? null) ? $data['lojas'] : [];
-        $limit = (int)($data['limit'] ?? 6);
-        if ($limit <= 0) {
-            $limit = 6;
-        }
 
-        $lines = [
-            '*Klube Cash - Consulta de saldo*',
-            $name !== '' ? "Ola, {$firstName}! Aqui esta o seu saldo atualizado." : 'Aqui esta o seu saldo atualizado.'
-        ];
-
-        $lines[] = '';
-        $lines[] = 'Saldo disponivel: *R$ ' . $total . '*';
-
-        if ($stores !== []) {
-            $lines[] = '';
-            $lines[] = '*Disponivel por loja:*';
-
-            $totalStores = count($stores);
-            foreach ($stores as $index => $store) {
-                if ($index >= $limit) {
-                    break;
-                }
-
-                $storeName = trim((string)($store['nome'] ?? $store['nome_fantasia'] ?? 'Loja parceira'));
-                if ($storeName === '') {
-                    $storeName = 'Loja parceira';
-                }
-
-                $storeValue = number_format((float)($store['saldo'] ?? $store['saldo_disponivel'] ?? 0), 2, ',', '.');
-                $lines[] = sprintf('- %s: R$ %s', $storeName, $storeValue);
-            }
-
-            if ($totalStores > $limit) {
-                $remaining = $totalStores - $limit;
-                $lines[] = sprintf('... mais %d loja%s com saldo.', $remaining, $remaining > 1 ? 's' : '');
-            }
-        } else {
-            $lines[] = '';
-            $lines[] = 'Nenhum saldo disponivel encontrado no momento.';
-        }
-
-        if (!empty($data['observacao'])) {
-            $lines[] = '';
-            $lines[] = (string)$data['observacao'];
-        } else {
-            $lines[] = '';
-            $lines[] = 'Para usar seu saldo, informe seu CPF na compra ou apresente seu QR Code Klube Cash.';
-        }
-
-        return implode("\n", $lines);
-    }
-
-
-
-    public static function sendBalanceSummary(string $phone, array $summary, array $options = []): array
-    {
-        $message = self::buildBalanceSummaryMessage($summary);
-        return self::sendTextMessage($phone, $message, ['tag' => 'balance:summary'] + $options);
-    }
 
     private static function buildCashbackMessage(array $data, array $options = []): string
     {

@@ -88,11 +88,6 @@ $menuItems = [
 ];
 ?>
 
-<?php
-// Injeta assets do build (/dist) quando presentes
-include_once __DIR__ . '/dist-loader.php';
-?>
-
 <!-- CSS da Sidebar Incorporado -->
 <link rel="stylesheet" href="../../assets/css/sidebar-store-perfect.css">
 
