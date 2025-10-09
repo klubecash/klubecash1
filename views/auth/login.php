@@ -5,11 +5,7 @@ require_once '../../config/database.php';
 require_once '../../controllers/AuthController.php';
 
 
-if ($origem === 'sest-senat' && $_SESSION['user_type'] === 'cliente') {
-    // Redireciona para a URL exata do seu front-end em React
-    header('Location: https://sest-senat.klubecash.com');
-    exit;
-}
+$origem = $_GET['origem'] ?? '';
 // Verificar se já existe uma sessão ativa
 session_start();
 if (isset($_SESSION['user_id']) && !isset($_GET['force_login'])) {
@@ -37,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'] ?? '';
     
+    $origem_post = $_POST['origem'] ?? '';
     if (empty($email) || empty($password)) {
         $error = 'Por favor, preencha todos os campos.';
     } else {
@@ -47,6 +44,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // CORREÇÃO LINHA 48 - Login bem-sucedido
             $userType = $_SESSION['user_type'] ?? '';
             
+            if ($origem_post === 'sest-senat' && $userType === 'cliente') {
+                header('Location: https://sest-senat.klubecash.com');
+                exit;
+            }
+
             if ($userType == 'admin') {
                 header('Location: ' . ADMIN_DASHBOARD_URL);
             } else if ($userType == 'loja') {
