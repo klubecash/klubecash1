@@ -445,6 +445,7 @@ define('PUSH_UNREGISTER_URL', SITE_URL . '/api/pwa/unregister-subscription');
 define('PUSH_VALIDATE_URL', SITE_URL . '/api/pwa/validate-subscription');
 define('PUSH_PREFERENCES_URL', SITE_URL . '/api/pwa/update-preferences');
 define('PUSH_SYNC_URL', SITE_URL . '/api/pwa/sync-notifications');
+
 define('PUSH_TEST_URL', SITE_URL . '/api/pwa/test-notification');
 
 // Configurações de notificação
