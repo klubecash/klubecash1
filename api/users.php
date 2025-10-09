@@ -4,9 +4,12 @@
 
 // Configurações iniciais
 header('Content-Type: application/json; charset=UTF-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE');
+// O 'Access-Control-Allow-Origin' PRECISA ser o domínio exato, não '*'
+header('Access-Control-Allow-Origin: https://sest-senat.klubecash.com');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
+// O 'Access-Control-Allow-Credentials' é necessário para o navegador enviar o header 'Authorization'
+header('Access-Control-Allow-Credentials: true');
 
 // Se for requisição OPTIONS (preflight), encerra a execução
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -46,7 +49,40 @@ function validateToken() {
     
     return $decoded;
 }
+// ROTEAMENTO SIMPLIFICADO PARA O APP REACT (SEST-SENAT)
+$action = $_GET['action'] ?? '';
 
+// Rota para buscar os detalhes do usuário logado (usado pelo React)
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'get_details') {
+    $tokenData = validateToken();
+    $userId = $tokenData['id'];
+
+    // Usamos uma função que busca os dados completos do usuário pelo ID
+    // O AdminController::getUserDetails já parece fazer isso.
+    $result = AdminController::getUserDetails($userId); 
+    
+    echo json_encode($result);
+    exit;
+}
+
+// Rota para atualizar os detalhes do usuário (usado pelo React)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_details') {
+    $tokenData = validateToken();
+    $userId = $tokenData['id'];
+    
+    $postedData = json_decode(file_get_contents('php://input'), true);
+
+    // Aqui você chamaria seu controller para atualizar os dados no banco
+    // Ex: $result = ClientController::updateUserDetails($userId, $postedData);
+    
+    // Resposta de exemplo (placeholder)
+    $result = ['status' => true, 'message' => 'Dados do usuário atualizados com sucesso (implementação pendente).'];
+    
+    echo json_encode($result);
+    exit;
+}
+
+// ========
 // Processar a requisição com base no método HTTP
 $method = $_SERVER['REQUEST_METHOD'];
 

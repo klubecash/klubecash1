@@ -43,9 +43,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($result['status']) {
             // CORREÇÃO LINHA 48 - Login bem-sucedido
             $userType = $_SESSION['user_type'] ?? '';
-            
+
             if ($origem_post === 'sest-senat' && $userType === 'cliente') {
-                header('Location: https://sest-senat.klubecash.com');
+                // Gerar token único para autenticação no subdomínio
+                $token = bin2hex(random_bytes(32));
+                $_SESSION['senat_token'] = $token;
+                $_SESSION['senat_token_expiry'] = time() + 300; // 5 minutos
+
+                // Redirecionar com token na URL
+                header('Location: https://sest-senat.klubecash.com?auth_token=' . $token);
                 exit;
             }
 

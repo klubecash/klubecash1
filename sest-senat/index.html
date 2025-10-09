@@ -8,32 +8,137 @@
     <script type="module" crossorigin src="/assets/index-DZQGuTAe.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-IVPaOlA_.css">
     <script>
-      // Buscar dados do usuário logado
-      fetch('/get-user.php')
-        .then(response => response.json())
-        .then(data => {
-          if (data.loggedIn && data.user) {
-            // Atualizar elementos com o nome do usuário
-            const userName = data.user.name || 'Usuário';
+      // Função para obter parâmetro da URL
+      function getUrlParameter(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
+      }
 
-            // Aguardar o DOM carregar
-            window.addEventListener('DOMContentLoaded', () => {
-              // Buscar todos os elementos que contêm "Bem-vindo" ou "usuario"
-              const elements = document.querySelectorAll('*');
-              elements.forEach(el => {
-                if (el.textContent && el.textContent.includes('Bem-vindo')) {
-                  el.textContent = el.textContent.replace(/Bem-vindo[^,]*/i, `Bem-vindo, ${userName}`);
-                } else if (el.textContent && /bem.vindo/i.test(el.textContent)) {
-                  el.textContent = el.textContent.replace(/bem.vindo[^,]*/i, `Bem-vindo, ${userName}`);
-                }
-              });
-            });
+      // Verificar se há token de autenticação na URL
+      const authToken = getUrlParameter('auth_token');
 
-            // Armazenar no sessionStorage para uso posterior
-            sessionStorage.setItem('klubecash_user', JSON.stringify(data.user));
+      if (authToken) {
+        console.log('Token de autenticação encontrado, validando...');
+
+        // Validar token com o servidor principal
+        fetch('https://klubecash.com/api/validate-token.php?token=' + authToken, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json'
           }
         })
-        .catch(err => console.error('Erro ao buscar dados do usuário:', err));
+          .then(response => response.json())
+          .then(data => {
+            console.log('Resposta de validação do token:', data);
+
+            if (data.success && data.user) {
+              // Armazenar dados do usuário
+              sessionStorage.setItem('klubecash_user', JSON.stringify(data.user));
+
+              // Remover token da URL
+              const url = new URL(window.location);
+              url.searchParams.delete('auth_token');
+              window.history.replaceState({}, document.title, url);
+
+              // Atualizar interface com nome do usuário
+              updateUserInterface(data.user);
+            } else {
+              console.error('Falha ao validar token:', data.message);
+            }
+          })
+          .catch(err => console.error('Erro ao validar token:', err));
+
+      } else {
+        // Tentar buscar do sessionStorage
+        const storedUser = sessionStorage.getItem('klubecash_user');
+        if (storedUser) {
+          console.log('Usuário encontrado no sessionStorage');
+          const user = JSON.parse(storedUser);
+          updateUserInterface(user);
+        } else {
+          // Tentar buscar via cookie/sessão tradicional
+          console.log('Tentando buscar via sessão tradicional...');
+          fetch('/get-user.php', {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'Accept': 'application/json'
+            }
+          })
+            .then(response => response.json())
+            .then(data => {
+              console.log('Dados do usuário (sessão):', data);
+
+              if (data.loggedIn && data.user) {
+                updateUserInterface(data.user);
+              }
+            })
+            .catch(err => console.error('Erro ao buscar dados do usuário:', err));
+        }
+      }
+
+      // Função para atualizar interface com dados do usuário
+      function updateUserInterface(user) {
+        if (!user) return;
+
+        const userName = user.name || 'Usuário';
+        console.log('Atualizando interface para:', userName);
+
+        // Armazenar no sessionStorage
+        sessionStorage.setItem('klubecash_user', JSON.stringify(user));
+
+        // Função para substituir texto recursivamente
+        function updateUserName() {
+          const elements = document.querySelectorAll('*');
+          let updated = false;
+
+          elements.forEach(el => {
+            if (el.children.length === 0 && el.textContent) {
+              const text = el.textContent.trim();
+
+              if (text.includes('Bem-vindo') || /bem.vindo/i.test(text)) {
+                el.textContent = `Bem-vindo, ${userName}`;
+                console.log('Texto atualizado:', el.textContent);
+                updated = true;
+              } else if (text.toLowerCase() === 'usuario') {
+                el.textContent = userName;
+                console.log('Texto atualizado:', el.textContent);
+                updated = true;
+              }
+            }
+          });
+
+          return updated;
+        }
+
+        // Tentar atualizar imediatamente
+        setTimeout(() => {
+          if (!updateUserName()) {
+            console.log('Aguardando DOM carregar completamente...');
+          }
+        }, 100);
+
+        // Aguardar o DOM carregar
+        window.addEventListener('DOMContentLoaded', () => {
+          updateUserName();
+        });
+
+        // Tentar novamente após 1 segundo (para apps React)
+        setTimeout(() => {
+          updateUserName();
+        }, 1000);
+
+        // Observar mudanças no DOM (para apps React que atualizam dinamicamente)
+        const observer = new MutationObserver(() => {
+          updateUserName();
+        });
+
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+      }
     </script>
   </head>
   <body>
