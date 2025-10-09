@@ -1,9 +1,11 @@
 <?php
 // api/balance.php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: https://sest-senat.klubecash.com'); // ALTERAR PARA O DOMINIO DA VPS
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE');
 header('Access-Control-Allow-Headers: Content-Type');
+header("Access-Control-Allow-Credentials: true");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
 require_once '../config/database.php';
 require_once '../config/constants.php';
@@ -11,6 +13,10 @@ require_once '../controllers/AuthController.php';
 require_once '../controllers/ClientController.php';
 require_once '../models/CashbackBalance.php';
 
+
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    exit(0);
+}
 session_start();
 
 // Verificar autenticação

@@ -67,6 +67,14 @@ public static function login($email, $senha, $remember = false) {
         
         // Configurar sessão
         if (session_status() === PHP_SESSION_NONE) {
+            session_set_cookie_params([
+                'lifetime' => 0,
+                'path' => '/',
+                'domain' => '.klubecash.com', // com ponto para incluir subdomínios
+                'secure' => true,              // obrigatório para HTTPS
+                'httponly' => true,            // impede acesso via JavaScript
+                'samesite' => 'None'           // necessário para compartilhamento entre domínios
+                ]);
             session_start();
         }
 
