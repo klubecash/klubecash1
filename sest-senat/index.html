@@ -7,6 +7,34 @@
     <title>sest-senat</title>
     <script type="module" crossorigin src="/assets/index-DZQGuTAe.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-IVPaOlA_.css">
+    <script>
+      // Buscar dados do usuário logado
+      fetch('/get-user.php')
+        .then(response => response.json())
+        .then(data => {
+          if (data.loggedIn && data.user) {
+            // Atualizar elementos com o nome do usuário
+            const userName = data.user.name || 'Usuário';
+
+            // Aguardar o DOM carregar
+            window.addEventListener('DOMContentLoaded', () => {
+              // Buscar todos os elementos que contêm "Bem-vindo" ou "usuario"
+              const elements = document.querySelectorAll('*');
+              elements.forEach(el => {
+                if (el.textContent && el.textContent.includes('Bem-vindo')) {
+                  el.textContent = el.textContent.replace(/Bem-vindo[^,]*/i, `Bem-vindo, ${userName}`);
+                } else if (el.textContent && /bem.vindo/i.test(el.textContent)) {
+                  el.textContent = el.textContent.replace(/bem.vindo[^,]*/i, `Bem-vindo, ${userName}`);
+                }
+              });
+            });
+
+            // Armazenar no sessionStorage para uso posterior
+            sessionStorage.setItem('klubecash_user', JSON.stringify(data.user));
+          }
+        })
+        .catch(err => console.error('Erro ao buscar dados do usuário:', err));
+    </script>
   </head>
   <body>
     <div id="root"></div>
