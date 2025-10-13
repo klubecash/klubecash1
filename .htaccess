@@ -47,7 +47,7 @@ RewriteRule ^api/whatsapp-saldo/?$ api/whatsapp-saldo.php [L,QSA]
     ExpiresDefault "access plus 0 seconds"
     
     # Headers para API
-    Header always set Access-Control-Allow-Origin "*"
+
     Header always set Access-Control-Allow-Methods "POST, OPTIONS"
     Header always set Access-Control-Allow-Headers "Content-Type, Authorization"
 </FilesMatch>
@@ -581,7 +581,6 @@ RewriteRule ^api/pwa/test-notification/?$ api/pwa/notifications.php?action=test 
     Header add Link "</assets/js/index-v2.js>; rel=preload; as=script"
     
     # Permitir conexões do SDK do Mercado Pago
-    Header add Access-Control-Allow-Origin "https://sdk.mercadopago.com"
     Header add Access-Control-Allow-Credentials "true"
 </IfModule>
 
