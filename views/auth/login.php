@@ -1,25 +1,23 @@
 <?php
-// views/auth/login.php - VERSÃO COMPLETAMENTE CORRIGIDA
+// views/auth/login.php - VERSÃO CORRIGIDA E REESTRUTURADA
+
+// ✅ CORREÇÃO: Toda a lógica PHP foi movida para o topo do ficheiro, ANTES de qualquer HTML.
 require_once '../../config/constants.php';
 require_once '../../config/database.php';
 require_once '../../controllers/AuthController.php';
 
+// Captura a origem da URL (se houver)
+$origem = $_GET['origem'] ?? '';
 
-$origem = $_GET['origem'] ?? '';
-$origem = $_GET['origem'] ?? '';
-// Verificar se já existe uma sessão ativa
 session_start();
+
+// 1. VERIFICAR SE O UTILIZADOR JÁ ESTÁ LOGADO E REDIRECIONAR
 if (isset($_SESSION['user_id']) && !isset($_GET['force_login'])) {
-    // CORREÇÃO LINHA 18 - Redirecionar corretamente baseado no tipo
     $userType = $_SESSION['user_type'] ?? '';
     if ($userType == 'admin') {
         header('Location: ' . ADMIN_DASHBOARD_URL);
         exit;
-    } else if ($userType == 'loja') {
-        header('Location: ' . STORE_DASHBOARD_URL);
-        exit;
-    } else if ($userType == 'funcionario') {
-        // CORREÇÃO CRÍTICA: FUNCIONÁRIO VAI PARA STORE
+    } else if ($userType == 'loja' || $userType == 'funcionario') {
         header('Location: ' . STORE_DASHBOARD_URL);
         exit;
     } else {
@@ -28,52 +26,55 @@ if (isset($_SESSION['user_id']) && !isset($_GET['force_login'])) {
     }
 }
 
-// Processar o formulário de login
+// 2. PROCESSAR O FORMULÁRIO DE LOGIN (SE FOI ENVIADO)
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'] ?? '';
-    
     $origem_post = $_POST['origem'] ?? '';
-    $origem_post = $_POST['origem'] ?? '';
+
     if (empty($email) || empty($password)) {
         $error = 'Por favor, preencha todos os campos.';
     } else {
-        // Usar AuthController::login()
-        $result = AuthController::login($email, $password, false, $origem_post);
+        // A função login agora também retorna o 'senat' status e o 'token'
+        $result = AuthController::login($email, $password);
         
         if ($result['status']) {
-            // CORREÇÃO LINHA 48 - Login bem-sucedido
+            // Login bem-sucedido, agora decidimos para onde redirecionar
             $userType = $_SESSION['user_type'] ?? '';
-            
-            if ($origem_post === 'sest-senat' && $userType === 'cliente') {
-                header('Location: https://sest-senat.klubecash.com');
+            $userData = $result['user_data'] ?? [];
+
+            // Lógica de redirecionamento para SEST-SENAT (com o token JWT)
+            if ($origem_post === 'sest-senat' && !empty($userData['senat']) && in_array(strtolower($userData['senat']), ['true', '1', 'sim'])) {
+                $token = $result['token'] ?? '';
+                header('Location: https://sest-senat.klubecash.com/?token=' . $token);
                 exit;
             }
 
+            // Lógica de redirecionamento padrão para outros utilizadores
             if ($userType == 'admin') {
                 header('Location: ' . ADMIN_DASHBOARD_URL);
-            } else if ($userType == 'loja') {
-                header('Location: ' . STORE_DASHBOARD_URL);
-            } else if ($userType == 'funcionario') {
-                // CORREÇÃO CRÍTICA: FUNCIONÁRIO VAI PARA STORE
+            } else if ($userType == 'loja' || $userType == 'funcionario') {
                 header('Location: ' . STORE_DASHBOARD_URL);
             } else {
                 header('Location: ' . CLIENT_DASHBOARD_URL);
             }
             exit;
+
         } else {
             $error = $result['message'];
         }
     }
 }
 
-// Verificar mensagens de URL
+// 3. SE NÃO HOUVE REDIRECIONAMENTO, PREPARAMOS AS VARIÁVEIS PARA MOSTRAR A PÁGINA HTML
 $urlError = $_GET['error'] ?? '';
 $urlSuccess = $_GET['success'] ?? '';
 if (!empty($urlError)) {
     $error = urldecode($urlError);
 }
+
+// O script PHP termina aqui, e SÓ AGORA o HTML começa.
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -685,17 +686,19 @@ if (!empty($urlError)) {
             </div>
 
             <form method="post" action="" class="login-form" id="login-form">
+                
                 <input type="hidden" name="origem" value="<?php echo htmlspecialchars($origem); ?>">
+
                 <div class="input-group">
                     <label for="email" class="input-label">E-mail</label>
                     <div class="input-wrapper">
-                        <input
-                            type="email"
-                            id="email"
-                            name="email"
-                            class="input-field"
+                        <input 
+                            type="email" 
+                            id="email" 
+                            name="email" 
+                            class="input-field" 
                             placeholder="Digite seu e-mail"
-                            required
+                            required 
                             autocomplete="email"
                         >
                     </div>
@@ -951,3 +954,4 @@ if (!empty($urlError)) {
     </script>
 </body>
 </html>
+
