@@ -206,7 +206,7 @@ class Security {
     public static function checkPasswordStrength($password) {
         $score = 0;
         $feedback = [];
-        if (strlen($password) < PASSWORD_MIN_LENGTH) {
+        if (defined('PASSWORD_MIN_LENGTH') && strlen($password) < PASSWORD_MIN_LENGTH) {
             $feedback[] = 'A senha deve ter pelo menos ' . PASSWORD_MIN_LENGTH . ' caracteres.';
         } else {
             $score += 1;
@@ -423,4 +423,3 @@ class Security {
     }
 }
 ?>
-
