@@ -576,10 +576,9 @@ RewriteRule ^api/pwa/test-notification/?$ api/pwa/notifications.php?action=test 
 # === OTIMIZAÇÕES ESPECIAIS PARA MERCADO PAGO ===
 <IfModule mod_headers.c>
     # Preload de recursos críticos
-    Header add Link "</assets/css/index-v2.css>; rel=preload; as=style"
+
     Header add Link "<https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap>; rel=preload; as=style; crossorigin"
-    Header add Link "</assets/js/index-v2.js>; rel=preload; as=script"
-    
+
     # Permitir conexões do SDK do Mercado Pago
     Header add Access-Control-Allow-Credentials "true"
 </IfModule>
