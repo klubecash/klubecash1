@@ -29,7 +29,7 @@ class Security {
         $base64UrlPayload = self::base64UrlEncode(json_encode($payload));
         
         // Criar a assinatura usando a chave secreta definida em constants.php
-        $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, JWT_SECRET_KEY, true);
+        $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, JWT_SECRET, true);
         
         // Codificar a assinatura em Base64URL
         $base64UrlSignature = self::base64UrlEncode($signature);
@@ -69,7 +69,7 @@ class Security {
         // Recriar a assinatura para verificação
         $base64UrlHeader = self::base64UrlEncode($header);
         $base64UrlPayload = self::base64UrlEncode($payload);
-        $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, JWT_SECRET_KEY, true);
+        $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, JWT_SECRET, true);
         $base64UrlSignature = self::base64UrlEncode($signature);
 
         // Comparar as assinaturas de forma segura para evitar timing attacks
@@ -423,3 +423,4 @@ class Security {
     }
 }
 ?>
+
