@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Utilitario para integrar com WPPConnect (WhatsApp) usando cURL nativo.
  */

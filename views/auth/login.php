@@ -6,6 +6,7 @@ require_once '../../controllers/AuthController.php';
 
 
 $origem = $_GET['origem'] ?? '';
+$origem = $_GET['origem'] ?? '';
 // Verificar se já existe uma sessão ativa
 session_start();
 if (isset($_SESSION['user_id']) && !isset($_GET['force_login'])) {
@@ -34,6 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     
     $origem_post = $_POST['origem'] ?? '';
+    $origem_post = $_POST['origem'] ?? '';
     if (empty($email) || empty($password)) {
         $error = 'Por favor, preencha todos os campos.';
     } else {
@@ -43,15 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($result['status']) {
             // CORREÇÃO LINHA 48 - Login bem-sucedido
             $userType = $_SESSION['user_type'] ?? '';
-
+            
             if ($origem_post === 'sest-senat' && $userType === 'cliente') {
-                // Gerar token único para autenticação no subdomínio
-                $token = bin2hex(random_bytes(32));
-                $_SESSION['senat_token'] = $token;
-                $_SESSION['senat_token_expiry'] = time() + 300; // 5 minutos
-
-                // Redirecionar com token na URL
-                header('Location: https://sest-senat.klubecash.com?auth_token=' . $token);
+                header('Location: https://sest-senat.klubecash.com');
                 exit;
             }
 
