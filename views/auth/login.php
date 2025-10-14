@@ -39,33 +39,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // A função login agora também retorna o 'senat' status e o 'token'
         $result = AuthController::login($email, $password);
         
-        if ($result['status']) {
-            // Login bem-sucedido, agora decidimos para onde redirecionar
-            $userType = $_SESSION['user_type'] ?? '';
-            $userData = $result['user_data'] ?? [];
+if ($result['status']) {
+    $token = $result['token'] ?? '';
 
-            // Lógica de redirecionamento para SEST-SENAT (com o token JWT)
-            if ($origem_post === 'sest-senat' && !empty($userData['senat']) && in_array(strtolower($userData['senat']), ['true', '1', 'sim'])) {
-                $token = $result['token'] ?? '';
-                header('Location: https://sest-senat.klubecash.com/?token=' . $token);
-                exit;
-            }
+    // ✅ Definir o cookie JWT para o subdomínio
+    setcookie(
+        "auth_token",
+        $token,
+        [
+            'expires' => time() + 86400,           // 24 horas
+            'path' => '/',
+            'domain' => '.klubecash.com',          // compartilha com subdomínios
+            'secure' => true,                      // obrigatório para HTTPS
+            'httponly' => false,                   // acessível via JavaScript
+            'samesite' => 'None'                   // necessário para cross-domain
+        ]
+    );
 
-            // Lógica de redirecionamento padrão para outros utilizadores
-            if ($userType == 'admin') {
-                header('Location: ' . ADMIN_DASHBOARD_URL);
-            } else if ($userType == 'loja' || $userType == 'funcionario') {
-                header('Location: ' . STORE_DASHBOARD_URL);
-            } else {
-                header('Location: ' . CLIENT_DASHBOARD_URL);
-            }
-            exit;
+    // Agora pode redirecionar
+    $userType = $_SESSION['user_type'] ?? '';
+    $userData = $result['user_data'] ?? [];
 
-        } else {
+    if ($origem_post === 'sest-senat' && !empty($userData['senat']) && in_array(strtolower($userData['senat']), ['true', '1', 'sim'])) {
+        header('Location: https://sest-senat.klubecash.com/');
+        exit;
+    }
+
+    if ($userType == 'admin') {
+        header('Location: ' . ADMIN_DASHBOARD_URL);
+    } else if ($userType == 'loja' || $userType == 'funcionario') {
+        header('Location: ' . STORE_DASHBOARD_URL);
+    } else {
+        header('Location: ' . CLIENT_DASHBOARD_URL);
+    }
+    exit;
+}
             $error = $result['message'];
         }
     }
-}
 
 // 3. SE NÃO HOUVE REDIRECIONAMENTO, PREPARAMOS AS VARIÁVEIS PARA MOSTRAR A PÁGINA HTML
 $urlError = $_GET['error'] ?? '';
