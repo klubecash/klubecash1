@@ -183,6 +183,19 @@ public static function login($email, $senha, $remember = false) {
                         'exp'  => time() + (60 * 60 * 24) // Token JWT válido por 24 horas
                     ];
                        $token = Security::generateJWT($tokenPayload);
+                       setcookie(
+  "auth_token",
+  $token,
+  [
+    'expires' => time() + 86400,
+    'path' => '/',
+    'domain' => '.klubecash.com',
+    'secure' => true,
+    'httponly' => false,
+    'samesite' => 'None'
+  ]
+);
+
             error_log("LOGIN: Token JWT gerado para o usuário ID: {$user['id']}");
 
         // LOG FINAL COMPLETO
