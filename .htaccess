@@ -178,6 +178,7 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
 # === REGRA PARA INDEX ===
 # Garantir que index.php funcione
+RewriteCond %{REQUEST_URI} !^/sest-senat/
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_URI} ^/$
@@ -638,6 +639,7 @@ Options -Indexes
 
 # === REGRAS FINAIS ===
 # Permitir acesso direto aos controladores para AJAX
+RewriteCond %{REQUEST_URI} !^/sest-senat/
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteCond %{REQUEST_URI} /controllers/.*\.php$ [NC]
 RewriteRule ^(.*)$ - [L]
