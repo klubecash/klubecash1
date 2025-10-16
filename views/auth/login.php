@@ -1,7 +1,6 @@
 <?php
 // views/auth/login.php - VERSÃO CORRIGIDA E REESTRUTURADA
 
-// ✅ CORREÇÃO: Toda a lógica PHP foi movida para o topo do ficheiro, ANTES de qualquer HTML.
 require_once '../../config/constants.php';
 require_once '../../config/database.php';
 require_once '../../controllers/AuthController.php';
@@ -9,7 +8,21 @@ require_once '../../controllers/AuthController.php';
 // Captura a origem da URL (se houver)
 $origem = $_GET['origem'] ?? '';
 
-session_start();
+// ✅ CORREÇÃO: Definir as regras do cookie de sessão ANTES de iniciar a sessão.
+// Isto garante que o PHPSESSID é partilhado com os subdomínios.
+session_set_cookie_params([
+    'lifetime' => 0, // A sessão dura até o navegador fechar
+    'path'     => '/',
+    'domain'   => '.klubecash.com', // O PONTO é crucial para incluir subdomínios
+    'secure'   => true,   // Apenas sobre HTTPS
+    'httponly' => true, // Impede acesso via JavaScript (mais seguro)
+    'samesite' => 'Lax' // Segurança contra ataques CSRF
+]);
+
+// Iniciar a sessão apenas se não houver uma ativa
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // 1. VERIFICAR SE O UTILIZADOR JÁ ESTÁ LOGADO E REDIRECIONAR
 if (isset($_SESSION['user_id']) && !isset($_GET['force_login'])) {
@@ -39,44 +52,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // A função login agora também retorna o 'senat' status e o 'token'
         $result = AuthController::login($email, $password);
         
-if ($result['status']) {
-    $token = $result['token'] ?? '';
+        if ($result['status']) {
+            // Login bem-sucedido, agora decidimos para onde redirecionar
+            $userType = $_SESSION['user_type'] ?? '';
+            $userData = $result['user_data'] ?? [];
+            
+            $token = $result['token'] ?? '';
+            if ($token) {
+                // Define o cookie JWT com as MESMAS regras do cookie de sessão
+                setcookie('jwt_token', $token, [
+                    'expires' => time() + (60 * 60 * 24), // 24 horas
+                    'path' => '/',
+                    'domain' => '.klubecash.com',
+                    'secure' => true,
+                    'httponly' => true,
+                    'samesite' => 'Lax'
+                ]);
+            }
+            
+            // Lógica de redirecionamento para SEST-SENAT (agora sem o token na URL)
+            if ($origem_post === 'sest-senat' && !empty($userData['senat']) && in_array(strtolower($userData['senat']), ['true', '1', 'sim'])) {
+                header('Location: https://sest-senat.klubecash.com/');
+                exit;
+            }
 
-    // ✅ Definir o cookie JWT para o subdomínio
-    setcookie(
-        "auth_token",
-        $token,
-        [
-            'expires' => time() + 86400,           // 24 horas
-            'path' => '/',
-            'domain' => '.klubecash.com',          // compartilha com subdomínios
-            'secure' => true,                      // obrigatório para HTTPS
-            'httponly' => false,                   // acessível via JavaScript
-            'samesite' => 'None'                   // necessário para cross-domain
-        ]
-    );
+            // Lógica de redirecionamento padrão para outros utilizadores
+            if ($userType == 'admin') {
+                header('Location: ' . ADMIN_DASHBOARD_URL);
+            } else if ($userType == 'loja' || $userType == 'funcionario') {
+                header('Location: ' . STORE_DASHBOARD_URL);
+            } else {
+                header('Location: ' . CLIENT_DASHBOARD_URL);
+            }
+            exit;
 
-    // Agora pode redirecionar
-    $userType = $_SESSION['user_type'] ?? '';
-    $userData = $result['user_data'] ?? [];
-
-    if ($origem_post === 'sest-senat' && !empty($userData['senat']) && in_array(strtolower($userData['senat']), ['true', '1', 'sim'])) {
-        header('Location: https://sest-senat.klubecash.com/');
-        exit;
-    }
-
-    if ($userType == 'admin') {
-        header('Location: ' . ADMIN_DASHBOARD_URL);
-    } else if ($userType == 'loja' || $userType == 'funcionario') {
-        header('Location: ' . STORE_DASHBOARD_URL);
-    } else {
-        header('Location: ' . CLIENT_DASHBOARD_URL);
-    }
-    exit;
-}
+        } else {
             $error = $result['message'];
         }
     }
+}
 
 // 3. SE NÃO HOUVE REDIRECIONAMENTO, PREPARAMOS AS VARIÁVEIS PARA MOSTRAR A PÁGINA HTML
 $urlError = $_GET['error'] ?? '';
@@ -697,19 +711,17 @@ if (!empty($urlError)) {
             </div>
 
             <form method="post" action="" class="login-form" id="login-form">
-                
                 <input type="hidden" name="origem" value="<?php echo htmlspecialchars($origem); ?>">
-
                 <div class="input-group">
                     <label for="email" class="input-label">E-mail</label>
                     <div class="input-wrapper">
-                        <input 
-                            type="email" 
-                            id="email" 
-                            name="email" 
-                            class="input-field" 
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            class="input-field"
                             placeholder="Digite seu e-mail"
-                            required 
+                            required
                             autocomplete="email"
                         >
                     </div>
@@ -965,4 +977,3 @@ if (!empty($urlError)) {
     </script>
 </body>
 </html>
-

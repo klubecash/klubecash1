@@ -10,6 +10,20 @@ header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 // O 'Access-Control-Allow-Credentials' é necessário para o navegador enviar o header 'Authorization'
 header('Access-Control-Allow-Credentials: true');
+$allowed_origins = [
+    'https://sest-senat.klubecash.com',
+    'https://sdk.mercadopago.com'
+    // Adicione outros domínios de desenvolvimento se necessário
+];
+
+// Verifica a origem da requisição e define o cabeçalho CORS dinamicamente
+if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowed_origins)) {
+    header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
+}
+
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Allow-Credentials: true');
 
 // Se for requisição OPTIONS (preflight), encerra a execução
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -21,34 +35,50 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/constants.php';
 require_once __DIR__ . '/../controllers/AuthController.php';
 require_once __DIR__ . '/../controllers/AdminController.php';
+require_once __DIR__ . '/../controllers/ClientController.php';
 require_once __DIR__ . '/../utils/Security.php';
 require_once __DIR__ . '/../utils/Validator.php';
 
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path'     => '/',
+    'domain'   => '.klubecash.com',
+    'secure'   => true,
+    'httponly' => true,
+    'samesite' => 'Lax' 
+]);
+
+// Responde à requisição pre-flight do navegador
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    exit(0);
+}
+
+// Inicia a sessão para ler o cookie PHPSESSID
+session_start();
 // Função para validar token JWT
 function validateToken() {
-    // Obter token do cabeçalho Authorization
-    $headers = getallheaders();
-    $auth = isset($headers['Authorization']) ? $headers['Authorization'] : '';
+    // 1. Ler o token diretamente do cookie enviado pelo navegador
+    $token = $_COOKIE['jwt_token'] ?? '';
     
-    if (empty($auth) || !preg_match('/Bearer\s+(.*)$/i', $auth, $matches)) {
+    if (empty($token)) {
         http_response_code(401);
-        echo json_encode(['status' => false, 'message' => 'Token de autenticação não fornecido']);
+        echo json_encode(['status' => false, 'message' => 'Token de autenticação não fornecido no cookie.']);
         exit;
     }
     
-    $token = $matches[1];
-    
-    // Validar token (usando uma função de exemplo, você precisará implementar seu próprio validador)
+    // 2. Validar o token
     $decoded = Security::validateJWT($token);
     
     if (!$decoded) {
         http_response_code(401);
-        echo json_encode(['status' => false, 'message' => 'Token de autenticação inválido ou expirado']);
+        echo json_encode(['status' => false, 'message' => 'Token de autenticação inválido ou expirado.']);
         exit;
     }
     
-    return $decoded;
+    // 3. Retorna os dados do token como um array
+    return (array) $decoded;
 }
+
 // ROTEAMENTO SIMPLIFICADO PARA O APP REACT (SEST-SENAT)
 $action = $_GET['action'] ?? '';
 
