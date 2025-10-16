@@ -315,6 +315,11 @@ RewriteRule ^admin/pagamentos/?$ views/admin/payments.php [L]
 RewriteRule ^admin/cashback-config/?$ views/admin/cashback-config.php [L]
 RewriteRule ^admin/relatorios/?$ views/admin/reports.php [L]
 
+# Admin - Assinaturas
+RewriteRule ^admin/assinaturas/?$ views/admin/subscriptions.php [L,QSA]
+RewriteRule ^admin/planos/?$ views/admin/plans.php [L,QSA]
+RewriteRule ^admin/store-subscription/?$ views/admin/store-subscription.php [L,QSA]
+
 # === ROTAS DE AUDITORIA (SISTEMA SIMPLIFICADO) ===
 RewriteRule ^admin/auditoria/?$ views/admin/audit-log.php [L]
 RewriteRule ^admin/logs-funcionarios/?$ views/admin/employee-logs.php [L]
@@ -338,6 +343,10 @@ RewriteRule ^store/upload-lote/?$ views/stores/batch-upload.php [L,QSA]
 RewriteRule ^store/pagamento/?$ views/stores/payment.php [L,QSA]
 RewriteRule ^store/historico-pagamentos/?$ views/stores/payment-history.php [L,QSA]
 RewriteRule ^store/perfil/?$ views/stores/profile.php [L,QSA]
+
+# Store - Assinaturas
+RewriteRule ^store/meu-plano/?$ views/stores/subscription.php [L,QSA]
+RewriteRule ^store/fatura-pix/?$ views/stores/invoice-pix.php [L,QSA]
 # Redirecionar API de funcionários
 RewriteRule ^api/employees$ api/employees.php [L,QSA]
 
@@ -349,6 +358,10 @@ RewriteRule ^api/employees/?$ api/employees.php [L,QSA]
 RewriteRule ^api/openpix/?$ api/openpix.php [L]
 # NOVO WEBHOOK OPENPIX
 RewriteRule ^webhook/openpix/?$ webhook/openpix.php [L]
+
+# API - Abacate Pay (Assinaturas)
+RewriteRule ^api/abacatepay/?$ api/abacatepay.php [L,QSA]
+RewriteRule ^api/abacatepay-webhook/?$ api/abacatepay-webhook.php [L,QSA]
 # Email Marketing
 RewriteRule ^admin/email-marketing/?$ views/admin/email-marketing.php [L]
 RewriteRule ^admin/email-templates/?$ views/admin/email-templates.php [L]

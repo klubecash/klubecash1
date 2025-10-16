@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(unzip:*)",
-      "Read(//c/Users/Kaua/Documents/Projetos/**)"
+      "Read(//c/Users/Kaua/Documents/Projetos/**)",
+      "Bash(cat:*)",
+      "Bash(mysql:*)"
     ],
     "deny": [],
     "ask": []

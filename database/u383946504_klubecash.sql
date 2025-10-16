@@ -2,8 +2,8 @@
 -- version 5.2.2
 -- https://www.phpmyadmin.net/
 --
--- Host: 127.0.0.1:3306
--- Tempo de geração: 29/09/2025 às 22:09
+-- Host: 127.0.0.1
+-- Tempo de geração: 16/10/2025 às 11:49
 -- Versão do servidor: 11.8.3-MariaDB-log
 -- Versão do PHP: 7.2.34
 
@@ -40,7 +40,7 @@ CREATE TABLE `admin_reserva_cashback` (
 --
 
 INSERT INTO `admin_reserva_cashback` (`id`, `valor_total`, `valor_disponivel`, `valor_usado`, `ultima_atualizacao`) VALUES
-(1, 21.70, 21.70, 0.00, '2025-09-19 19:27:05');
+(1, 0.00, 0.00, 0.00, '2025-10-03 03:26:23');
 
 -- --------------------------------------------------------
 
@@ -56,16 +56,6 @@ CREATE TABLE `admin_reserva_movimentacoes` (
   `descricao` varchar(255) DEFAULT NULL,
   `data_operacao` timestamp NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Despejando dados para a tabela `admin_reserva_movimentacoes`
---
-
-INSERT INTO `admin_reserva_movimentacoes` (`id`, `transacao_id`, `valor`, `tipo`, `descricao`, `data_operacao`) VALUES
-(16, 1186, 7.00, 'credito', 'Reserva de cashback - Pagamento #1186 aprovado - Total de clientes: 1', '2025-09-19 19:26:06'),
-(17, 1185, 7.00, 'credito', 'Reserva de cashback - Pagamento #1185 aprovado - Total de clientes: 1', '2025-09-19 19:26:46'),
-(18, 1184, 0.70, 'credito', 'Reserva de cashback - Pagamento #1184 aprovado - Total de clientes: 1', '2025-09-19 19:27:02'),
-(19, 1183, 7.00, 'credito', 'Reserva de cashback - Pagamento #1183 aprovado - Total de clientes: 1', '2025-09-19 19:27:05');
 
 -- --------------------------------------------------------
 
@@ -173,6 +163,33 @@ CREATE TABLE `api_rate_limits` (
 -- --------------------------------------------------------
 
 --
+-- Estrutura para tabela `assinaturas`
+--
+
+CREATE TABLE `assinaturas` (
+  `id` int(11) NOT NULL,
+  `tipo` enum('loja','membro') NOT NULL COMMENT 'Tipo da assinatura',
+  `loja_id` int(11) NOT NULL COMMENT 'ID da loja vinculada',
+  `user_id` int(11) DEFAULT NULL COMMENT 'ID do usuário (para tipo membro)',
+  `plano_id` int(11) NOT NULL COMMENT 'ID do plano escolhido',
+  `status` enum('trial','ativa','inadimplente','cancelada','suspensa') DEFAULT 'trial' COMMENT 'Status da assinatura',
+  `ciclo` enum('monthly','yearly') NOT NULL COMMENT 'Ciclo de cobrança atual',
+  `trial_end` date DEFAULT NULL COMMENT 'Data de término do período trial',
+  `current_period_start` date NOT NULL COMMENT 'Início do período atual',
+  `current_period_end` date NOT NULL COMMENT 'Fim do período atual',
+  `next_invoice_date` date DEFAULT NULL COMMENT 'Data da próxima fatura',
+  `cancel_at` date DEFAULT NULL COMMENT 'Data agendada para cancelamento',
+  `canceled_at` timestamp NULL DEFAULT NULL COMMENT 'Data/hora do cancelamento',
+  `gateway` enum('abacate','stripe') DEFAULT NULL COMMENT 'Gateway de pagamento',
+  `gateway_customer_id` varchar(255) DEFAULT NULL COMMENT 'ID do cliente no gateway',
+  `gateway_subscription_id` varchar(255) DEFAULT NULL COMMENT 'ID da subscription no gateway',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estrutura para tabela `bot_consultas`
 --
 
@@ -184,87 +201,6 @@ CREATE TABLE `bot_consultas` (
   `usuario_encontrado` tinyint(4) DEFAULT 0,
   `dados_capturados` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`dados_capturados`))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Despejando dados para a tabela `bot_consultas`
---
-
-INSERT INTO `bot_consultas` (`id`, `telefone`, `tipo_consulta`, `data_consulta`, `usuario_encontrado`, `dados_capturados`) VALUES
-(1, '5538991045205', 'consulta_saldo', '2025-09-25 22:31:50', 0, NULL),
-(2, '5538991045205', 'consulta_saldo', '2025-09-25 22:31:59', 0, NULL),
-(3, '5538991045205', 'consulta_saldo', '2025-09-25 22:33:28', 0, NULL),
-(4, '5538991045205', 'consulta_saldo', '2025-09-25 22:39:43', 0, NULL),
-(5, '5538991045205', 'consulta_saldo', '2025-09-25 22:41:04', 0, NULL),
-(6, '5538991045205', 'consulta_saldo', '2025-09-25 22:41:12', 0, NULL),
-(7, '5538991045205', 'consulta_saldo', '2025-09-25 22:41:48', 0, NULL),
-(8, '34993357697', 'consulta_saldo', '2025-09-25 22:45:37', 0, NULL),
-(9, '38991045205', 'consulta_saldo', '2025-09-25 22:46:41', 0, NULL),
-(10, '34993357697', 'consulta_saldo', '2025-09-25 22:48:26', 0, NULL),
-(11, '38991045205', 'consulta_saldo', '2025-09-25 22:48:30', 0, NULL),
-(12, '38991045205', 'consulta_saldo', '2025-09-25 22:55:37', 0, NULL),
-(13, '38991045205', 'consulta_saldo', '2025-09-25 22:55:46', 0, NULL),
-(14, '38991045205', 'consulta_saldo', '2025-09-25 22:56:18', 0, NULL),
-(15, '34993357697', 'consulta_saldo', '2025-09-25 22:58:32', 0, NULL),
-(16, '34993357697', 'consulta_saldo', '2025-09-25 22:58:49', 0, NULL),
-(17, '38991045205', 'consulta_saldo', '2025-09-25 22:58:51', 0, NULL),
-(18, '34993357697', 'consulta_saldo', '2025-09-25 23:23:35', 0, NULL),
-(19, '34993357697', 'consulta_saldo', '2025-09-25 23:50:09', 0, NULL),
-(20, '34993357697', 'consulta_saldo', '2025-09-26 00:09:08', 0, NULL),
-(21, '34993357697', 'consulta_saldo', '2025-09-26 00:15:23', 0, NULL),
-(22, '38991045205', 'consulta_saldo', '2025-09-26 10:07:32', 0, NULL),
-(23, '38991045205', 'consulta_saldo', '2025-09-26 10:07:53', 0, NULL),
-(24, '38991045205', 'consulta_saldo', '2025-09-26 10:14:57', 0, NULL),
-(25, '38991045205', 'consulta_saldo', '2025-09-26 10:15:06', 0, NULL),
-(26, '38991045205', 'consulta_saldo', '2025-09-26 10:16:03', 0, NULL),
-(27, '38991045205', 'consulta_saldo', '2025-09-26 10:16:36', 0, NULL),
-(28, '38991045205', 'consulta_saldo', '2025-09-26 10:18:35', 0, NULL),
-(29, '38991045205', 'consulta_saldo', '2025-09-26 10:25:49', 0, NULL),
-(30, '38991045205', 'menu_ajuda', '2025-09-26 10:26:08', 0, NULL),
-(31, '38991045205', 'menu_ajuda', '2025-09-26 10:26:24', 0, NULL),
-(32, '38991045205', 'menu_ajuda', '2025-09-26 10:26:31', 0, NULL),
-(33, '38991045205', 'menu_ajuda', '2025-09-26 10:27:20', 0, NULL),
-(34, '38991045205', 'menu_ajuda', '2025-09-26 10:28:04', 0, NULL),
-(35, '38991045205', 'menu_ajuda', '2025-09-26 10:28:36', 0, NULL),
-(36, '38991045205', 'menu_ajuda', '2025-09-26 10:29:51', 0, NULL),
-(37, '38991045205', 'menu_ajuda', '2025-09-26 10:30:06', 0, NULL),
-(38, '38991045205', 'menu_ajuda', '2025-09-26 10:44:03', 0, NULL),
-(39, '38991045205', 'menu_ajuda', '2025-09-26 10:44:06', 0, NULL),
-(40, '38991045205', 'menu_ajuda', '2025-09-26 10:44:17', 0, NULL),
-(41, '38991045205', 'menu_ajuda', '2025-09-26 10:44:35', 0, NULL),
-(42, '38991045205', 'menu_ajuda', '2025-09-26 10:45:33', 0, NULL),
-(43, '38991045205', 'menu_ajuda', '2025-09-26 10:46:20', 0, NULL),
-(44, '38991045205', 'menu_ajuda', '2025-09-26 10:46:29', 0, NULL),
-(45, '38991045205', 'consulta_saldo', '2025-09-26 10:46:48', 0, NULL),
-(46, '38991045205', 'consulta_saldo', '2025-09-26 10:47:14', 0, NULL),
-(47, '38991045205', 'consulta_saldo', '2025-09-26 10:47:17', 0, NULL),
-(48, '38991045205', 'consulta_saldo', '2025-09-26 10:47:29', 0, NULL),
-(49, '38991045205', 'consulta_saldo', '2025-09-26 10:48:31', 0, NULL),
-(50, '34991191534', 'menu_ajuda', '2025-09-26 10:51:52', 0, NULL),
-(51, '34991191534', 'menu_ajuda', '2025-09-26 10:53:51', 0, NULL),
-(52, '34991191534', 'consulta_saldo', '2025-09-26 10:55:08', 0, NULL),
-(53, '38991045205', 'consulta_saldo', '2025-09-26 10:55:56', 0, NULL),
-(54, '38991045205', 'menu_ajuda', '2025-09-26 11:03:47', 0, NULL),
-(55, '38991045205', 'consulta_saldo', '2025-09-26 11:12:19', 0, NULL),
-(56, '38991045205', 'consulta_saldo', '2025-09-26 11:15:02', 0, NULL),
-(57, '38991045205', 'consulta_saldo', '2025-09-26 11:21:26', 0, NULL),
-(58, '38991045205', 'consulta_saldo', '2025-09-26 11:23:01', 0, NULL),
-(59, '5538991045205', 'consulta_saldo', '2025-09-26 11:24:39', 0, NULL),
-(60, '38991045205', 'consulta_saldo', '2025-09-26 11:25:06', 0, NULL),
-(61, '38991045205', 'consulta_saldo', '2025-09-26 11:26:15', 0, NULL),
-(62, '38991045205', 'menu_ajuda', '2025-09-26 11:29:33', 0, NULL),
-(63, '38991045205', 'consulta_saldo', '2025-09-26 11:30:34', 0, NULL),
-(64, '38991045205', 'consulta_saldo', '2025-09-26 14:50:38', 0, NULL),
-(65, '34998002600', 'consulta_saldo', '2025-09-26 14:50:53', 0, NULL),
-(66, '38991045205', 'consulta_saldo', '2025-09-26 14:51:32', 0, NULL),
-(67, '38991045205', 'consulta_saldo', '2025-09-26 14:52:11', 0, NULL),
-(68, '34991191534', 'consulta_saldo', '2025-09-26 14:52:18', 0, NULL),
-(69, '34998002600', 'consulta_saldo', '2025-09-26 14:52:28', 0, NULL),
-(70, '34993357697', 'consulta_saldo', '2025-09-26 14:53:11', 0, NULL),
-(71, '38991045205', 'consulta_saldo', '2025-09-26 14:56:01', 0, NULL),
-(72, '38991045205', 'consulta_saldo', '2025-09-26 14:56:14', 0, NULL),
-(73, '38991045205', 'consulta_saldo', '2025-09-26 14:56:29', 0, NULL),
-(74, '34998002600', 'consulta_saldo', '2025-09-26 14:56:52', 0, NULL),
-(75, '38991045205', 'consulta_saldo', '2025-09-26 15:28:09', 0, NULL);
 
 -- --------------------------------------------------------
 
@@ -293,8 +229,43 @@ CREATE TABLE `cashback_movimentacoes` (
 --
 
 INSERT INTO `cashback_movimentacoes` (`id`, `usuario_id`, `loja_id`, `criado_por`, `tipo_operacao`, `valor`, `saldo_anterior`, `saldo_atual`, `descricao`, `transacao_origem_id`, `transacao_uso_id`, `data_operacao`, `pagamento_id`) VALUES
-(337, 9, 59, NULL, 'credito', 120.00, 0.00, 120.00, 'Cashback MVP instantâneo - Código: KC25092615583190179', 686, NULL, '2025-09-26 18:58:35', NULL),
-(338, 9, 59, NULL, 'credito', 30.00, 120.00, 150.00, 'Cashback MVP instantâneo - Código: KC25092919062385127', 687, NULL, '2025-09-29 22:06:25', NULL);
+(361, 9, 59, NULL, 'credito', 10.00, 0.00, 10.00, 'Cashback MVP instantaneo - Codigo: KC25100311330725816', NULL, NULL, '2025-10-03 14:33:12', NULL),
+(362, 142, 38, NULL, 'credito', 250.00, 0.00, 250.00, 'Cashback MVP instantaneo - Codigo: KC25100311555532261', NULL, NULL, '2025-10-03 14:56:03', NULL),
+(363, 142, 38, NULL, 'credito', 25.00, 250.00, 275.00, 'Cashback MVP instantaneo - Codigo: KC25100311573155700', NULL, NULL, '2025-10-03 14:57:43', NULL),
+(364, 9, 59, NULL, 'credito', 3.00, 10.00, 13.00, 'Cashback MVP instantaneo - Codigo: KC25100314142402409', NULL, NULL, '2025-10-03 17:14:26', NULL),
+(365, 9, 59, NULL, 'credito', 3.00, 13.00, 16.00, 'Cashback MVP instantaneo - Codigo: KC25100314193145803', NULL, NULL, '2025-10-03 17:19:32', NULL),
+(366, 142, 38, NULL, 'credito', 64.43, 275.00, 339.43, 'Cashback MVP instantaneo - Codigo: KC25100409042445329', NULL, NULL, '2025-10-04 12:04:34', NULL),
+(367, 203, 38, NULL, 'credito', 10.00, 0.00, 10.00, 'Cashback MVP instantaneo - Codigo: KC25100514225459325', NULL, NULL, '2025-10-05 17:23:02', NULL),
+(368, 9, 59, NULL, 'credito', 20.00, 16.00, 36.00, 'Cashback MVP instantaneo - Codigo: KC25100522013722455', NULL, NULL, '2025-10-06 01:01:39', NULL),
+(369, 9, 59, NULL, 'credito', 1.00, 36.00, 37.00, 'Cashback MVP instantaneo - Codigo: KC25100522153995782', NULL, NULL, '2025-10-06 01:15:40', NULL),
+(370, 9, 59, NULL, 'credito', 3.70, 37.00, 40.70, 'Cashback MVP instantaneo - Codigo: KC25100522155523411', NULL, NULL, '2025-10-06 01:15:57', NULL),
+(371, 9, 59, NULL, 'uso', 10.00, 40.70, 30.70, 'Uso do saldo na compra - Código: KC25100523385437321 - Transação #722', NULL, NULL, '2025-10-06 02:38:57', 29),
+(372, 9, 59, NULL, 'uso', 25.00, 30.70, 5.70, 'Uso do saldo na compra - Código: KC25100523391182839 - Transação #723', NULL, NULL, '2025-10-06 02:39:15', 29),
+(373, 9, 59, NULL, 'credito', 20.00, 5.70, 25.70, 'Cashback MVP instantaneo - Codigo: KC25100523394676717', NULL, NULL, '2025-10-06 02:39:47', NULL),
+(374, 9, 59, NULL, 'uso', 12.85, 25.70, 12.85, 'Uso do saldo na compra - Código: KC25100523395972978 - Transação #725', NULL, NULL, '2025-10-06 02:40:05', 29),
+(375, 9, 59, NULL, 'credito', 0.72, 12.85, 13.57, 'Cashback MVP instantaneo - Codigo: KC25100523395972978', NULL, NULL, '2025-10-06 02:40:05', NULL),
+(376, 9, 59, NULL, 'credito', 30.00, 13.57, 43.57, 'Cashback MVP instantaneo - Codigo: KC25100523410471504', NULL, NULL, '2025-10-06 02:41:04', NULL),
+(377, 9, 59, NULL, 'credito', 4.30, 43.57, 47.87, 'Cashback MVP instantaneo - Codigo: KC25100523411875776', NULL, NULL, '2025-10-06 02:41:19', NULL),
+(378, 9, 59, NULL, 'uso', 47.87, 47.87, 0.00, 'Uso do saldo na compra - Código: KC25100523413227165 - Transação #728', NULL, NULL, '2025-10-06 02:41:34', 29),
+(379, 9, 59, NULL, 'credito', 10000.00, 0.00, 10000.00, 'Cashback MVP instantaneo - Codigo: KC25100523414793864', NULL, NULL, '2025-10-06 02:41:47', NULL),
+(380, 9, 59, NULL, 'uso', 9500.00, 10000.00, 500.00, 'Uso do saldo na compra - Código: KC25100523424862708 - Transação #730', NULL, NULL, '2025-10-06 02:42:56', 29),
+(381, 9, 59, NULL, 'credito', 50.00, 500.00, 550.00, 'Cashback MVP instantaneo - Codigo: KC25100523424862708', NULL, NULL, '2025-10-06 02:42:56', NULL),
+(382, 9, 59, NULL, 'uso', 100.00, 550.00, 450.00, 'Uso do saldo na compra - Código: KC25100616161864768 - Transação #731', NULL, NULL, '2025-10-06 19:16:23', 29),
+(383, 9, 59, NULL, 'credito', 10.00, 450.00, 460.00, 'Cashback MVP instantaneo - Codigo: KC25100616163234994', NULL, NULL, '2025-10-06 19:16:35', NULL),
+(384, 9, 59, NULL, 'credito', 3.00, 460.00, 463.00, 'Cashback MVP instantaneo - Codigo: KC25100711153288345', NULL, NULL, '2025-10-07 14:15:33', NULL),
+(385, 9, 59, NULL, 'credito', 300.00, 463.00, 763.00, 'Cashback MVP instantaneo - Codigo: KC25100914044085323', NULL, NULL, '2025-10-09 17:04:57', NULL),
+(386, 9, 59, NULL, 'credito', 200.00, 763.00, 963.00, 'Cashback MVP instantaneo - Codigo: KC25100914062638306', NULL, NULL, '2025-10-09 17:06:28', NULL),
+(387, 9, 59, NULL, 'credito', 30.00, 963.00, 993.00, 'Cashback MVP instantaneo - Codigo: KC25101218354869029', NULL, NULL, '2025-10-12 21:35:50', NULL),
+(388, 162, 59, NULL, 'credito', 10.00, 0.00, 10.00, 'Cashback MVP instantaneo - Codigo: KC25101218361748949', NULL, NULL, '2025-10-12 21:36:19', NULL),
+(389, 212, 59, NULL, 'credito', 100.00, 0.00, 100.00, 'Cashback MVP instantaneo - Codigo: KC25101311274441262', NULL, NULL, '2025-10-13 14:28:05', NULL),
+(390, 142, 38, NULL, 'uso', 339.43, 339.43, 0.00, 'Uso do saldo na compra - Código: KC25101312122391587 - Transação #740', NULL, 740, '2025-10-13 15:12:35', 30),
+(391, 142, 38, NULL, 'credito', 1416.51, 0.00, 1416.51, 'Cashback MVP instantaneo - Codigo: KC25101312122391587', 740, NULL, '2025-10-13 15:12:35', NULL),
+(392, 142, 38, NULL, 'uso', 1000.00, 1416.51, 416.51, 'Uso do saldo na compra - Código: KC25101313014896161 - Transação #741', NULL, 741, '2025-10-13 16:01:56', 30),
+(393, 142, 38, NULL, 'credito', 42.73, 416.51, 459.24, 'Cashback MVP instantaneo - Codigo: KC25101313021514999', 742, NULL, '2025-10-13 16:02:24', NULL),
+(394, 213, 38, NULL, 'credito', 50.00, 0.00, 50.00, 'Cashback MVP instantaneo - Codigo: KC25101313323503039', 743, NULL, '2025-10-13 16:33:06', NULL),
+(395, 9, 59, NULL, 'credito', 300.00, 993.00, 1293.00, 'Cashback MVP instantaneo - Codigo: KC25101314082990412', 744, NULL, '2025-10-13 17:08:44', NULL),
+(397, 218, 59, NULL, 'credito', 300.00, 0.00, 300.00, 'Cashback MVP instantaneo - Codigo: KC25101509120313006', 746, NULL, '2025-10-15 12:12:10', NULL),
+(398, 219, 59, NULL, 'credito', 300.00, 0.00, 300.00, 'Cashback MVP instantaneo - Codigo: KC25101509130177138', 747, NULL, '2025-10-15 12:13:02', NULL);
 
 -- --------------------------------------------------------
 
@@ -350,10 +321,15 @@ CREATE TABLE `cashback_saldos` (
 
 INSERT INTO `cashback_saldos` (`id`, `usuario_id`, `loja_id`, `saldo_disponivel`, `total_creditado`, `total_usado`, `data_criacao`, `ultima_atualizacao`) VALUES
 (163, 180, 59, 200.00, 200.00, 0.00, '2025-09-15 01:44:47', '2025-09-25 22:53:56'),
-(304, 9, 38, 1000.00, 1000.00, 0.00, '2025-09-25 22:56:07', '2025-09-26 14:47:28'),
-(305, 140, 59, 1000.00, 1000.00, 0.00, '2025-09-25 22:57:31', '2025-09-25 22:57:31'),
-(306, 9, 34, 2.50, 2.50, 0.00, '2025-09-26 10:15:54', '2025-09-26 10:15:54'),
-(307, 9, 59, 150.00, 150.00, 0.00, '2025-09-26 18:58:35', '2025-09-29 22:06:25');
+(311, 199, 59, 300.00, 300.00, 0.00, '2025-09-30 19:20:14', '2025-09-30 19:20:14'),
+(331, 9, 59, 1293.00, 10988.72, 9695.72, '2025-10-03 14:33:12', '2025-10-13 17:08:44'),
+(332, 142, 38, 459.24, 1798.67, 1339.43, '2025-10-03 14:56:03', '2025-10-13 16:02:24'),
+(337, 203, 38, 10.00, 10.00, 0.00, '2025-10-05 17:23:02', '2025-10-05 17:23:02'),
+(352, 162, 59, 10.00, 10.00, 0.00, '2025-10-12 21:36:19', '2025-10-12 21:36:19'),
+(353, 212, 59, 100.00, 100.00, 0.00, '2025-10-13 14:28:05', '2025-10-13 14:28:05'),
+(356, 213, 38, 50.00, 50.00, 0.00, '2025-10-13 16:33:06', '2025-10-13 16:33:06'),
+(359, 218, 59, 300.00, 300.00, 0.00, '2025-10-15 12:12:10', '2025-10-15 12:12:10'),
+(360, 219, 59, 300.00, 300.00, 0.00, '2025-10-15 12:13:02', '2025-10-15 12:13:02');
 
 -- --------------------------------------------------------
 
@@ -404,7 +380,7 @@ CREATE TABLE `configuracoes_cashback` (
 --
 
 INSERT INTO `configuracoes_cashback` (`id`, `porcentagem_cliente`, `porcentagem_admin`, `porcentagem_loja`, `data_atualizacao`) VALUES
-(1, 10.00, 0.00, 0.00, '2025-09-23 18:33:34');
+(1, 5.00, 0.00, 0.00, '2025-10-14 12:08:21');
 
 -- --------------------------------------------------------
 
@@ -542,6 +518,34 @@ CREATE TABLE `email_templates` (
 -- --------------------------------------------------------
 
 --
+-- Estrutura para tabela `faturas`
+--
+
+CREATE TABLE `faturas` (
+  `id` int(11) NOT NULL,
+  `assinatura_id` int(11) NOT NULL COMMENT 'ID da assinatura',
+  `numero` varchar(50) DEFAULT NULL COMMENT 'Número da fatura (gerado)',
+  `amount` decimal(10,2) NOT NULL COMMENT 'Valor da fatura',
+  `currency` varchar(3) DEFAULT 'BRL' COMMENT 'Moeda da fatura',
+  `status` enum('pending','paid','failed','refunded','canceled') DEFAULT 'pending' COMMENT 'Status da fatura',
+  `due_date` date NOT NULL COMMENT 'Data de vencimento',
+  `paid_at` timestamp NULL DEFAULT NULL COMMENT 'Data/hora do pagamento',
+  `payment_method` enum('pix','card') DEFAULT NULL COMMENT 'Método de pagamento utilizado',
+  `gateway` enum('abacate','stripe') DEFAULT NULL COMMENT 'Gateway utilizado',
+  `gateway_invoice_id` varchar(255) DEFAULT NULL COMMENT 'ID da invoice no gateway',
+  `gateway_charge_id` varchar(255) DEFAULT NULL COMMENT 'ID da cobrança no gateway',
+  `pix_qr_code` text DEFAULT NULL COMMENT 'QR Code PIX em Base64',
+  `pix_copia_cola` text DEFAULT NULL COMMENT 'Código PIX copia e cola',
+  `pix_expires_at` timestamp NULL DEFAULT NULL COMMENT 'Expiração do PIX',
+  `card_brand` varchar(50) DEFAULT NULL COMMENT 'Bandeira do cartão',
+  `card_last4` varchar(4) DEFAULT NULL COMMENT 'Últimos 4 dígitos do cartão',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estrutura para tabela `favorites`
 --
 
@@ -576,6 +580,23 @@ CREATE TABLE `login_attempts` (
   `ip` varchar(45) NOT NULL,
   `attempt_time` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `logs_notificacoes`
+--
+
+CREATE TABLE `logs_notificacoes` (
+  `id` int(11) NOT NULL,
+  `transaction_id` int(11) DEFAULT NULL,
+  `client_id` int(11) DEFAULT NULL,
+  `tipo` enum('whatsapp','email','push') NOT NULL,
+  `status` enum('enviado','falha','pendente') NOT NULL,
+  `mensagem` text DEFAULT NULL,
+  `resposta_api` text DEFAULT NULL,
+  `data_envio` timestamp NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
 -- --------------------------------------------------------
 
@@ -618,8 +639,9 @@ INSERT INTO `lojas` (`id`, `usuario_id`, `nome_fantasia`, `razao_social`, `cnpj`
 (60, 173, 'ELITE SEMIJOIAS MOZAR FRANCISCO LUIZ ME', 'MOZAR FRANCISCO LUIZ', '18381956000146', 'elitesemijoiaspatosdeminas@gmail.com', NULL, '(34) 99217-2404', 'Outros', 10.00, 'ATACADO DE SEMIJOIAS', '', NULL, 'aprovado', NULL, '2025-08-29 17:22:01', '2025-08-29 18:03:45', 10.00, 0.00, 1, '2025-08-30 01:57:18'),
 (61, 175, 'Digo.com', 'Digo Comércio e Varejo', '62491384000140', 'digovarejo@gmail.com', NULL, '(11) 97088-3167', 'Eletrônicos', 10.00, 'Varejista iPhone', '', NULL, 'aprovado', NULL, '2025-09-13 14:49:08', '2025-09-13 15:15:48', 5.00, 5.00, 1, NULL),
 (62, 177, 'RSF SONHO DE NOIVA EVENTOS E NEGOCIOS LTDA', 'RSF SONHO DE NOIVA EVENTOS E NEGOCIOS LTDA', '22640009000108', 'cleacasamentos@gmail.com', NULL, '(85) 99632-4231', 'Serviços', 10.00, '', '', NULL, 'aprovado', NULL, '2025-09-14 19:47:52', '2025-09-14 19:55:58', 5.00, 5.00, 1, NULL),
-(63, NULL, 'dasfDA', 'DSAsdsa', '22640009000104', 'cleacasamentos@gmail.com.br', NULL, '(35) 45454-4544', 'Eletrônicos', 10.00, '', 'https://cleacasamentos.com.br', NULL, 'pendente', NULL, '2025-09-14 19:51:57', NULL, 5.00, 5.00, 1, NULL),
-(64, NULL, 'teste', 'ds', '22640009000110', 'kauanupix@gmail.com', NULL, '(85) 99632-4231', 'Outros', 10.00, '', 'https://cleacasamentos.com.br', NULL, 'pendente', NULL, '2025-09-14 20:01:31', NULL, 5.00, 5.00, 1, NULL);
+(65, 206, 'as', 'asd', '12312341234124', 'oi@gmail.com', NULL, '102834012742', 'Casa e Decoração', 10.00, 'oi@gmail.com', 'https://oi@gmail.com', NULL, 'pendente', NULL, '2025-10-07 12:22:13', NULL, 5.00, 5.00, 1, NULL),
+(66, 215, 'Teste', 'Crstina', '25246096000101', 'kauamatheus92sds0@gmail.com', NULL, '(34) 99800-2600', 'Alimentação', 10.00, 'sas', 'https://cleacasamentos.com.br', NULL, 'pendente', NULL, '2025-10-14 11:59:19', NULL, 5.00, 5.00, 1, NULL),
+(67, 216, 'Altech automaçao industrial', 'Altech automaçao industrial', '502165690001167', 'altech-automacao@bol.com.br', NULL, '(34) 99919-4863', 'Serviços', 5.00, '', '', NULL, 'aprovado', NULL, '2025-10-14 12:06:20', '2025-10-14 12:06:54', 5.00, 0.00, 1, '2025-10-14 12:08:21');
 
 -- --------------------------------------------------------
 
@@ -661,7 +683,10 @@ INSERT INTO `lojas_endereco` (`id`, `loja_id`, `cep`, `logradouro`, `numero`, `c
 (29, 59, '38705-376', 'Rua Francisco Braga da Mota', '146', 'Ap 101', 'jardim panoramico', 'Patos de Minas', 'MG'),
 (30, 60, '38700-973', 'Rua Major Gote', '1800', 'CAIXA POSTAL 2063', 'CENTRO', 'Patos de Minas - MG', 'MG'),
 (31, 61, '12970-000', 'Rua das Araucárias', '55', '', 'Ipe', 'Piracaia', 'SP'),
-(32, 62, '60713-240', 'R AMERICO ROCHA LIMA', '584', '', 'Manoel Satiro', 'Fortaleza', 'CE');
+(32, 62, '60713-240', 'R AMERICO ROCHA LIMA', '584', '', 'Manoel Satiro', 'Fortaleza', 'CE'),
+(35, 65, '82123-1331', 'oi@gmail.com', 'oi@gmail.com', 'oi@gmail.com', 'oi@gmail.com', 'oi@gmail.com', 'SP'),
+(36, 66, '38705-376', 'Avenida Anildo Gomes Alano', '750', 'Ap 101', 'Morada do Bosque', 'Patos de Minas', 'MG'),
+(37, 67, '38706-510', 'rua jeferson nepomuceno', '536', '', 'ipanema', 'patos de minas', 'MG');
 
 -- --------------------------------------------------------
 
@@ -674,23 +699,6 @@ CREATE TABLE `lojas_favoritas` (
   `usuario_id` int(11) NOT NULL,
   `loja_id` int(11) NOT NULL,
   `data_criacao` timestamp NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- --------------------------------------------------------
-
---
--- Estrutura para tabela `n8n_webhook_logs`
---
-
-CREATE TABLE `n8n_webhook_logs` (
-  `id` int(11) NOT NULL,
-  `transaction_id` int(11) DEFAULT NULL,
-  `event_type` varchar(50) DEFAULT NULL,
-  `phone` varchar(20) DEFAULT NULL,
-  `message_sent` tinyint(1) DEFAULT 0,
-  `n8n_response` text DEFAULT NULL,
-  `error_message` text DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -746,6 +754,13 @@ CREATE TABLE `pagamentos_comissao` (
   `openpix_paid_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Despejando dados para a tabela `pagamentos_comissao`
+--
+
+INSERT INTO `pagamentos_comissao` (`id`, `loja_id`, `criado_por`, `valor_total`, `metodo_pagamento`, `numero_referencia`, `comprovante`, `observacao`, `observacao_admin`, `data_registro`, `data_aprovacao`, `status`, `pix_charge_id`, `pix_qr_code`, `pix_qr_code_image`, `pix_paid_at`, `mp_payment_id`, `mp_qr_code`, `mp_qr_code_base64`, `mp_status`, `openpix_charge_id`, `openpix_qr_code`, `openpix_qr_code_image`, `openpix_correlation_id`, `openpix_status`, `openpix_paid_at`) VALUES
+(1212, 59, NULL, 10.00, 'pix_mercadopago', '', '', '', NULL, '2025-10-13 14:39:35', NULL, 'pendente', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'pending', NULL, NULL, NULL, NULL, NULL, NULL);
+
 -- --------------------------------------------------------
 
 --
@@ -781,6 +796,13 @@ CREATE TABLE `pagamentos_transacoes` (
   `transacao_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Despejando dados para a tabela `pagamentos_transacoes`
+--
+
+INSERT INTO `pagamentos_transacoes` (`id`, `pagamento_id`, `transacao_id`) VALUES
+(229, 1212, 739);
+
 -- --------------------------------------------------------
 
 --
@@ -792,6 +814,37 @@ CREATE TABLE `pagamento_transacoes` (
   `pagamento_id` int(11) NOT NULL,
   `transacao_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `planos`
+--
+
+CREATE TABLE `planos` (
+  `id` int(11) NOT NULL,
+  `nome` varchar(100) NOT NULL COMMENT 'Nome do plano (ex: Básico, Premium)',
+  `slug` varchar(100) NOT NULL COMMENT 'Identificador único em URL (ex: basico, premium)',
+  `descricao` text DEFAULT NULL COMMENT 'Descrição detalhada do plano',
+  `preco_mensal` decimal(10,2) DEFAULT NULL COMMENT 'Preço da assinatura mensal',
+  `preco_anual` decimal(10,2) DEFAULT NULL COMMENT 'Preço da assinatura anual',
+  `moeda` varchar(3) DEFAULT 'BRL' COMMENT 'Código da moeda (ISO 4217)',
+  `trial_dias` int(11) DEFAULT 0 COMMENT 'Dias de período trial gratuito',
+  `recorrencia` enum('monthly','yearly','both') DEFAULT 'both' COMMENT 'Tipos de ciclo disponíveis',
+  `features_json` text DEFAULT NULL COMMENT 'JSON com features do plano',
+  `ativo` tinyint(1) DEFAULT 1 COMMENT '1=ativo, 0=inativo',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Despejando dados para a tabela `planos`
+--
+
+INSERT INTO `planos` (`id`, `nome`, `slug`, `descricao`, `preco_mensal`, `preco_anual`, `moeda`, `trial_dias`, `recorrencia`, `features_json`, `ativo`, `created_at`, `updated_at`) VALUES
+(1, 'Básico', 'basico', 'Plano básico para começar', 49.90, 499.00, 'BRL', 7, 'both', '[\"Até 100 transações/mês\", \"Suporte por email\", \"Dashboard básico\"]', 1, '2025-10-11 14:03:08', '2025-10-11 14:03:08'),
+(2, 'Profissional', 'profissional', 'Plano completo para lojas ativas', 99.90, 999.00, 'BRL', 14, 'both', '[\"Transações ilimitadas\", \"Suporte prioritário\", \"Relatórios avançados\", \"API de integração\"]', 1, '2025-10-11 14:03:08', '2025-10-11 14:03:08'),
+(3, 'Empresarial', 'empresarial', 'Plano para grandes empresas', 199.90, 1999.00, 'BRL', 30, 'both', '[\"Tudo do Profissional\", \"Gerente de conta dedicado\", \"Múltiplas lojas\", \"White label\"]', 1, '2025-10-11 14:03:08', '2025-10-11 14:03:08');
 
 -- --------------------------------------------------------
 
@@ -841,6 +894,14 @@ CREATE TABLE `store_balance_payments` (
   `data_processamento` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Despejando dados para a tabela `store_balance_payments`
+--
+
+INSERT INTO `store_balance_payments` (`id`, `loja_id`, `valor_total`, `metodo_pagamento`, `numero_referencia`, `comprovante`, `observacao`, `status`, `data_criacao`, `data_processamento`) VALUES
+(29, 59, 9695.72, 'reembolso_saldo', NULL, NULL, 'Reembolso de saldo usado pelo cliente - Transação #722\nReembolso adicional - Transação #723\nReembolso adicional - Transação #725\nReembolso adicional - Transação #728\nReembolso adicional - Transação #730\nReembolso adicional - Transação #731', 'pendente', '2025-10-06 02:38:57', NULL),
+(30, 38, 1339.43, 'reembolso_saldo', NULL, NULL, 'Reembolso de saldo usado pelo cliente - Transação #740\nReembolso adicional - Transação #741', 'pendente', '2025-10-13 15:12:35', NULL);
+
 -- --------------------------------------------------------
 
 --
@@ -861,18 +922,26 @@ CREATE TABLE `transacoes_cashback` (
   `descricao` text DEFAULT NULL,
   `data_transacao` timestamp NULL DEFAULT current_timestamp(),
   `data_criacao_usuario` timestamp NULL DEFAULT current_timestamp(),
-  `status` enum('pendente','aprovado','cancelado','pagamento_pendente') DEFAULT 'pendente'
+  `status` enum('pendente','aprovado','cancelado','pagamento_pendente') DEFAULT 'pendente',
+  `notificacao_enviada` tinyint(1) DEFAULT 0,
+  `data_notificacao` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Despejando dados para a tabela `transacoes_cashback`
 --
 
-INSERT INTO `transacoes_cashback` (`id`, `usuario_id`, `loja_id`, `criado_por`, `valor_total`, `valor_cashback`, `valor_cliente`, `valor_admin`, `valor_loja`, `codigo_transacao`, `descricao`, `data_transacao`, `data_criacao_usuario`, `status`) VALUES
-(367, 180, 59, NULL, 800.00, 200.00, 200.00, 0.00, 0.00, 'KC25091422441319527-SH', 'Desenvolvimento do Site e sistemas Web, Clea Casamentos', '2025-09-14 22:42:00', '2025-09-15 01:44:47', 'aprovado'),
-(680, 180, 62, NULL, 50.00, 5.00, 2.50, 2.50, 0.00, 'KC25092420385019033', 'alugo um acessório calça social.', '2025-09-24 20:35:00', '2025-09-24 23:39:46', 'pendente'),
-(686, 9, 59, NULL, 1200.00, 120.00, 120.00, 0.00, 0.00, 'KC25092615583190179', '', '2025-09-26 15:58:00', '2025-09-26 18:58:35', 'aprovado'),
-(687, 9, 59, NULL, 300.00, 30.00, 30.00, 0.00, 0.00, 'KC25092919062385127', '', '2025-09-29 19:06:00', '2025-09-29 22:06:25', 'aprovado');
+INSERT INTO `transacoes_cashback` (`id`, `usuario_id`, `loja_id`, `criado_por`, `valor_total`, `valor_cashback`, `valor_cliente`, `valor_admin`, `valor_loja`, `codigo_transacao`, `descricao`, `data_transacao`, `data_criacao_usuario`, `status`, `notificacao_enviada`, `data_notificacao`) VALUES
+(367, 180, 59, NULL, 800.00, 200.00, 200.00, 0.00, 0.00, 'KC25091422441319527-SH', 'Desenvolvimento do Site e sistemas Web, Clea Casamentos', '2025-09-14 22:42:00', '2025-09-15 01:44:47', 'aprovado', 0, NULL),
+(680, 180, 62, NULL, 50.00, 5.00, 2.50, 2.50, 0.00, 'KC25092420385019033', 'alugo um acessório calça social.', '2025-09-24 20:35:00', '2025-09-24 23:39:46', 'pendente', 0, NULL),
+(739, 9, 59, NULL, 100.00, 10.00, 10.00, 0.00, 0.00, 'KC25101311392146602', '', '2025-10-13 11:39:00', '2025-10-13 14:39:23', 'pagamento_pendente', 0, NULL),
+(740, 142, 38, NULL, 57000.00, 2833.02, 1416.51, 1416.51, 0.00, 'KC25101312122391587', ' (Usado R$ 339,43 do saldo)', '2025-10-13 12:12:00', '2025-10-13 15:12:35', 'aprovado', 0, NULL),
+(741, 142, 38, NULL, 1000.00, 0.00, 0.00, 0.00, 0.00, 'KC25101313014896161', ' (Usado R$ 1.000,00 do saldo)', '2025-10-13 13:01:00', '2025-10-13 16:01:56', 'aprovado', 0, NULL),
+(742, 142, 38, NULL, 1709.00, 85.46, 42.73, 42.73, 0.00, 'KC25101313021514999', '', '2025-10-13 13:01:00', '2025-10-13 16:02:24', 'aprovado', 0, NULL),
+(743, 213, 38, NULL, 2000.00, 100.00, 50.00, 50.00, 0.00, 'KC25101313323503039', '', '2025-10-13 13:31:00', '2025-10-13 16:33:06', 'aprovado', 0, NULL),
+(744, 9, 59, NULL, 3000.00, 300.00, 300.00, 0.00, 0.00, 'KC25101314082990412', '', '2025-10-13 14:08:00', '2025-10-13 17:08:44', 'aprovado', 0, NULL),
+(746, 218, 59, NULL, 3000.00, 300.00, 300.00, 0.00, 0.00, 'KC25101509120313006', '', '2025-10-15 09:10:00', '2025-10-15 12:12:10', 'aprovado', 0, NULL),
+(747, 219, 59, NULL, 3000.00, 300.00, 300.00, 0.00, 0.00, 'KC25101509130177138', '', '2025-10-15 09:12:00', '2025-10-15 12:13:02', 'aprovado', 0, NULL);
 
 -- --------------------------------------------------------
 
@@ -963,15 +1032,15 @@ CREATE TABLE `usuarios` (
 --
 
 INSERT INTO `usuarios` (`id`, `nome`, `email`, `telefone`, `cpf`, `senha_hash`, `data_criacao`, `ultimo_login`, `status`, `tipo`, `senat`, `tipo_cliente`, `loja_criadora_id`, `google_id`, `avatar_url`, `provider`, `email_verified`, `two_factor_enabled`, `two_factor_code`, `two_factor_expires`, `two_factor_verified`, `tentativas_2fa`, `bloqueado_2fa_ate`, `ultimo_2fa_enviado`, `loja_vinculada_id`, `subtipo_funcionario`, `mvp`) VALUES
-(9, 'Kaua Matheus da Silva Lope', 'kauamatheus920@gmail.com', '38991045205', '15692134616', '$2y$10$ZBHPPEjv69ihoxjJatuJZefND4d0UNGpzK.UG1fji3BeETLymm7eu', '2025-05-05 19:45:04', '2025-09-27 12:06:20', 'ativo', 'cliente', 'Sim', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
+(9, 'Kaua Matheus da Silva Lope', 'kauamatheus920@gmail.com', '38991045205', '15692134616', '$2y$10$ZBHPPEjv69ihoxjJatuJZefND4d0UNGpzK.UG1fji3BeETLymm7eu', '2025-05-05 19:45:04', '2025-10-16 00:59:00', 'ativo', 'cliente', 'Sim', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
 (10, 'Frederico', 'repertoriofredericofagundes@gmail.com', NULL, NULL, '$2y$10$yGjHS8rJq49AuLeuVrZHkOUPSkzNLs79A6H52HwwY8DpzLA2A95Ay', '2025-05-05 21:45:46', '2025-09-15 18:30:09', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
-(11, 'Kaua Lopés', 'kaua@klubecash.com', NULL, NULL, '$2y$10$3cp74UJto1IK9R4f8wx.su3HR.SdXKPLotS4OLck7BxMLOhuJMtHq', '2025-05-07 12:19:05', '2025-09-29 20:31:08', 'ativo', 'admin', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
-(55, 'Matheus', 'kauamathes123487654@gmail.com', '34991191534', NULL, '$2y$10$VwSfpE6zvr72HI19RLFLF.Dw4VKMjbGajc5l6mN3jQiaoHK1GUR0u', '2025-05-25 19:17:34', '2025-09-26 10:14:16', 'ativo', 'loja', 'Sim', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'sim'),
-(61, 'Frederico Fagundes', 'fredericofagundes0@gmail.com', NULL, NULL, '$2y$10$Lcszebxu3vPCg4dNkDhP7eAvk07mvjEvFLNz4pFYdMveo0skeNFWi', '2025-06-05 17:48:45', '2025-09-27 22:33:11', 'ativo', 'admin', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
-(63, 'KLUBE DIGITAL', 'acessoriafredericofagundes@gmail.com', '(34) 99335-7697', NULL, '$2y$10$VuDfT8bieSTLToSbmd3EzOVkmwNLYeC9itIfm2kxl3f54OpnZpd5O', '2025-06-07 16:11:42', '2025-09-25 19:36:19', 'ativo', 'loja', 'Sim', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'sim'),
+(11, 'Kaua Lopés', 'kaua@klubecash.com', NULL, NULL, '$2y$10$3cp74UJto1IK9R4f8wx.su3HR.SdXKPLotS4OLck7BxMLOhuJMtHq', '2025-05-07 12:19:05', '2025-10-14 11:57:35', 'ativo', 'admin', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
+(55, 'Matheus', 'kauamathes123487654@gmail.com', '34991191534', NULL, '$2y$10$VwSfpE6zvr72HI19RLFLF.Dw4VKMjbGajc5l6mN3jQiaoHK1GUR0u', '2025-05-25 19:17:34', '2025-10-11 21:16:56', 'ativo', 'loja', 'Sim', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'sim'),
+(61, 'Frederico Fagundes', 'fredericofagundes0@gmail.com', NULL, NULL, '$2y$10$Lcszebxu3vPCg4dNkDhP7eAvk07mvjEvFLNz4pFYdMveo0skeNFWi', '2025-06-05 17:48:45', '2025-10-14 14:38:34', 'ativo', 'admin', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
+(63, 'KLUBE DIGITAL', 'acessoriafredericofagundes@gmail.com', '(34) 99335-7697', NULL, '$2y$10$VuDfT8bieSTLToSbmd3EzOVkmwNLYeC9itIfm2kxl3f54OpnZpd5O', '2025-06-07 16:11:42', '2025-10-13 16:29:27', 'ativo', 'loja', 'Sim', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'sim'),
 (71, 'Roberto Magalhães Corrêa ', 'ropatosmg@gmail.com', '5534993171602', NULL, '$2y$10$77e0qthXH0AJkZFGJR0APu9fifxY/M8BvkNOGrHMBMBmAv7W3SohO', '2025-06-10 00:08:12', '2025-06-10 00:08:51', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
 (72, 'Sabrina', 'sabrina290623@gmail.com', '(34) 99842-3591', NULL, '$2y$10$1FNgzRYI0AbiCYymdAgBlOWe2uIJn.PwU24.AUe3UP7pf5bA1ImJO', '2025-06-10 00:11:51', '2025-06-10 00:12:00', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
-(73, 'Frederico Fagundes', 'klubecash@gmail.com', '(34) 99335-7697', NULL, '$2y$10$cM0f9co4abNHzxiOD0ZgjuZchVNk9o3v6mOadv2aByV.s339xdTPu', '2025-06-10 00:14:24', '2025-09-27 22:35:11', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
+(73, 'Frederico Fagundes', 'klubecash@gmail.com', '(34) 99335-7697', NULL, '$2y$10$cM0f9co4abNHzxiOD0ZgjuZchVNk9o3v6mOadv2aByV.s339xdTPu', '2025-06-10 00:14:24', '2025-10-13 16:37:00', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
 (74, 'Amanda rosa ', 'aricken31@gmail.com', '(34) 99975-8423', NULL, '$2y$10$aV.0Wj3E2dMRHSX7KqHa9u0.LsHiHDdBEpD/yOzCB.QC4uFcu72/K', '2025-06-10 00:15:41', NULL, 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
 (75, 'Felipe Vieira ribeiro', 'ribeirofilepe34@gmail.com', '(34) 99712-8998', NULL, '$2y$10$MpCAnHh7GN8ToE7b3FGzcurkrl8TA4Ffm69NECs0ePdMJcuvW0iNC', '2025-06-10 00:40:43', '2025-08-30 20:41:38', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
 (76, 'Gabriela Steffany da Silva ', 'gabisteffany@icloud.com', '(34) 98700-3621', NULL, '$2y$10$eFewesljEaKuqWpeFRnuy.Xh/FJ4sXLz8thior8hzQUytyrDisYay', '2025-06-10 00:41:33', '2025-06-10 00:45:29', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
@@ -982,7 +1051,7 @@ INSERT INTO `usuarios` (`id`, `nome`, `email`, `telefone`, `cpf`, `senha_hash`, 
 (81, 'Lucas Fagundes da Silva ', 'lucasfagundes934@gmail.com', '(34) 99218-9099', NULL, '$2y$10$obpHzgu/lTbA9BLIWsz8yebeD3rroMp9cW.Xy/MxbW8A7mOom9ox2', '2025-06-11 19:29:20', '2025-06-13 00:57:44', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
 (86, 'Jennifer aryane ', 'jenniferlimaxz@gmail.com', '(55) 98497-1703', NULL, '$2y$10$Qeai.iOuOCYSrTMmFm7b1OE4WeHvgzmem4SLeJGa20bvjJJGzhZYG', '2025-07-07 17:05:39', NULL, 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
 (87, 'Jennifer aryane ', 'jenniferlopesxz@gmail.com', '(55) 98497-1703', NULL, '$2y$10$FxTmg8XDk50WOKlUAZzaeOAF.sPVIgcZHyryCUlZMern1Hy363CFO', '2025-07-07 17:06:49', NULL, 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
-(88, 'Rafael Augusto Alves Silva ', 'rafaelaugustoalvessilva5@gmail.com', '(34) 99665-7725', NULL, '$2y$10$B8CcTlZLjn2swhyPXdjnQeq3sl5.j6nnyVbqkL9wwzkcM.ulaFBwW', '2025-07-07 18:28:49', '2025-07-07 22:36:48', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
+(88, 'Rafael Augusto Alves Silva ', 'rafaelaugustoalvessilva5@gmail.com', '(34) 99665-7725', NULL, '$2y$10$B8CcTlZLjn2swhyPXdjnQeq3sl5.j6nnyVbqkL9wwzkcM.ulaFBwW', '2025-07-07 18:28:49', '2025-10-15 00:56:09', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
 (111, 'Ana Caroliny Ferreira De Almeida ', 'anacarolinyferreiradealmeida5@gmail.com', '(11) 97880-6283', NULL, '$2y$10$di3MoK7n.I9v3S3UN.xF6.qQX4w.BlqxfDl7cEGjCJElaAyNEYFM6', '2025-07-16 03:14:07', NULL, 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
 (118, 'Clarissa', 'clarissalopes296@gmail.com', NULL, NULL, '$2y$10$g/2OVjHI54UuC4zbBiiNSuFk.3UIJtQbSG1hoEb/pxnIlNQwQk6UO', '2025-07-22 21:39:03', '2025-07-26 19:28:54', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, 'nao'),
 (121, 'Kaua', '', '38991045003', NULL, NULL, '2025-08-13 22:05:06', NULL, 'ativo', 'cliente', 'Não', 'visitante', 34, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
@@ -1010,7 +1079,7 @@ INSERT INTO `usuarios` (`id`, `nome`, `email`, `telefone`, `cpf`, `senha_hash`, 
 (156, 'Vitória Filipa', 'visitante_55349972501_loja_38@klubecash.local', '55349972501', NULL, NULL, '2025-08-14 20:13:31', NULL, 'ativo', 'cliente', 'Não', 'visitante', 38, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
 (157, 'Pyetro swanson', 'visitante_34991251830_loja_38@klubecash.local', '34991251830', NULL, NULL, '2025-08-14 20:15:45', NULL, 'ativo', 'cliente', 'Não', 'visitante', 38, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
 (158, 'Carla Gonçalves', 'visitante_34998966741_loja_38@klubecash.local', '34998966741', NULL, NULL, '2025-08-15 01:02:50', NULL, 'ativo', 'cliente', 'Não', 'visitante', 38, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
-(159, 'Sync Holding', 'kaua@syncholding.com.br', '(34) 99800-2600', '04355521630', '$2y$10$W4Mw0j5/DhS.p0/I.D0he.aekBeq.O9.5xVoS8wntjF4L3U3P6OPW', '2025-08-15 13:52:55', '2025-09-29 22:03:21', 'ativo', 'loja', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'sim'),
+(159, 'Sync Holding', 'kaua@syncholding.com.br', '(34) 99800-2600', '04355521630', '$2y$10$W4Mw0j5/DhS.p0/I.D0he.aekBeq.O9.5xVoS8wntjF4L3U3P6OPW', '2025-08-15 13:52:55', '2025-10-15 12:07:06', 'ativo', 'loja', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'sim'),
 (160, 'Cecilia', 'visitante_34991191534_loja_59@klubecash.local', '34991191534', NULL, NULL, '2025-08-15 14:47:55', NULL, 'ativo', 'cliente', 'Não', 'visitante', 59, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
 (161, 'Evaldo Gabriel', 'visitante_34991247963_loja_38@klubecash.local', '34991247963', NULL, NULL, '2025-08-15 17:02:42', NULL, 'ativo', 'cliente', 'Não', 'visitante', 38, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
 (162, 'Cecilia 3', 'visitante_34998002600_loja_59@klubecash.local', '34998002600', NULL, NULL, '2025-08-15 19:30:55', NULL, 'ativo', 'cliente', 'Não', 'visitante', 59, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
@@ -1043,7 +1112,29 @@ INSERT INTO `usuarios` (`id`, `nome`, `email`, `telefone`, `cpf`, `senha_hash`, 
 (194, 'Супер! Вы получили эксклюзивный сюрприз готов для вас! Изучите все подробности по ссылке https://tin', 'kateebartonmmp26936t@52sk2.org', '89714695939', NULL, '$2y$10$CVF8v3ondOv9BY0nWYQryeJdVUnUHLeUlfFcT9fg1gevw7u4on8sG', '2025-09-23 11:24:18', '2025-09-23 11:24:20', 'inativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
 (195, 'Kaua teste', 'visitante_3891045205_loja_59@klubecash.local', NULL, NULL, NULL, '2025-09-24 06:52:01', NULL, 'ativo', 'cliente', 'Não', 'visitante', 59, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
 (196, 'Вам перевод 170998 руб. забрать тут  https://tinyurl.com/bvDqJbKs NFDAW47442NFDAW', '6c2ini1uwox@lchaoge.com', '86315518115', NULL, '$2y$10$h3k/dd7XuwhV6MXl5o7KMOlDZepHMqL45w3THS7T1OGMZhNwiWT4S', '2025-09-25 22:01:38', '2025-09-25 22:01:40', 'inativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
-(197, 'Вау! Ваш эксклюзивный подарок готов для вас! Проверьте детали по ссылке https://tinyurl.com/gwpSjJb4', 'mantsurov1990@bk.ru', '87234617859', NULL, '$2y$10$Jgc.I73BzKatOGLrqg4W9ODGU4CEnpRWB3ZFtRuk5u9a6U/WBVpBy', '2025-09-28 21:04:35', '2025-09-28 21:04:36', 'inativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao');
+(197, 'Вау! Ваш эксклюзивный подарок готов для вас! Проверьте детали по ссылке https://tinyurl.com/gwpSjJb4', 'mantsurov1990@bk.ru', '87234617859', NULL, '$2y$10$Jgc.I73BzKatOGLrqg4W9ODGU4CEnpRWB3ZFtRuk5u9a6U/WBVpBy', '2025-09-28 21:04:35', '2025-09-28 21:04:36', 'inativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(198, 'Поздравляем! Ваш сюрприз готов! Забирай в боте: tg://resolve?domain=wbtyrhrwr_bot&start=bU4AioLG JUY', 'd_smetankin74@bk.ru', '84767183958', NULL, '$2y$10$TLG.nOubS8AaGGBUBTHtyeq6Rdm8YypgGktW.hxm2Rgv57knu19ri', '2025-09-30 13:35:04', '2025-09-30 13:35:05', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(199, 'Gabriel dos Reis', 'visitante_519992390592_loja_59@klubecash.local', '519992390592', NULL, NULL, '2025-09-30 19:18:36', NULL, 'ativo', 'cliente', 'Não', 'visitante', 59, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(200, 'Вам перевод 133665 руб. получить тут  https://tinyurl.com/B72CJ8aM JUYGTD47442MTGJNF', 'colleenpendergrassidv64555w@njcxts.org', '85487558534', NULL, '$2y$10$pg1GQyMtHJpYFSy5kG630uoek8R/KVCAizM9OWP6oZEuDQKNcAHyy', '2025-10-02 08:55:06', '2025-10-02 08:55:08', 'inativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(201, 'Вам перевод 191080 руб. получить тут  https://tinyurl.com/U6Ajt7oQ TUJE47442TUJE', 'ingepriceeod61099t@njcxts.org', '89945547734', NULL, '$2y$10$Gize1.r2LpxGVHYThPnAiOxfnqx9fUJvTpIOKdDkYQXvTTK9bpWhC', '2025-10-03 09:14:24', '2025-10-03 09:14:25', 'inativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(202, 'Вам перевод 108260 руб. забрать тут  https://tinyurl.com/qRjkXBlA THRT47442NFDAW', 'koasakialbert@gmail.com', '88578584161', NULL, '$2y$10$84GBUkb5hJ.MiEuZ93Bd8.P8mnF8G0a0cgmPKaabhe2Ehz7TQVEo6', '2025-10-05 10:04:12', '2025-10-05 10:04:13', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(203, 'Ws', 'visitante_34998721016_loja_38@klubecash.local', '34998721016', NULL, NULL, '2025-10-05 17:22:46', NULL, 'ativo', 'cliente', 'Não', 'visitante', 38, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(204, 'Класс! Вам достался особенный приз в ожидании! Изучите подробности по ссылке https://tinyurl.com/89N', 'ronaldabourquevpv68@aming.us', '84249585298', NULL, '$2y$10$my/9t9duAntAapvRq88Ie.Pdmmq0z43pYy8XhDLsN0X3LcW6.d0xq', '2025-10-06 19:11:50', '2025-10-06 19:11:52', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(205, 'Lucas Pinheiro', 'pinheirotj69@gmail.com', '(85) 98118-9814', NULL, '$2y$10$IdFsLyj/XeQvvCFfliHGYOQx6PfFWh9VN5dPrDPN87ixumKqnJQe6', '2025-10-07 01:47:38', '2025-10-07 01:47:47', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(206, 'as', 'oi@gmail.com', '102834012742', NULL, '$2y$10$cXomXarZY4NgErZn9LnhFu6qq8q0ArX6.4DTOrfutM9rh4jepLb.m', '2025-10-07 12:22:13', NULL, 'inativo', 'loja', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(207, 'Loja Teste Portal', 'portal@teste.com', NULL, NULL, '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '2025-10-08 23:45:41', NULL, 'ativo', 'loja', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(208, 'Arthur de Oliveira Carvalho', 'arthuroliveira.c50@gmail.com', '(41) 99116-5040', NULL, '$2y$10$zvDBadrqheJRWSNlkygAg.PoG6HU2laa0GK6xX/U.z1LjDqq1j5Hy', '2025-10-09 01:09:53', '2025-10-09 01:10:07', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(209, 'Lopoloifhidwjdwfefee fjedwjdwj ijwhfwdj wfiefwjdwd hwidjwidhwfhwidjiwj hjfhefjhwifhewfiwejj hfiwhfqw', 'nomin.momin+145u7@mail.ru', '86139445315', NULL, '$2y$10$jZj3W7SOdGB8V8OjeEss..GAcGcY.lCqpyE51vjGjJB7YnsHwNDeG', '2025-10-09 15:46:58', NULL, 'inativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(210, 'Супер! Персональный потрясающий вознаграждение готов для вас! Перейдите к детали по ссылке https://t', 'hbsv24waa8t7@rpilosj.com', '88122955293', NULL, '$2y$10$CJoXBqpcwJFtOsiiez3/eugmO6IYRakSuFbRSifP5p51sNZ83EoCu', '2025-10-12 08:52:10', '2025-10-12 08:52:12', 'inativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(211, 'Cabrito', 'cabrito@gmail.com', '(65) 99466-5564', NULL, '$2y$10$.TXda5FlsfXQ80nflKqDDe.OjqzoZmbcGgOsUnPZ9Nwwb3dIejxoG', '2025-10-13 02:49:23', '2025-10-13 02:49:42', 'ativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(212, 'Felipe José', 'visitante_17991961956_loja_59@klubecash.local', '17991961956', NULL, NULL, '2025-10-13 14:26:47', NULL, 'ativo', 'cliente', 'Não', 'visitante', 59, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(213, 'Larissa', 'visitante_34999358985_loja_38@klubecash.local', '34999358985', NULL, NULL, '2025-10-13 16:32:21', NULL, 'ativo', 'cliente', 'Não', 'visitante', 38, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(214, 'Вам перевод 111237 руб. получить тут  https://tinyurl.com/G3uC3RIO THRT47442SVWVE', 'uindjzp4stlh@rpilosj.com', '83254228232', NULL, '$2y$10$YmQoCifrUqhQvN.7CLMw2uJ3UxYmf0GNB0QV1GdVDyCU5dYQd2k5S', '2025-10-14 11:13:54', '2025-10-14 11:13:56', 'inativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(215, 'Teste', 'kauamatheus92sds0@gmail.com', '(34) 99800-2600', NULL, '$2y$10$kgZ/oAWZG.xJzEeDdKRPDusnQVhD5ZliFcFtq68I0SixPBaPzmS7i', '2025-10-14 11:59:19', NULL, 'inativo', 'loja', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(216, 'Altech automaçao industrial', 'altech-automacao@bol.com.br', '(34) 99919-4863', NULL, '$2y$10$bRdRoxv3BJgEMlWbJYBQVetq3h4bcKFe8f3QsbHQbtuYakWr188OW', '2025-10-14 12:06:20', '2025-10-14 12:13:06', 'ativo', 'loja', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'sim'),
+(217, 'Вам перевод 121566 руб. получить тут  https://tinyurl.com/UWJPef27 NFDAW223762MTGJNF', 't_gunko83@inbox.ru', '88993964363', NULL, '$2y$10$iogQNbWOJtSwdfQaabL8rO8RkZC33fSxQYK4I8ZfYObwvW5UeIbwO', '2025-10-14 12:57:43', '2025-10-14 12:57:44', 'inativo', 'cliente', 'Não', 'completo', NULL, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(218, 'Gilberto', 'visitante_53992419414_loja_59@klubecash.local', '53992419414', NULL, NULL, '2025-10-15 12:11:26', NULL, 'ativo', 'cliente', 'Não', 'visitante', 59, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao'),
+(219, 'Yago', 'visitante_21972292786_loja_59@klubecash.local', '21972292786', NULL, NULL, '2025-10-15 12:12:50', NULL, 'ativo', 'cliente', 'Não', 'visitante', 59, NULL, NULL, 'local', 0, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, 'funcionario', 'nao');
 
 -- --------------------------------------------------------
 
@@ -1127,74 +1218,18 @@ CREATE TABLE `webhook_errors` (
 -- --------------------------------------------------------
 
 --
--- Estrutura para tabela `whatsapp_cadastro_sessions`
+-- Estrutura para tabela `webhook_events`
 --
 
-CREATE TABLE `whatsapp_cadastro_sessions` (
+CREATE TABLE `webhook_events` (
   `id` int(11) NOT NULL,
-  `phone` varchar(20) DEFAULT NULL,
-  `user_id` int(11) DEFAULT NULL,
-  `state` varchar(50) DEFAULT NULL,
-  `data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`data`)),
-  `created_at` timestamp NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `expires_at` timestamp NULL DEFAULT NULL
+  `gateway` enum('abacate','stripe') NOT NULL COMMENT 'Gateway de origem',
+  `event_type` varchar(100) NOT NULL COMMENT 'Tipo do evento (ex: charge.paid)',
+  `external_id` varchar(255) NOT NULL COMMENT 'ID externo do evento no gateway',
+  `payload_json` longtext NOT NULL COMMENT 'Payload completo do evento',
+  `processed_at` timestamp NULL DEFAULT NULL COMMENT 'Data/hora do processamento',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Despejando dados para a tabela `whatsapp_cadastro_sessions`
---
-
-INSERT INTO `whatsapp_cadastro_sessions` (`id`, `phone`, `user_id`, `state`, `data`, `created_at`, `updated_at`, `expires_at`) VALUES
-(1, '34991191534', 139, 'aguardando_email', '{\"nome\":\"Cecilia\"}', '2025-08-16 14:20:17', '2025-08-16 14:29:09', '2025-08-16 11:39:09');
-
--- --------------------------------------------------------
-
---
--- Estrutura para tabela `whatsapp_evolution_logs`
---
-
-CREATE TABLE `whatsapp_evolution_logs` (
-  `id` int(11) NOT NULL,
-  `phone` varchar(20) DEFAULT NULL,
-  `message` text DEFAULT NULL,
-  `success` tinyint(1) DEFAULT NULL,
-  `response` text DEFAULT NULL,
-  `transaction_id` int(11) DEFAULT NULL,
-  `event_type` varchar(50) DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- --------------------------------------------------------
-
---
--- Estrutura para tabela `whatsapp_logs`
---
-
-CREATE TABLE `whatsapp_logs` (
-  `id` int(11) NOT NULL,
-  `type` varchar(50) NOT NULL,
-  `phone` varchar(20) NOT NULL,
-  `message_preview` text DEFAULT NULL,
-  `success` tinyint(1) NOT NULL DEFAULT 0,
-  `message_id` varchar(100) DEFAULT NULL,
-  `error_message` text DEFAULT NULL,
-  `simulation_mode` tinyint(1) NOT NULL DEFAULT 0,
-  `additional_data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`additional_data`)),
-  `ip_address` varchar(45) DEFAULT NULL,
-  `user_agent` text DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT current_timestamp(),
-  `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`metadata`)),
-  `message` text DEFAULT NULL,
-  `status` enum('success','failed','pending') DEFAULT 'pending'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Despejando dados para a tabela `whatsapp_logs`
---
-
-INSERT INTO `whatsapp_logs` (`id`, `type`, `phone`, `message_preview`, `success`, `message_id`, `error_message`, `simulation_mode`, `additional_data`, `ip_address`, `user_agent`, `created_at`, `metadata`, `message`, `status`) VALUES
-(705, 'cashback_notification', 'unknown', '⭐ *Ricardo da Silva Facundo*, sua compra foi registrada!*\n\n⏰ Liberação em até 7 dias úteis.\n\n🏪 RSF SONHO DE NOIVA EVENTOS E NEGOCIOS LTDA\n💰 Compra: R$ 50,00\n🎁 Cashback: R$ 2,50\n\n💳 Acesse: https://klubecash.com\n\n🔔 *Klube Cash - Dinhe', 1, NULL, NULL, 0, '{\"transaction_id\":680,\"message_preview\":\"\\u2b50 *Ricardo da Silva Facundo*, sua compra foi registrada!*\\n\\n\\u23f0 Libera\\u00e7\\u00e3o em at\\u00e9 7 dias \\u00fateis.\\n\",\"timestamp\":\"2025-09-26 14:05:53\",\"system\":\"FixedBrutalNotificationSystem\"}', NULL, NULL, '2025-09-26 17:05:53', NULL, NULL, 'pending');
 
 --
 -- Índices para tabelas despejadas
@@ -1251,6 +1286,17 @@ ALTER TABLE `api_logs`
 ALTER TABLE `api_rate_limits`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `unique_rate_limit` (`api_key_id`,`endpoint`,`window_type`,`window_start`);
+
+--
+-- Índices de tabela `assinaturas`
+--
+ALTER TABLE `assinaturas`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_loja_tipo` (`loja_id`,`tipo`),
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_plano` (`plano_id`),
+  ADD KEY `idx_next_invoice` (`next_invoice_date`),
+  ADD KEY `fk_assinaturas_user` (`user_id`);
 
 --
 -- Índices de tabela `bot_consultas`
@@ -1356,6 +1402,17 @@ ALTER TABLE `email_templates`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Índices de tabela `faturas`
+--
+ALTER TABLE `faturas`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `numero` (`numero`),
+  ADD KEY `idx_assinatura` (`assinatura_id`),
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_gateway_charge` (`gateway_charge_id`),
+  ADD KEY `idx_due_date` (`due_date`);
+
+--
 -- Índices de tabela `favorites`
 --
 ALTER TABLE `favorites`
@@ -1378,6 +1435,15 @@ ALTER TABLE `login_attempts`
   ADD PRIMARY KEY (`id`),
   ADD KEY `ip` (`ip`),
   ADD KEY `attempt_time` (`attempt_time`);
+
+--
+-- Índices de tabela `logs_notificacoes`
+--
+ALTER TABLE `logs_notificacoes`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_logs_transaction` (`transaction_id`),
+  ADD KEY `idx_logs_client` (`client_id`),
+  ADD KEY `idx_logs_data` (`data_envio`);
 
 --
 -- Índices de tabela `lojas`
@@ -1410,15 +1476,6 @@ ALTER TABLE `lojas_favoritas`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `unique_favorite` (`usuario_id`,`loja_id`),
   ADD KEY `loja_id` (`loja_id`);
-
---
--- Índices de tabela `n8n_webhook_logs`
---
-ALTER TABLE `n8n_webhook_logs`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_transaction` (`transaction_id`),
-  ADD KEY `idx_event_type` (`event_type`),
-  ADD KEY `idx_created_at` (`created_at`);
 
 --
 -- Índices de tabela `notificacoes`
@@ -1460,6 +1517,14 @@ ALTER TABLE `pagamento_transacoes`
   ADD UNIQUE KEY `unique_payment_transaction` (`pagamento_id`,`transacao_id`);
 
 --
+-- Índices de tabela `planos`
+--
+ALTER TABLE `planos`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `slug` (`slug`),
+  ADD KEY `idx_ativo` (`ativo`);
+
+--
 -- Índices de tabela `recuperacao_senha`
 --
 ALTER TABLE `recuperacao_senha`
@@ -1487,7 +1552,8 @@ ALTER TABLE `transacoes_cashback`
   ADD PRIMARY KEY (`id`),
   ADD KEY `usuario_id` (`usuario_id`),
   ADD KEY `loja_id` (`loja_id`),
-  ADD KEY `criado_por` (`criado_por`);
+  ADD KEY `criado_por` (`criado_por`),
+  ADD KEY `idx_notificacao` (`notificacao_enviada`,`data_notificacao`);
 
 --
 -- Índices de tabela `transacoes_comissao`
@@ -1558,32 +1624,13 @@ ALTER TABLE `webhook_errors`
   ADD KEY `idx_created_at` (`created_at`);
 
 --
--- Índices de tabela `whatsapp_cadastro_sessions`
+-- Índices de tabela `webhook_events`
 --
-ALTER TABLE `whatsapp_cadastro_sessions`
+ALTER TABLE `webhook_events`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `phone` (`phone`);
-
---
--- Índices de tabela `whatsapp_evolution_logs`
---
-ALTER TABLE `whatsapp_evolution_logs`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_phone` (`phone`),
-  ADD KEY `idx_transaction` (`transaction_id`),
-  ADD KEY `idx_created_at` (`created_at`);
-
---
--- Índices de tabela `whatsapp_logs`
---
-ALTER TABLE `whatsapp_logs`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_type` (`type`),
-  ADD KEY `idx_phone` (`phone`),
-  ADD KEY `idx_created_at` (`created_at`),
-  ADD KEY `idx_success` (`success`),
-  ADD KEY `idx_created` (`created_at`),
-  ADD KEY `idx_status` (`status`);
+  ADD UNIQUE KEY `unique_event` (`gateway`,`external_id`),
+  ADD KEY `idx_processed` (`processed_at`),
+  ADD KEY `idx_event_type` (`event_type`);
 
 --
 -- AUTO_INCREMENT para tabelas despejadas
@@ -1626,6 +1673,12 @@ ALTER TABLE `api_rate_limits`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT de tabela `assinaturas`
+--
+ALTER TABLE `assinaturas`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT de tabela `bot_consultas`
 --
 ALTER TABLE `bot_consultas`
@@ -1635,7 +1688,7 @@ ALTER TABLE `bot_consultas`
 -- AUTO_INCREMENT de tabela `cashback_movimentacoes`
 --
 ALTER TABLE `cashback_movimentacoes`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=339;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=399;
 
 --
 -- AUTO_INCREMENT de tabela `cashback_notificacoes`
@@ -1653,7 +1706,7 @@ ALTER TABLE `cashback_notification_retries`
 -- AUTO_INCREMENT de tabela `cashback_saldos`
 --
 ALTER TABLE `cashback_saldos`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=309;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=361;
 
 --
 -- AUTO_INCREMENT de tabela `comissoes_status_historico`
@@ -1710,6 +1763,12 @@ ALTER TABLE `email_templates`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT de tabela `faturas`
+--
+ALTER TABLE `faturas`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT de tabela `favorites`
 --
 ALTER TABLE `favorites`
@@ -1728,10 +1787,16 @@ ALTER TABLE `login_attempts`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT de tabela `logs_notificacoes`
+--
+ALTER TABLE `logs_notificacoes`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT de tabela `lojas`
 --
 ALTER TABLE `lojas`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=65;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=68;
 
 --
 -- AUTO_INCREMENT de tabela `lojas_contato`
@@ -1743,7 +1808,7 @@ ALTER TABLE `lojas_contato`
 -- AUTO_INCREMENT de tabela `lojas_endereco`
 --
 ALTER TABLE `lojas_endereco`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=38;
 
 --
 -- AUTO_INCREMENT de tabela `lojas_favoritas`
@@ -1752,22 +1817,16 @@ ALTER TABLE `lojas_favoritas`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
--- AUTO_INCREMENT de tabela `n8n_webhook_logs`
---
-ALTER TABLE `n8n_webhook_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
 -- AUTO_INCREMENT de tabela `notificacoes`
 --
 ALTER TABLE `notificacoes`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=688;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=690;
 
 --
 -- AUTO_INCREMENT de tabela `pagamentos_comissao`
 --
 ALTER TABLE `pagamentos_comissao`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1211;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1213;
 
 --
 -- AUTO_INCREMENT de tabela `pagamentos_devolucoes`
@@ -1779,13 +1838,19 @@ ALTER TABLE `pagamentos_devolucoes`
 -- AUTO_INCREMENT de tabela `pagamentos_transacoes`
 --
 ALTER TABLE `pagamentos_transacoes`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=228;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=230;
 
 --
 -- AUTO_INCREMENT de tabela `pagamento_transacoes`
 --
 ALTER TABLE `pagamento_transacoes`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+
+--
+-- AUTO_INCREMENT de tabela `planos`
+--
+ALTER TABLE `planos`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT de tabela `recuperacao_senha`
@@ -1797,13 +1862,13 @@ ALTER TABLE `recuperacao_senha`
 -- AUTO_INCREMENT de tabela `store_balance_payments`
 --
 ALTER TABLE `store_balance_payments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=31;
 
 --
 -- AUTO_INCREMENT de tabela `transacoes_cashback`
 --
 ALTER TABLE `transacoes_cashback`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=688;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=748;
 
 --
 -- AUTO_INCREMENT de tabela `transacoes_comissao`
@@ -1815,7 +1880,7 @@ ALTER TABLE `transacoes_comissao`
 -- AUTO_INCREMENT de tabela `transacoes_saldo_usado`
 --
 ALTER TABLE `transacoes_saldo_usado`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
 
 --
 -- AUTO_INCREMENT de tabela `transacoes_status_historico`
@@ -1827,7 +1892,7 @@ ALTER TABLE `transacoes_status_historico`
 -- AUTO_INCREMENT de tabela `usuarios`
 --
 ALTER TABLE `usuarios`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=198;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=220;
 
 --
 -- AUTO_INCREMENT de tabela `usuarios_contato`
@@ -1854,22 +1919,10 @@ ALTER TABLE `webhook_errors`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
--- AUTO_INCREMENT de tabela `whatsapp_cadastro_sessions`
+-- AUTO_INCREMENT de tabela `webhook_events`
 --
-ALTER TABLE `whatsapp_cadastro_sessions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
-
---
--- AUTO_INCREMENT de tabela `whatsapp_evolution_logs`
---
-ALTER TABLE `whatsapp_evolution_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
-
---
--- AUTO_INCREMENT de tabela `whatsapp_logs`
---
-ALTER TABLE `whatsapp_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=706;
+ALTER TABLE `webhook_events`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- Restrições para tabelas despejadas
@@ -1886,6 +1939,14 @@ ALTER TABLE `api_logs`
 --
 ALTER TABLE `api_rate_limits`
   ADD CONSTRAINT `api_rate_limits_ibfk_1` FOREIGN KEY (`api_key_id`) REFERENCES `api_keys` (`id`) ON DELETE CASCADE;
+
+--
+-- Restrições para tabelas `assinaturas`
+--
+ALTER TABLE `assinaturas`
+  ADD CONSTRAINT `fk_assinaturas_loja` FOREIGN KEY (`loja_id`) REFERENCES `lojas` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_assinaturas_plano` FOREIGN KEY (`plano_id`) REFERENCES `planos` (`id`),
+  ADD CONSTRAINT `fk_assinaturas_user` FOREIGN KEY (`user_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE;
 
 --
 -- Restrições para tabelas `cashback_movimentacoes`
@@ -1924,11 +1985,24 @@ ALTER TABLE `email_envios`
   ADD CONSTRAINT `email_envios_ibfk_1` FOREIGN KEY (`campaign_id`) REFERENCES `email_campaigns` (`id`);
 
 --
+-- Restrições para tabelas `faturas`
+--
+ALTER TABLE `faturas`
+  ADD CONSTRAINT `fk_faturas_assinatura` FOREIGN KEY (`assinatura_id`) REFERENCES `assinaturas` (`id`) ON DELETE CASCADE;
+
+--
 -- Restrições para tabelas `favorites`
 --
 ALTER TABLE `favorites`
   ADD CONSTRAINT `favorites_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `favorites_ibfk_2` FOREIGN KEY (`store_id`) REFERENCES `lojas` (`id`) ON DELETE CASCADE;
+
+--
+-- Restrições para tabelas `logs_notificacoes`
+--
+ALTER TABLE `logs_notificacoes`
+  ADD CONSTRAINT `logs_notificacoes_ibfk_1` FOREIGN KEY (`transaction_id`) REFERENCES `transacoes_cashback` (`id`),
+  ADD CONSTRAINT `logs_notificacoes_ibfk_2` FOREIGN KEY (`client_id`) REFERENCES `usuarios` (`id`);
 
 --
 -- Restrições para tabelas `lojas`

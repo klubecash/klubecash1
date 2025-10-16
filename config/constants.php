@@ -296,6 +296,19 @@ define('OPENPIX_APP_ID', 'Q2xpZW50X0lkXzIzOTVjYmMzLWYyOGItNGJmYi04MWE3LWNkZWIzYz
 define('OPENPIX_WEBHOOK_AUTH', 'klube_cash_webhook_2025'); // Chave de autorização do webhook
 define('OPENPIX_WEBHOOK_URL', SITE_URL . '/webhook/openpix');
 
+// === ABACATE PAY CONFIGURAÇÕES (ASSINATURAS) ===
+define('ABACATE_API_BASE', 'https://api.abacatepay.com');
+define('ABACATE_API_KEY', 'abc_prod_HQDz0bBuxAEPA6WCqZ5cJP4r'); // DEFINIR: Sua chave de API do Abacate Pay
+define('ABACATE_WEBHOOK_SECRET', 'klubecash2025'); // DEFINIR: Segredo do webhook (gerar no painel)
+define('ABACATE_WEBHOOK_URL', SITE_URL . '/api/abacatepay-webhook');
+define('ABACATE_TIMEOUT', 30); // Timeout em segundos
+
+// URLs de Assinaturas
+define('ADMIN_SUBSCRIPTIONS_URL', SITE_URL . '/admin/assinaturas');
+define('ADMIN_PLANS_URL', SITE_URL . '/admin/planos');
+define('STORE_SUBSCRIPTION_URL', SITE_URL . '/store/meu-plano');
+define('STORE_INVOICE_PIX_URL', SITE_URL . '/store/fatura-pix');
+
 // === AMBIENTE ===
 if (!defined('ENVIRONMENT')) {
     define('ENVIRONMENT', 'production');
