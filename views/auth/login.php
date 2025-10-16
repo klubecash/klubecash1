@@ -1,7 +1,6 @@
 <?php
 // views/auth/login.php - VERSÃO CORRIGIDA E REESTRUTURADA
 
-// ✅ CORREÇÃO: Toda a lógica PHP foi movida para o topo do ficheiro, ANTES de qualquer HTML.
 require_once '../../config/constants.php';
 require_once '../../config/database.php';
 require_once '../../controllers/AuthController.php';
@@ -9,7 +8,20 @@ require_once '../../controllers/AuthController.php';
 // Captura a origem da URL (se houver)
 $origem = $_GET['origem'] ?? '';
 
-session_start();
+
+session_set_cookie_params([
+    'lifetime' => 0, // A sessão dura até o navegador fechar
+    'path'     => '/',
+    'domain'   => '.klubecash.com', // O PONTO é crucial para incluir subdomínios
+    'secure'   => true,   // Apenas sobre HTTPS
+    'httponly' => true, // Impede acesso via JavaScript (mais seguro)
+    'samesite' => 'none' // Segurança contra ataques CSRF
+]);
+
+// Iniciar a sessão apenas se não houver uma ativa
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // 1. VERIFICAR SE O UTILIZADOR JÁ ESTÁ LOGADO E REDIRECIONAR
 if (isset($_SESSION['user_id']) && !isset($_GET['force_login'])) {
@@ -36,18 +48,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($email) || empty($password)) {
         $error = 'Por favor, preencha todos os campos.';
     } else {
-        // A função login agora também retorna o 'senat' status e o 'token'
-        $result = AuthController::login($email, $password);
+        // ✅ ALTERAÇÃO: Passar a origem para a função de login
+        $result = AuthController::login($email, $password, false, $origem_post);
         
         if ($result['status']) {
-            // Login bem-sucedido, agora decidimos para onde redirecionar
+            // Login bem-sucedido
             $userType = $_SESSION['user_type'] ?? '';
             $userData = $result['user_data'] ?? [];
-
-            // Lógica de redirecionamento para SEST-SENAT (com o token JWT)
+            
+            $token = $result['token'] ?? '';
+            if ($token) {
+                setcookie('jwt_token', $token, [
+                    'expires' => time() + (60 * 60 * 24), // 24 horas
+                    'path' => '/',
+                    'domain' => '.klubecash.com',
+                    'secure' => true,
+                    'httponly' => true,
+                    'samesite' => 'none'
+                ]);
+            }
+            
+            // A lógica de redirecionamento agora funciona, pois o AuthController já atualizou o 'senat'
             if ($origem_post === 'sest-senat' && !empty($userData['senat']) && in_array(strtolower($userData['senat']), ['true', '1', 'sim'])) {
-                $token = $result['token'] ?? '';
-                header('Location: https://sest-senat.klubecash.com/?token=' . $token);
+                header('Location: https://sest-senat.klubecash.com/');
                 exit;
             }
 
@@ -74,7 +97,6 @@ if (!empty($urlError)) {
     $error = urldecode($urlError);
 }
 
-// O script PHP termina aqui, e SÓ AGORA o HTML começa.
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -686,19 +708,17 @@ if (!empty($urlError)) {
             </div>
 
             <form method="post" action="" class="login-form" id="login-form">
-                
                 <input type="hidden" name="origem" value="<?php echo htmlspecialchars($origem); ?>">
-
                 <div class="input-group">
                     <label for="email" class="input-label">E-mail</label>
                     <div class="input-wrapper">
-                        <input 
-                            type="email" 
-                            id="email" 
-                            name="email" 
-                            class="input-field" 
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            class="input-field"
                             placeholder="Digite seu e-mail"
-                            required 
+                            required
                             autocomplete="email"
                         >
                     </div>
@@ -954,4 +974,3 @@ if (!empty($urlError)) {
     </script>
 </body>
 </html>
-

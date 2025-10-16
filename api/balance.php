@@ -26,7 +26,7 @@ session_set_cookie_params([
     'domain'   => '.klubecash.com',
     'secure'   => true,
     'httponly' => true,
-    'samesite' => 'Lax'
+    'samesite' => 'none'
 ]);
 
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
