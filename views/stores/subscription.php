@@ -14,12 +14,22 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'loja') {
     exit;
 }
 
-$lojaId = $_SESSION['loja_id'];
+// CORREÇÃO: Usar store_id ou loja_id (compatibilidade)
+$lojaId = $_SESSION['store_id'] ?? $_SESSION['loja_id'] ?? $_SESSION['user_id'] ?? null;
+
+if (!$lojaId) {
+    header('Location: ' . LOGIN_URL . '?error=' . urlencode('Erro ao identificar loja'));
+    exit;
+}
+
 $db = (new Database())->getConnection();
 $subscriptionController = new SubscriptionController($db);
 
 // Buscar assinatura e faturas pendentes
 $assinatura = $subscriptionController->getActiveSubscriptionByStore($lojaId);
+
+// DEBUG: Log para verificar
+error_log("SUBSCRIPTION PAGE - Loja ID: {$lojaId}, Assinatura encontrada: " . ($assinatura ? 'SIM (ID: ' . $assinatura['id'] . ')' : 'NÃO'));
 $planInfo = FeatureGate::getPlanInfo($lojaId);
 
 $faturasPendentes = [];

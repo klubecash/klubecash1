@@ -343,7 +343,7 @@ class SubscriptionController {
      */
     public function getSubscriptionById($id) {
         $sql = "SELECT a.*, p.nome as plano_nome, p.slug as plano_slug, p.features_json,
-                       l.nome_loja, l.email as loja_email
+                       l.nome_fantasia, l.email as loja_email
                 FROM assinaturas a
                 JOIN planos p ON a.plano_id = p.id
                 LEFT JOIN lojas l ON a.loja_id = l.id
@@ -357,7 +357,7 @@ class SubscriptionController {
      * Lista todas as assinaturas com filtros opcionais
      */
     public function listSubscriptions($filters = []) {
-        $sql = "SELECT a.*, p.nome as plano_nome, l.nome_loja
+        $sql = "SELECT a.*, p.nome as plano_nome, l.nome_fantasia
                 FROM assinaturas a
                 JOIN planos p ON a.plano_id = p.id
                 LEFT JOIN lojas l ON a.loja_id = l.id

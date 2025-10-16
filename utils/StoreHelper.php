@@ -44,7 +44,13 @@ class StoreHelper {
             error_log("ERRO CRÍTICO: store_id não definido para usuário {$userId} tipo {$userType}");
             // Log adicional para debug
             error_log("SESSION DEBUG: " . json_encode($_SESSION));
-            header("Location: /login?error=Erro+ao+acessar+dados+da+loja");
+
+            // CORREÇÃO: Destruir sessão completamente antes de redirecionar
+            session_destroy();
+            session_write_close();
+            setcookie(session_name(), '', 0, '/');
+
+            header("Location: " . (defined('LOGIN_URL') ? LOGIN_URL : '/login') . "?error=" . urlencode("Sessão inválida. Faça login novamente."));
             exit;
         }
         
