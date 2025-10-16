@@ -27,7 +27,7 @@ session_set_cookie_params([
     'domain'   => '.klubecash.com',
     'secure'   => true,
     'httponly' => true,
-    'samesite' => 'none' 
+    'samesite' => 'None' 
 ]);
 
 // Responde à requisição pre-flight do navegador

@@ -1,5 +1,8 @@
 <?php
-// views/auth/login.php - VERSÃO CORRIGIDA E REESTRUTURADA
+// views/auth/login.php - VERSÃO FINAL CORRIGIDA E REESTRUTURADA
+
+// Inicia o buffer de saída para prevenir erros de "headers already sent"
+ob_start();
 
 require_once '../../config/constants.php';
 require_once '../../config/database.php';
@@ -8,17 +11,18 @@ require_once '../../controllers/AuthController.php';
 // Captura a origem da URL (se houver)
 $origem = $_GET['origem'] ?? '';
 
-
+// Define as regras para os cookies de sessão ANTES de iniciar a sessão.
+// Esta configuração deve ser IDÊNTICA em todos os ficheiros de API (balance.php, users.php)
 session_set_cookie_params([
-    'lifetime' => 0, // A sessão dura até o navegador fechar
+    'lifetime' => 0,
     'path'     => '/',
     'domain'   => '.klubecash.com', // O PONTO é crucial para incluir subdomínios
-    'secure'   => true,   // Apenas sobre HTTPS
-    'httponly' => true, // Impede acesso via JavaScript (mais seguro)
-    'samesite' => 'none' // Segurança contra ataques CSRF
+    'secure'   => true,
+    'httponly' => true,
+    'samesite' => 'Lax' // 'Lax' é a política mais segura e compatível para este cenário
 ]);
 
-// Iniciar a sessão apenas se não houver uma ativa
+// Inicia a sessão apenas se não houver uma ativa
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -28,14 +32,12 @@ if (isset($_SESSION['user_id']) && !isset($_GET['force_login'])) {
     $userType = $_SESSION['user_type'] ?? '';
     if ($userType == 'admin') {
         header('Location: ' . ADMIN_DASHBOARD_URL);
-        exit;
     } else if ($userType == 'loja' || $userType == 'funcionario') {
         header('Location: ' . STORE_DASHBOARD_URL);
-        exit;
     } else {
         header('Location: ' . CLIENT_DASHBOARD_URL);
-        exit;
     }
+    exit;
 }
 
 // 2. PROCESSAR O FORMULÁRIO DE LOGIN (SE FOI ENVIADO)
@@ -48,27 +50,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($email) || empty($password)) {
         $error = 'Por favor, preencha todos os campos.';
     } else {
-        // ✅ ALTERAÇÃO: Passar a origem para a função de login
         $result = AuthController::login($email, $password, false, $origem_post);
         
         if ($result['status']) {
-            // Login bem-sucedido
             $userType = $_SESSION['user_type'] ?? '';
             $userData = $result['user_data'] ?? [];
             
             $token = $result['token'] ?? '';
             if ($token) {
+                // Define o cookie JWT com as MESMAS regras do cookie de sessão.
                 setcookie('jwt_token', $token, [
                     'expires' => time() + (60 * 60 * 24), // 24 horas
                     'path' => '/',
                     'domain' => '.klubecash.com',
                     'secure' => true,
                     'httponly' => true,
-                    'samesite' => 'none'
+                    'samesite' => 'Lax'
                 ]);
             }
             
-            // A lógica de redirecionamento agora funciona, pois o AuthController já atualizou o 'senat'
             if ($origem_post === 'sest-senat' && !empty($userData['senat']) && in_array(strtolower($userData['senat']), ['true', '1', 'sim'])) {
                 header('Location: https://sest-senat.klubecash.com/');
                 exit;
@@ -97,6 +97,8 @@ if (!empty($urlError)) {
     $error = urldecode($urlError);
 }
 
+// Descarrega o buffer de saída (se nada foi enviado, não faz nada)
+ob_end_flush();
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
