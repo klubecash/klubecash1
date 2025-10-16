@@ -8,15 +8,14 @@ require_once '../../controllers/AuthController.php';
 // Captura a origem da URL (se houver)
 $origem = $_GET['origem'] ?? '';
 
-// ✅ CORREÇÃO: Definir as regras do cookie de sessão ANTES de iniciar a sessão.
-// Isto garante que o PHPSESSID é partilhado com os subdomínios.
+
 session_set_cookie_params([
     'lifetime' => 0, // A sessão dura até o navegador fechar
     'path'     => '/',
     'domain'   => '.klubecash.com', // O PONTO é crucial para incluir subdomínios
     'secure'   => true,   // Apenas sobre HTTPS
     'httponly' => true, // Impede acesso via JavaScript (mais seguro)
-    'samesite' => 'Lax' // Segurança contra ataques CSRF
+    'samesite' => 'none' // Segurança contra ataques CSRF
 ]);
 
 // Iniciar a sessão apenas se não houver uma ativa
@@ -49,28 +48,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($email) || empty($password)) {
         $error = 'Por favor, preencha todos os campos.';
     } else {
-        // A função login agora também retorna o 'senat' status e o 'token'
-        $result = AuthController::login($email, $password);
+        // ✅ ALTERAÇÃO: Passar a origem para a função de login
+        $result = AuthController::login($email, $password, false, $origem_post);
         
         if ($result['status']) {
-            // Login bem-sucedido, agora decidimos para onde redirecionar
+            // Login bem-sucedido
             $userType = $_SESSION['user_type'] ?? '';
             $userData = $result['user_data'] ?? [];
             
             $token = $result['token'] ?? '';
             if ($token) {
-                // Define o cookie JWT com as MESMAS regras do cookie de sessão
                 setcookie('jwt_token', $token, [
                     'expires' => time() + (60 * 60 * 24), // 24 horas
                     'path' => '/',
                     'domain' => '.klubecash.com',
                     'secure' => true,
                     'httponly' => true,
-                    'samesite' => 'Lax'
+                    'samesite' => 'none'
                 ]);
             }
             
-            // Lógica de redirecionamento para SEST-SENAT (agora sem o token na URL)
+            // A lógica de redirecionamento agora funciona, pois o AuthController já atualizou o 'senat'
             if ($origem_post === 'sest-senat' && !empty($userData['senat']) && in_array(strtolower($userData['senat']), ['true', '1', 'sim'])) {
                 header('Location: https://sest-senat.klubecash.com/');
                 exit;
@@ -99,7 +97,6 @@ if (!empty($urlError)) {
     $error = urldecode($urlError);
 }
 
-// O script PHP termina aqui, e SÓ AGORA o HTML começa.
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">

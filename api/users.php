@@ -5,11 +5,7 @@
 // Configurações iniciais
 header('Content-Type: application/json; charset=UTF-8');
 // O 'Access-Control-Allow-Origin' PRECISA ser o domínio exato, não '*'
-header('Access-Control-Allow-Origin: https://sest-senat.klubecash.com');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-// O 'Access-Control-Allow-Credentials' é necessário para o navegador enviar o header 'Authorization'
-header('Access-Control-Allow-Credentials: true');
+
 $allowed_origins = [
     'https://sest-senat.klubecash.com',
     'https://sdk.mercadopago.com'
@@ -25,27 +21,13 @@ header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 header('Access-Control-Allow-Credentials: true');
 
-// Se for requisição OPTIONS (preflight), encerra a execução
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit(0);
-}
-
-// Incluir arquivos necessários
-require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../config/constants.php';
-require_once __DIR__ . '/../controllers/AuthController.php';
-require_once __DIR__ . '/../controllers/AdminController.php';
-require_once __DIR__ . '/../controllers/ClientController.php';
-require_once __DIR__ . '/../utils/Security.php';
-require_once __DIR__ . '/../utils/Validator.php';
-
 session_set_cookie_params([
     'lifetime' => 0,
     'path'     => '/',
     'domain'   => '.klubecash.com',
     'secure'   => true,
     'httponly' => true,
-    'samesite' => 'Lax' 
+    'samesite' => 'none' 
 ]);
 
 // Responde à requisição pre-flight do navegador
@@ -55,6 +37,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 // Inicia a sessão para ler o cookie PHPSESSID
 session_start();
+// Incluir arquivos necessários
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/constants.php';
+require_once __DIR__ . '/../controllers/AuthController.php';
+require_once __DIR__ . '/../controllers/AdminController.php';
+require_once __DIR__ . '/../controllers/ClientController.php';
+require_once __DIR__ . '/../utils/Security.php';
+require_once __DIR__ . '/../utils/Validator.php';
+
+
 // Função para validar token JWT
 function validateToken() {
     // 1. Ler o token diretamente do cookie enviado pelo navegador
