@@ -362,6 +362,7 @@ RewriteRule ^webhook/openpix/?$ webhook/openpix.php [L]
 # API - Abacate Pay (Assinaturas)
 RewriteRule ^api/abacatepay/?$ api/abacatepay.php [L,QSA]
 RewriteRule ^api/abacatepay-webhook/?$ api/abacatepay-webhook.php [L,QSA]
+RewriteRule ^api/search-stores/?$ api/search-stores.php [L,QSA]
 # Email Marketing
 RewriteRule ^admin/email-marketing/?$ views/admin/email-marketing.php [L]
 RewriteRule ^admin/email-templates/?$ views/admin/email-templates.php [L]

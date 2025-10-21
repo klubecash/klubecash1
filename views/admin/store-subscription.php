@@ -77,6 +77,18 @@ if ($lojaId) {
     $stmtLoja = $db->prepare($sqlLoja);
     $stmtLoja->execute([$lojaId]);
     $loja = $stmtLoja->fetch(PDO::FETCH_ASSOC);
+
+    // Se não encontrou a loja, redirecionar de volta
+    if (!$loja) {
+        header('Location: ' . ADMIN_SUBSCRIPTIONS_URL . '?error=Loja não encontrada');
+        exit;
+    }
+}
+
+// Se não tem nem assinatura nem loja, redirecionar
+if (!$assinaturaId && !$lojaId) {
+    header('Location: ' . ADMIN_SUBSCRIPTIONS_URL . '?error=Parâmetro inválido');
+    exit;
 }
 
 $activeMenu = 'assinaturas';
@@ -108,7 +120,7 @@ $activeMenu = 'assinaturas';
         <!-- Informações da Loja -->
         <?php if ($loja): ?>
             <div class="info-card">
-                <h2>Loja: <?php echo htmlspecialchars($loja['nome_loja']); ?></h2>
+                <h2>Loja: <?php echo htmlspecialchars($loja['nome_fantasia']); ?></h2>
                 <p><strong>Email:</strong> <?php echo htmlspecialchars($loja['email']); ?></p>
                 <p><strong>Telefone:</strong> <?php echo htmlspecialchars($loja['telefone'] ?? '-'); ?></p>
             </div>
@@ -218,46 +230,159 @@ $activeMenu = 'assinaturas';
     </div>
 
     <style>
+        /* Layout Principal */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+        }
+
+        .main-content {
+            margin-left: 280px;
+            padding: 30px;
+            min-height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .page-header h1 {
+            font-size: 28px;
+            color: #333;
+            margin: 0;
+        }
+
+        /* Cards */
         .info-card, .subscription-card, .invoices-card, .assign-plan-card {
             background: white;
-            padding: 20px;
+            padding: 25px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
+
+        .info-card h2, .subscription-card h2, .invoices-card h2, .assign-plan-card h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 20px;
+            color: #333;
+        }
+
+        /* Alerts */
         .alert {
             padding: 12px 20px;
             border-radius: 4px;
             margin-bottom: 20px;
         }
-        .alert-success { background: #d4edda; color: #155724; }
-        .alert-danger { background: #f8d7da; color: #721c24; }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-danger { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        /* Subscription Details */
         .subscription-details p { margin: 8px 0; }
-        .actions { margin-top: 15px; display: flex; gap: 10px; }
+        .actions { margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+        /* Form */
         .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; font-weight: 500; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 500; color: #333; }
         .form-group input, .form-group select {
             width: 100%;
-            padding: 8px 12px;
+            padding: 10px 12px;
             border: 1px solid #ddd;
             border-radius: 4px;
+            font-size: 14px;
         }
-        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
         .btn-primary { background: <?php echo PRIMARY_COLOR; ?>; color: white; }
         .btn-secondary { background: #6c757d; color: white; }
         .btn-success { background: #28a745; color: white; }
         .btn-warning { background: #ffc107; color: #000; }
         .btn-danger { background: #dc3545; color: white; }
-        .badge { padding: 4px 12px; border-radius: 12px; font-size: 12px; }
+
+        /* Badges */
+        .badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
         .badge-trial { background: #fff3cd; color: #856404; }
-        .badge-ativa { background: #d4edda; color: #155724; }
-        .badge-inadimplente { background: #f8d7da; color: #721c24; }
+        .badge-ativa, .badge-active { background: #d4edda; color: #155724; }
+        .badge-inadimplente, .badge-delinquent { background: #f8d7da; color: #721c24; }
+        .badge-suspensa, .badge-suspended { background: #f8d7da; color: #721c24; }
+        .badge-cancelada, .badge-canceled { background: #e2e3e5; color: #383d41; }
         .badge-pending { background: #fff3cd; color: #856404; }
         .badge-paid { background: #d4edda; color: #155724; }
         .badge-failed { background: #f8d7da; color: #721c24; }
-        .data-table { width: 100%; border-collapse: collapse; }
-        .data-table th, .data-table td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
-        .data-table th { background: #f8f9fa; font-weight: 600; }
+
+        /* Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .data-table th, .data-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        .data-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+        .data-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        /* Responsividade */
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+                padding: 15px;
+                padding-top: 80px;
+            }
+
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+
+            .actions {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            .data-table {
+                font-size: 12px;
+            }
+
+            .data-table th, .data-table td {
+                padding: 8px;
+            }
+        }
     </style>
 </body>
 </html>
