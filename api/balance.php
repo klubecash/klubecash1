@@ -10,7 +10,6 @@ $allowed_origins = [
 
 // Verifica a origem da requisição
 if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowed_origins)) {
-    // Se a origem for permitida, responda autorizando especificamente ela
     header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
 }
 
@@ -19,34 +18,50 @@ header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header("Access-Control-Allow-Credentials: true");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
-// Configura o cookie de sessão para funcionar em todos os subdomínios
-session_set_cookie_params([
-    'lifetime' => 0,
-    'path'     => '/',
-    'domain'   => '.klubecash.com',
-    'secure'   => true,
-    'httponly' => true,
-    'samesite' => 'None'
-]);
-
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     exit(0);
 }
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Incluir arquivos necessários
-require_once '../config/database.php';
-require_once '../config/constants.php';
-require_once '../controllers/AuthController.php';
-require_once '../controllers/ClientController.php';
-require_once '../models/CashbackBalance.php';
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/constants.php';
+require_once __DIR__ . '/../controllers/AuthController.php';
+require_once __DIR__ . '/../controllers/ClientController.php';
+require_once __DIR__ . '/../models/CashbackBalance.php';
+require_once __DIR__ . '/../utils/Security.php'; // Incluir para usar Security::validateJWT
 
-// Verificar autenticação
-if (!AuthController::isAuthenticated()) {
-    echo json_encode(['status' => false, 'message' => 'Usuário não autenticado. Sessão não encontrada.']);
+// ✅ CORREÇÃO: Bloco de Autenticação Híbrida
+$isAuthenticated = false;
+
+// 1. Tenta autenticar via SESSÃO (método antigo)
+if (AuthController::isAuthenticated()) {
+    $isAuthenticated = true;
+} 
+// 2. Se a sessão falhar, TENTA AUTENTICAR VIA TOKEN JWT (método novo)
+else {
+    $token = $_COOKIE['jwt_token'] ?? '';
+    if (!empty($token)) {
+        $tokenData = Security::validateJWT($token);
+        if ($tokenData) {
+            // Se o token for válido, recria a sessão para esta requisição
+            $_SESSION['user_id'] = is_array($tokenData) ? $tokenData['id'] : $tokenData->id;
+            $_SESSION['user_type'] = is_array($tokenData) ? $tokenData['tipo'] : $tokenData->tipo;
+            $isAuthenticated = true;
+        }
+    }
+}
+
+// 3. Se NENHUM dos métodos funcionar, retorna erro
+if (!$isAuthenticated) {
+    http_response_code(401);
+    echo json_encode(['status' => false, 'message' => 'Usuário não autenticado. Sessão inválida ou expirada.']);
     exit;
 }
+// Fim da correção
 
 // O restante do seu código continua exatamente o mesmo...
 $userId = AuthController::getCurrentUserId();
@@ -63,11 +78,13 @@ try {
             break;
             
         default:
+            http_response_code(405);
             echo json_encode(['status' => false, 'message' => 'Método não permitido']);
             break;
     }
 } catch (Exception $e) {
     error_log('Erro na API de saldo: ' . $e->getMessage());
+    http_response_code(500);
     echo json_encode(['status' => false, 'message' => 'Erro interno do servidor']);
 }
 
@@ -76,6 +93,7 @@ function handleGetRequest($userId) {
     
     switch ($action) {
         case 'balance_details':
+            // Esta chamada agora deve funcionar corretamente.
             $result = ClientController::getClientBalanceDetails($userId);
             echo json_encode($result);
             break;
@@ -106,6 +124,7 @@ function handleGetRequest($userId) {
             break;
             
         default:
+            http_response_code(404);
             echo json_encode(['status' => false, 'message' => 'Ação não encontrada']);
             break;
     }
@@ -142,9 +161,9 @@ function handlePostRequest($userId) {
             break;
             
         default:
+            http_response_code(404);
             echo json_encode(['status' => false, 'message' => 'Ação não encontrada']);
             break;
     }
 }
 ?>
-

@@ -44,41 +44,39 @@ class Security {
      * @param string $jwt O token a ser validado.
      * @return object|false Os dados do payload se o token for válido, ou false caso contrário.
      */
-    public static function validateJWT(string $jwt) {
-        // Dividir o token em 3 partes
-        $tokenParts = explode('.', $jwt);
-        if (count($tokenParts) !== 3) {
-            return false;
-        }
-
-        $header = self::base64UrlDecode($tokenParts[0]);
-        $payload = self::base64UrlDecode($tokenParts[1]);
-        $signatureProvided = $tokenParts[2];
-
-        // Se a decodificação falhar, o token é inválido
-        if ($header === false || $payload === false) {
-            return false;
-        }
-
-        // Verificar expiração do token (se existir no payload)
-        $payloadData = json_decode($payload);
-        if (isset($payloadData->exp) && $payloadData->exp < time()) {
-            return false; // Token expirado
-        }
-
-        // Recriar a assinatura para verificação
-        $base64UrlHeader = self::base64UrlEncode($header);
-        $base64UrlPayload = self::base64UrlEncode($payload);
-        $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, JWT_SECRET, true);
-        $base64UrlSignature = self::base64UrlEncode($signature);
-
-        // Comparar as assinaturas de forma segura para evitar timing attacks
-        if (hash_equals($base64UrlSignature, $signatureProvided)) {
-            return $payloadData; // Token é válido, retorna os dados
-        }
-
-        return false; // Assinatura inválida
+public static function validateJWT(string $jwt) {
+    // Dividir o token em 3 partes
+    $tokenParts = explode('.', $jwt);
+    if (count($tokenParts) !== 3) {
+        return false;
     }
+
+    // Apenas a parte do payload precisa ser decodificada agora para a verificação de expiração
+    $payload = self::base64UrlDecode($tokenParts[1]);
+    $signatureProvided = $tokenParts[2];
+
+    if ($payload === false) {
+        return false;
+    }
+
+    // Verificar expiração do token
+    $payloadData = json_decode($payload);
+    if (isset($payloadData->exp) && $payloadData->exp < time()) {
+        return false; // Token expirado
+    }
+
+    // ✅ CORREÇÃO: Usar as partes originais (Base64Url) do token para recriar a assinatura
+    $dataToSign = $tokenParts[0] . "." . $tokenParts[1];
+    $signature = hash_hmac('sha256', $dataToSign, JWT_SECRET, true);
+    $base64UrlSignature = self::base64UrlEncode($signature);
+
+    // Comparar as assinaturas de forma segura
+    if (hash_equals($base64UrlSignature, $signatureProvided)) {
+        return $payloadData; // Token é válido, retorna os dados
+    }
+
+    return false; // Assinatura inválida
+}
 
     /**
      * Codifica uma string para o formato Base64URL (seguro para URLs).

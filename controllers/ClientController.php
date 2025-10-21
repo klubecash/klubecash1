@@ -2595,13 +2595,34 @@ class ClientController {
 
 // Processar requisições diretas de acesso ao controlador
 if (basename($_SERVER['PHP_SELF']) === 'ClientController.php') {
-    // Verificar se o usuário está autenticado
-    if (!AuthController::isAuthenticated()) {
-        header('Location: ' . LOGIN_URL . '?error=' . urlencode('Você precisa fazer login para acessar esta página.'));
+    
+    $isAuthenticated = false;
+
+    // 1. Tenta autenticar via SESSÃO (método antigo)
+    if (AuthController::isAuthenticated()) {
+        $isAuthenticated = true;
+    } 
+    // 2. Se a sessão falhar, TENTA AUTENTICAR VIA TOKEN JWT (método novo)
+    else {
+        $token = $_COOKIE['jwt_token'] ?? '';
+        if (!empty($token)) {
+            $tokenData = Security::validateJWT($token);
+            if ($tokenData) {
+                // Se o token for válido, recria a sessão para esta requisição
+                $_SESSION['user_id'] = $tokenData->id;
+                $_SESSION['user_type'] = $tokenData->tipo;
+                $isAuthenticated = true;
+            }
+        }
+    }
+
+    // 3. Se NENHUM dos métodos funcionar, redireciona para o login
+    if (!$isAuthenticated) {
+        header('Location: ' . LOGIN_URL . '?error=' . urlencode('Sessão inválida ou expirada.'));
         exit;
     }
     
-    // Verificar se é um cliente
+    // 4. A partir daqui, o resto do código funciona, pois a sessão está garantida
     if (AuthController::isAdmin() || AuthController::isStore()) {
         header('Location: ' . LOGIN_URL . '?error=' . urlencode('Acesso restrito a clientes.'));
         exit;
