@@ -7,6 +7,8 @@ header('Content-Type: application/json; charset=UTF-8');
 // O 'Access-Control-Allow-Origin' PRECISA ser o domínio exato, não '*'
 
 $allowed_origins = [
+    'https://klubecash.com',  
+    'https://www.klubecash.com',
     'https://sest-senat.klubecash.com',
     'https://sdk.mercadopago.com'
     // Adicione outros domínios de desenvolvimento se necessário
@@ -27,7 +29,7 @@ session_set_cookie_params([
     'domain'   => '.klubecash.com',
     'secure'   => true,
     'httponly' => true,
-    'samesite' => 'None' 
+    'samesite' => 'Lax' 
 ]);
 
 // Responde à requisição pre-flight do navegador
@@ -36,7 +38,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // Inicia a sessão para ler o cookie PHPSESSID
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 // Incluir arquivos necessários
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/constants.php';
@@ -359,18 +364,45 @@ function loginUser() {
     $result = AuthController::login($data['email'], $data['senha']);
     
     if ($result['status']) {
-        // Gerar token JWT
+        // ✅ CORREÇÃO 1: Garante que uma sessão limpa seja criada.
+        // Isso força o envio do cookie PHPSESSID.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_destroy();
+        }
+        session_start();
+        session_regenerate_id(true);
+
+        // Popula a nova sessão PHP.
+        $_SESSION['user_id'] = $result['user_data']['id'];
+        $_SESSION['user_type'] = $result['user_data']['tipo'];
+
+        // Gera o token JWT
         $token = Security::generateJWT([
-            'id' => $result['user']['id'],
-            'nome' => $result['user']['name'],
-            'tipo' => $result['user']['type'],
-            'exp' => time() + SESSION_LIFETIME // Tempo de expiração
+            'id'   => $result['user_data']['id'],
+            'nome' => $result['user_data']['nome'],
+            'tipo' => $result['user_data']['tipo'],
+            'exp'  => time() + (defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400) // 24 horas
         ]);
         
-        $result['token'] = $token;
+        // ✅ CORREÇÃO 2: Envia o token JWT como um cookie seguro.
+        setcookie(
+            'jwt_token',
+            $token,
+            [
+                'expires'  => time() + (defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400),
+                'path'     => '/',
+                'domain'   => '.klubecash.com',
+                'secure'   => true,
+                'httponly' => true,
+                'samesite' => 'Lax'
+            ]
+        );
+        
+        // Remove o token da resposta JSON, pois ele agora é tratado via cookie.
+        unset($result['token']);
     }
     
-    // Retornar resultado
+    // Retornar resultado (sem o token)
     echo json_encode($result);
 }
 

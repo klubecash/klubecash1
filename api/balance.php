@@ -1,22 +1,31 @@
 <?php
 // api/balance.php
 
-// Lista de domínios permitidos para acessar esta API
+// Configurações iniciais
+header('Content-Type: application/json; charset=UTF-8');
+
 $allowed_origins = [
     'https://sest-senat.klubecash.com',
     'https://sdk.mercadopago.com'
     // Adicione outros domínios se necessário, ex: 'http://localhost:5173'
 ];
 
-// Verifica a origem da requisição
 if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowed_origins)) {
     header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
 }
 
-header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header("Access-Control-Allow-Credentials: true");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path'     => '/',
+    'domain'   => '.klubecash.com',
+    'secure'   => true,
+    'httponly' => true,
+    'samesite' => 'Lax'
+]);
 
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     exit(0);
@@ -34,37 +43,38 @@ require_once __DIR__ . '/../controllers/ClientController.php';
 require_once __DIR__ . '/../models/CashbackBalance.php';
 require_once __DIR__ . '/../utils/Security.php'; // Incluir para usar Security::validateJWT
 
-// ✅ CORREÇÃO: Bloco de Autenticação Híbrida
-$isAuthenticated = false;
+// ✅ CORREÇÃO FINAL: Bloco de Autenticação Híbrida Refatorado
+$userId = null;
 
-// 1. Tenta autenticar via SESSÃO (método antigo)
-if (AuthController::isAuthenticated()) {
-    $isAuthenticated = true;
+// 1. Tenta obter o ID do usuário diretamente da sessão PHP, se já existir.
+if (isset($_SESSION['user_id'])) {
+    $userId = $_SESSION['user_id'];
 } 
-// 2. Se a sessão falhar, TENTA AUTENTICAR VIA TOKEN JWT (método novo)
+// 2. Se a sessão não existir, tenta validar o token JWT do cookie.
 else {
     $token = $_COOKIE['jwt_token'] ?? '';
     if (!empty($token)) {
-        $tokenData = Security::validateJWT($token);
-        if ($tokenData) {
-            // Se o token for válido, recria a sessão para esta requisição
-            $_SESSION['user_id'] = is_array($tokenData) ? $tokenData['id'] : $tokenData->id;
-            $_SESSION['user_type'] = is_array($tokenData) ? $tokenData['tipo'] : $tokenData->tipo;
-            $isAuthenticated = true;
+        $validationResult = Security::validateJWT($token);
+        if ($validationResult) {
+            $tokenData = (array) $validationResult;
+            $userId = $tokenData['id']; // Pega o ID diretamente do token validado.
+            
+            // Recria a sessão para garantir consistência com outras partes do sistema.
+            $_SESSION['user_id'] = $tokenData['id'];
+            $_SESSION['user_type'] = $tokenData['tipo'];
         }
     }
 }
 
-// 3. Se NENHUM dos métodos funcionar, retorna erro
-if (!$isAuthenticated) {
+// 3. Se, após as duas tentativas, não houver um ID de usuário, a autenticação falhou.
+if ($userId === null) {
     http_response_code(401);
-    echo json_encode(['status' => false, 'message' => 'Usuário não autenticado. Sessão inválida ou expirada.']);
+    echo json_encode(['status' => false, 'message' => 'Sessão expirada. Faça login novamente.']);
     exit;
 }
 // Fim da correção
 
 // O restante do seu código continua exatamente o mesmo...
-$userId = AuthController::getCurrentUserId();
 $method = $_SERVER['REQUEST_METHOD'];
 
 try {
@@ -93,7 +103,6 @@ function handleGetRequest($userId) {
     
     switch ($action) {
         case 'balance_details':
-            // Esta chamada agora deve funcionar corretamente.
             $result = ClientController::getClientBalanceDetails($userId);
             echo json_encode($result);
             break;
@@ -150,7 +159,7 @@ function handlePostRequest($userId) {
                 return;
             }
             
-            // Verificar se é cliente
+            // Esta verificação usa a sessão, que agora está sincronizada.
             if (!AuthController::isClient()) {
                 echo json_encode(['status' => false, 'message' => 'Apenas clientes podem usar saldo']);
                 return;
@@ -167,3 +176,5 @@ function handlePostRequest($userId) {
     }
 }
 ?>
+
+
