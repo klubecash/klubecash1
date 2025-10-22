@@ -1,4 +1,5 @@
 <?php
+
 date_default_timezone_set('America/Sao_Paulo');
 // controllers/AuthController.php
 
@@ -30,10 +31,9 @@ class AuthController {
     /**
  * Método de login COM LOGS FORÇADOS para debug
  */
-    public static function login($email, $senha, $remember = false, $origem = '') {
-        error_log("=== LOGIN INICIADO === Email: {$email} | Origem: {$origem}");
-        
-        try {
+ public static function login($email, $senha, $remember = false, $origem = '') {
+    error_log("=== LOGIN INICIADO === Email: {$email} | Origem: {$origem}");
+
     try {
         // ✅ CONFIGURAR PARÂMETROS DO COOKIE ANTES DE session_start()
         session_set_cookie_params([
@@ -42,101 +42,91 @@ class AuthController {
             'domain'   => '.klubecash.com',
             'secure'   => true,
             'httponly' => true,
-            'samesite' => 'Lax'
+            'samesite' => 'None'
         ]);
-              if (session_status() === PHP_SESSION_NONE) {
-                session_start();
-            }
-            $db = Database::getConnection();
-            
-            $stmt = $db->prepare("
-                SELECT id, nome, email, senha_hash, tipo, senat, status, loja_vinculada_id, subtipo_funcionario
-                FROM usuarios
-                WHERE email = ? AND tipo IN ('cliente', 'admin', 'loja', 'funcionario')
-            ");
-            $stmt->execute([$email]);
-            
-            if ($stmt->rowCount() === 0) {
-                error_log("LOGIN ERRO: Usuário não encontrado - {$email}");
-                return ['status' => false, 'message' => 'E-mail ou senha incorretos.'];
-            }
-            
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            // ✅ CORREÇÃO: A lógica de verificação do Sest-Senat agora funciona corretamente
-            if ($origem === 'sest-senat' && (!isset($user['senat']) || !in_array(strtolower($user['senat']), ['true', '1', 'sim']))) {
-                error_log("LOGIN: Primeiro login Sest-Senat para User ID: {$user['id']}. Atualizando campo 'senat'.");
-                try {
-                    $updateStmt = $db->prepare("UPDATE usuarios SET senat = 'true' WHERE id = ?");
-                    $updateStmt->execute([$user['id']]);
-                    $user['senat'] = 'true'; 
-                } catch (Exception $e) {
-                    error_log("LOGIN ERRO: Falha ao atualizar o campo 'senat' para o User ID: {$user['id']} - " . $e->getMessage());
-                }
-            }
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
 
-            error_log("LOGIN: Usuário encontrado - ID: {$user['id']}, Tipo: {$user['tipo']}");
-            
-            if (!password_verify($senha, $user['senha_hash'])) {
-                error_log("LOGIN ERRO: Senha incorreta para {$email}");
-                return ['status' => false, 'message' => 'E-mail ou senha incorretos.'];
-            }
-            
-            if ($user['status'] !== 'ativo') {
-                error_log("LOGIN ERRO: Conta inativa - {$email}");
-                return ['status' => false, 'message' => 'Sua conta está inativa. Entre em contato com o suporte.'];
-            }
-            
-            error_log("LOGIN: Validações OK, configurando sessão...");
+        $db = Database::getConnection();
 
-            // ✅ CORREÇÃO: A configuração da sessão não deve estar aqui.
-            // Ela pertence ao script que inicia a sessão (login.php).
-            // Apenas iniciamos a sessão se for necessário.
-          
+        $stmt = $db->prepare("
+            SELECT id, nome, email, senha_hash, tipo, senat, status, loja_vinculada_id, subtipo_funcionario
+            FROM usuarios
+            WHERE email = ? AND tipo IN ('cliente', 'admin', 'loja', 'funcionario')
+        ");
+        $stmt->execute([$email]);
 
-            // Definir variáveis básicas da sessão
-            $_SESSION['user_id'] = intval($user['id']);
-            $_SESSION['user_name'] = $user['nome'];
-            $_SESSION['user_email'] = $user['email'];
-            $_SESSION['user_type'] = $user['tipo'];
-            $_SESSION['user_senat'] = $user['senat'] ?? 'Não';
-            $_SESSION['last_activity'] = time();
-            
-            error_log("LOGIN: Sessão básica definida - User ID: {$user['id']}");
+        if ($stmt->rowCount() === 0) {
+            error_log("LOGIN ERRO: Usuário não encontrado - {$email}");
+            return ['status' => false, 'message' => 'E-mail ou senha incorretos.'];
+        }
 
-            // Lógica para loja
-            if ($user['tipo'] === 'loja') {
-                error_log("LOGIN: ENTRANDO na configuração de LOJA para User ID: {$user['id']}");
-            
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // ✅ Verificação SEST-SENAT
+        if ($origem === 'sest-senat' && (!isset($user['senat']) || !in_array(strtolower($user['senat']), ['true', '1', 'sim']))) {
+            error_log("LOGIN: Primeiro login Sest-Senat para User ID: {$user['id']}. Atualizando campo 'senat'.");
             try {
-                // Buscar loja
+                $updateStmt = $db->prepare("UPDATE usuarios SET senat = 'true' WHERE id = ?");
+                $updateStmt->execute([$user['id']]);
+                $user['senat'] = 'true';
+            } catch (Exception $e) {
+                error_log("LOGIN ERRO: Falha ao atualizar o campo 'senat' para o User ID: {$user['id']} - " . $e->getMessage());
+            }
+        }
+
+        error_log("LOGIN: Usuário encontrado - ID: {$user['id']}, Tipo: {$user['tipo']}");
+
+        if (!password_verify($senha, $user['senha_hash'])) {
+            error_log("LOGIN ERRO: Senha incorreta para {$email}");
+            return ['status' => false, 'message' => 'E-mail ou senha incorretos.'];
+        }
+
+        if ($user['status'] !== 'ativo') {
+            error_log("LOGIN ERRO: Conta inativa - {$email}");
+            return ['status' => false, 'message' => 'Sua conta está inativa. Entre em contato com o suporte.'];
+        }
+
+        error_log("LOGIN: Validações OK, configurando sessão...");
+
+        // Definir variáveis básicas da sessão
+        $_SESSION['user_id'] = intval($user['id']);
+        $_SESSION['user_name'] = $user['nome'];
+        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['user_type'] = $user['tipo'];
+        $_SESSION['user_senat'] = $user['senat'] ?? 'Não';
+        $_SESSION['last_activity'] = time();
+
+        error_log("LOGIN: Sessão básica definida - User ID: {$user['id']}");
+
+        // Lógica para loja
+        if ($user['tipo'] === 'loja') {
+            error_log("LOGIN: ENTRANDO na configuração de LOJA para User ID: {$user['id']}");
+
+            try {
                 $storeStmt = $db->prepare("SELECT * FROM lojas WHERE usuario_id = ? AND status = 'aprovado' ORDER BY id ASC LIMIT 1");
                 $storeStmt->execute([$user['id']]);
                 $loja = $storeStmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 if ($loja) {
                     error_log("LOGIN: LOJA ENCONTRADA - ID: {$loja['id']}, Nome: {$loja['nome_fantasia']}");
-                    
-                    // FORÇAR DEFINIÇÃO
+
                     $_SESSION['store_id'] = intval($loja['id']);
                     $_SESSION['store_name'] = $loja['nome_fantasia'];
                     $_SESSION['loja_vinculada_id'] = intval($loja['id']);
-                    
-                    error_log("LOGIN: VARIÁVEIS DEFINIDAS - store_id: {$_SESSION['store_id']}, store_name: {$_SESSION['store_name']}");
-                    
-                    // VERIFICAR SE FOI SALVO
+
                     if (isset($_SESSION['store_id']) && $_SESSION['store_id'] > 0) {
                         error_log("LOGIN: ✅ SUCESSO! store_id salvo corretamente: {$_SESSION['store_id']}");
                     } else {
                         error_log("LOGIN: ❌ ERRO! store_id NÃO foi salvo");
                         return ['status' => false, 'message' => 'Erro ao salvar dados da loja na sessão.'];
                     }
-                    
                 } else {
                     error_log("LOGIN: ❌ NENHUMA LOJA ENCONTRADA para User ID: {$user['id']}");
                     return ['status' => false, 'message' => 'Nenhuma loja aprovada encontrada para sua conta.'];
                 }
-                
             } catch (Exception $e) {
                 error_log("LOGIN: EXCEÇÃO na configuração da loja: " . $e->getMessage());
                 return ['status' => false, 'message' => 'Erro ao configurar dados da loja: ' . $e->getMessage()];
@@ -144,82 +134,77 @@ class AuthController {
         } else {
             error_log("LOGIN: Usuário NÃO é lojista, tipo: {$user['tipo']}");
         }
-            }
-            
-            // Lógica para funcionários
-            if ($user['tipo'] === 'funcionario') {
-                            error_log("LOGIN: CONFIGURANDO FUNCIONÁRIO - User ID: {$user['id']}");
-            
+
+        // Lógica para funcionários
+        if ($user['tipo'] === 'funcionario') {
+            error_log("LOGIN: CONFIGURANDO FUNCIONÁRIO - User ID: {$user['id']}");
+
             if (empty($user['loja_vinculada_id'])) {
                 error_log("LOGIN ERRO: Funcionário {$user['id']} sem loja_vinculada_id");
                 return ['status' => false, 'message' => 'Funcionário sem loja vinculada. Entre em contato com o suporte.'];
             }
-            
-            // Buscar dados COMPLETOS da loja vinculada
+
             $storeStmt = $db->prepare("SELECT * FROM lojas WHERE id = ? AND status = 'aprovado'");
             $storeStmt->execute([$user['loja_vinculada_id']]);
             $storeData = $storeStmt->fetch(PDO::FETCH_ASSOC);
-            
+
             if (!$storeData) {
                 error_log("LOGIN ERRO: Loja {$user['loja_vinculada_id']} não encontrada ou não aprovada");
                 return ['status' => false, 'message' => 'A loja vinculada não está ativa.'];
             }
-            
-            // SISTEMA SIMPLIFICADO: Funcionários têm acesso igual ao lojista
+
             $_SESSION['employee_subtype'] = $user['subtipo_funcionario'] ?? 'funcionario';
-            $_SESSION['store_id'] = intval($storeData['id']); // USAR ID DA LOJA, NÃO DO USUÁRIO
+            $_SESSION['store_id'] = intval($storeData['id']);
             $_SESSION['store_name'] = $storeData['nome_fantasia'];
             $_SESSION['loja_vinculada_id'] = intval($storeData['id']);
             $_SESSION['subtipo_funcionario'] = $user['subtipo_funcionario'] ?? 'funcionario';
-            
-            // VERIFICAÇÃO FORÇADA
+
             session_write_close();
             session_start();
-            
-            error_log("LOGIN: FUNCIONÁRIO CONFIGURADO - Store ID: {$_SESSION['store_id']}, Nome: {$storeData['nome_fantasia']}");
-            
-            // VERIFICAÇÃO FINAL CRÍTICA
+
             if (!isset($_SESSION['store_id']) || empty($_SESSION['store_id']) || $_SESSION['store_id'] != $storeData['id']) {
                 error_log("LOGIN ERRO CRÍTICO: store_id não foi salvo corretamente para funcionário {$user['id']}");
                 error_log("Esperado: {$storeData['id']}, Atual: " . ($_SESSION['store_id'] ?? 'NULL'));
                 return ['status' => false, 'message' => 'Erro crítico ao configurar acesso à loja.'];
             }
-            }
 
-            // Atualizar último login
-            $updateStmt = $db->prepare("UPDATE usuarios SET ultimo_login = NOW() WHERE id = ?");
-            $updateStmt->execute([$user['id']]);
-            
-            error_log("LOGIN: Último login atualizado");
-            
-            // Geração do Token JWT
-            $tokenPayload = [
-                'id'   => intval($user['id']),
-                'nome' => $user['nome'],
-                'tipo' => $user['tipo'],
-                'exp'  => time() + (60 * 60 * 24) // Token JWT válido por 24 horas
-            ];
-            $token = Security::generateJWT($tokenPayload);
-            error_log("LOGIN: Token JWT gerado para o usuário ID: {$user['id']}");
-
-            return [
-                'status' => true,
-                'message' => 'Login realizado com sucesso!',
-                'user_data' => [
-                    'id' => intval($user['id']),
-                    'nome' => $user['nome'],
-                    'email' => $user['email'],
-                    'tipo' => $user['tipo'],
-                    'senat' => $user['senat'] // Importante retornar o valor atualizado
-                ],
-                'token' => $token
-            ];
-
-        } catch (Exception $e) {
-            error_log('LOGIN ERRO CRÍTICO: ' . $e->getMessage());
-            return ['status' => false, 'message' => 'Erro: ' . $e->getMessage()];
+            error_log("LOGIN: FUNCIONÁRIO CONFIGURADO - Store ID: {$_SESSION['store_id']}, Nome: {$storeData['nome_fantasia']}");
         }
+
+        // Atualizar último login
+        $updateStmt = $db->prepare("UPDATE usuarios SET ultimo_login = NOW() WHERE id = ?");
+        $updateStmt->execute([$user['id']]);
+        error_log("LOGIN: Último login atualizado");
+
+        // Geração do Token JWT
+        $tokenPayload = [
+            'id'   => intval($user['id']),
+            'nome' => $user['nome'],
+            'tipo' => $user['tipo'],
+            'exp'  => time() + (60 * 60 * 24) // Token JWT válido por 24h
+        ];
+        $token = Security::generateJWT($tokenPayload);
+        error_log("LOGIN: Token JWT gerado para o usuário ID: {$user['id']}");
+
+        return [
+            'status' => true,
+            'message' => 'Login realizado com sucesso!',
+            'user_data' => [
+                'id' => intval($user['id']),
+                'nome' => $user['nome'],
+                'email' => $user['email'],
+                'tipo' => $user['tipo'],
+                'senat' => $user['senat']
+            ],
+            'token' => $token
+        ];
+
+    } catch (Exception $e) {
+        error_log('LOGIN ERRO CRÍTICO: ' . $e->getMessage());
+        return ['status' => false, 'message' => 'Erro: ' . $e->getMessage()];
     }
+}
+
 
 public static function debugStoreAccess() {
     if (session_status() === PHP_SESSION_NONE) {

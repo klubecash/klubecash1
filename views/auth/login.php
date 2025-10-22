@@ -19,14 +19,14 @@ session_set_cookie_params([
     'domain'   => '.klubecash.com', // O PONTO é crucial para incluir subdomínios
     'secure'   => true,
     'httponly' => true,
-    'samesite' => 'Lax' // 'Lax' é a política mais segura e compatível para este cenário
+    'samesite' => 'None' // 'Lax' é a política mais segura e compatível para este cenário
 ]);
 
 // Inicia a sessão apenas se não houver uma ativa
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-
+error_log("Sessão iniciada em " . $_SERVER['HTTP_HOST'] . " – ID: " . session_id());
 // 1. VERIFICAR SE O UTILIZADOR JÁ ESTÁ LOGADO E REDIRECIONAR
 if (isset($_SESSION['user_id']) && !isset($_GET['force_login'])) {
     $userType = $_SESSION['user_type'] ?? '';
@@ -49,47 +49,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($email) || empty($password)) {
         $error = 'Por favor, preencha todos os campos.';
-    } else {
-        $result = AuthController::login($email, $password, false, $origem_post);
-        
-        if ($result['status']) {
-            $userType = $_SESSION['user_type'] ?? '';
-            $userData = $result['user_data'] ?? [];
-            
-            $token = $result['token'] ?? '';
-            if ($token) {
-                // Define o cookie JWT com as MESMAS regras do cookie de sessão.
-                setcookie('jwt_token', $token, [
-                    'expires' => time() + (60 * 60 * 24), // 24 horas
-                    'path' => '/',
-                    'domain' => '.klubecash.com',
-                    'secure' => true,
-                    'httponly' => true,
-                    'samesite' => 'Lax'
-                ]);
-            }
-            
-            if ($origem_post === 'sest-senat' && !empty($userData['senat']) && in_array(strtolower($userData['senat']), ['true', '1', 'sim'])) {
-                header('Location: https://sest-senat.klubecash.com/');
-                exit;
-            }
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status' => false,
+            'message' => $error
+        ]);
+        exit;
+    }
 
-            // Lógica de redirecionamento padrão para outros utilizadores
-            if ($userType == 'admin') {
-                header('Location: ' . ADMIN_DASHBOARD_URL);
-            } else if ($userType == 'loja' || $userType == 'funcionario') {
-                header('Location: ' . STORE_DASHBOARD_URL);
-            } else {
-                header('Location: ' . CLIENT_DASHBOARD_URL);
-            }
-            exit;
+    $result = AuthController::login($email, $password, false, $origem_post);
 
-        } else {
-            $error = $result['message'];
+    if ($result['status']) {
+        $userType = $_SESSION['user_type'] ?? '';
+        $userData = $result['user_data'] ?? [];
+        $token = $result['token'] ?? '';
+
+        if ($token) {
+            // Define o cookie JWT
+            setcookie('jwt_token', $token, [
+                'expires' => time() + (60 * 60 * 24),
+                'path' => '/',
+                'domain' => '.klubecash.com',
+                'secure' => true,
+                'httponly' => true,
+                'samesite' => 'None'
+            ]);
         }
+
+        // Definir URL de redirecionamento
+        $redirectUrl = CLIENT_DASHBOARD_URL; // padrão
+        if ($origem_post === 'sest-senat' && !empty($userData['senat']) && in_array(strtolower($userData['senat']), ['true','1','sim'])) {
+            $redirectUrl = 'https://sest-senat.klubecash.com/';
+        } else if ($userType == 'admin') {
+            $redirectUrl = ADMIN_DASHBOARD_URL;
+        } else if ($userType == 'loja' || $userType == 'funcionario') {
+            $redirectUrl = STORE_DASHBOARD_URL;
+        }
+
+        // Retorna JSON para o front
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status' => true,
+            'redirect' => $redirectUrl,
+            'message' => 'Login efetuado com sucesso.'
+        ]);
+        exit;
+
+    } else {
+        // Caso login falhe
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status' => false,
+            'message' => $result['message']
+        ]);
+        exit;
     }
 }
-
 // 3. SE NÃO HOUVE REDIRECIONAMENTO, PREPARAMOS AS VARIÁVEIS PARA MOSTRAR A PÁGINA HTML
 $urlError = $_GET['error'] ?? '';
 $urlSuccess = $_GET['success'] ?? '';
@@ -880,42 +895,61 @@ ob_end_flush();
         }
 
         // === VALIDAÇÃO DO FORMULÁRIO ===
-        document.getElementById('login-form').addEventListener('submit', function(event) {
-            event.preventDefault();
-            
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value;
-            const loginBtn = document.getElementById('login-btn');
-            const btnText = document.getElementById('btn-text');
-            
-            // Validação básica
-            if (!email) {
-                toastManager.error('Por favor, informe seu e-mail.');
-                return;
-            }
-            
-            if (!isValidEmail(email)) {
-                toastManager.error('Por favor, informe um e-mail válido.');
-                return;
-            }
-            
-            if (!password) {
-                toastManager.error('Por favor, informe sua senha.');
-                return;
-            }
-            
-            // Mostrar loading
-            const originalHTML = btnText.innerHTML;
-            btnText.innerHTML = '<div class="loading-spinner"></div>Entrando...';
-            loginBtn.disabled = true;
-            spinnerManager.show();
-            
-            // Simular delay para mostrar o loading
-            setTimeout(() => {
-                this.submit();
-            }, 1000);
-        });
+document.getElementById('login-form').addEventListener('submit', function(event) {
+    event.preventDefault();
 
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const origem = document.querySelector('input[name="origem"]').value;
+    const loginBtn = document.getElementById('login-btn');
+    const btnText = document.getElementById('btn-text');
+
+    // Validação básica
+    if (!email) return toastManager.error('Por favor, informe seu e-mail.');
+    if (!isValidEmail(email)) return toastManager.error('Por favor, informe um e-mail válido.');
+    if (!password) return toastManager.error('Por favor, informe sua senha.');
+
+    // Mostrar loading
+    btnText.innerHTML = '<div class="loading-spinner"></div>Entrando...';
+    loginBtn.disabled = true;
+    spinnerManager.show();
+
+    // Enviar via fetch
+    fetch('', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+            email: email,
+            password: password,
+            origem: origem
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        spinnerManager.hide();
+        loginBtn.disabled = false;
+        btnText.innerHTML = 'Entrar';
+
+        if (data.status) {
+            toastManager.success(data.message || 'Login efetuado com sucesso!');
+            // Redirecionamento via JS
+            setTimeout(() => {
+                window.location.href = data.redirect;
+            }, 500); // delay para mostrar toast
+        } else {
+            toastManager.error(data.message || 'Erro ao efetuar login.');
+        }
+    })
+    .catch(err => {
+        spinnerManager.hide();
+        loginBtn.disabled = false;
+        btnText.innerHTML = 'Entrar';
+        toastManager.error('Erro de comunicação. Tente novamente.');
+        console.error(err);
+    });
+});
         // === FUNÇÃO DE VALIDAÇÃO DE EMAIL ===
         function isValidEmail(email) {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
