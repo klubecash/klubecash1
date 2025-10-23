@@ -51,7 +51,7 @@ $activeMenu = 'meu-plano';
     <link rel="stylesheet" href="../../assets/css/store.css">
 </head>
 <body>
-    <?php include __DIR__ . '/../components/sidebar-store.php'; ?>
+    <?php include '../../views/components/sidebar-lojista-responsiva.php'; ?>
 
     <div class="main-content">
         <div class="page-header">
