@@ -1,6 +1,21 @@
 <?php
 // api/balance.php
+ini_set('log_errors', 1); 
+ini_set('error_reporting', E_ALL); 
+ini_set('display_errors', 0); 
 
+$log_file_path = '/caminho/completo/para/public_html/logs/php_debug.log'; // Ajuste o caminho!
+ini_set('error_log', $log_file_path);
+
+// Garante que a pasta exista 
+$log_dir = dirname($log_file_path);
+if (!is_dir($log_dir)) {
+    @mkdir($log_dir, 0750, true); 
+}
+
+// O restante do seu código começa aqui...
+ob_start(); 
+header('Content-Type: application/json; charset=UTF-8');
 // Configurações iniciais
 header('Content-Type: application/json; charset=UTF-8');
 

@@ -35,7 +35,6 @@ class AuthController {
     error_log("=== LOGIN INICIADO === Email: {$email} | Origem: {$origem}");
 
     try {
-        // ✅ CONFIGURAR PARÂMETROS DO COOKIE ANTES DE session_start()
         session_set_cookie_params([
             'lifetime' => 0,
             'path'     => '/',
@@ -45,9 +44,9 @@ class AuthController {
             'samesite' => 'None'
         ]);
 
-        if (session_status() === PHP_SESSION_NONE) {
+ 
             session_start();
-        }
+  
 
         $db = Database::getConnection();
 
@@ -159,8 +158,6 @@ class AuthController {
             $_SESSION['loja_vinculada_id'] = intval($storeData['id']);
             $_SESSION['subtipo_funcionario'] = $user['subtipo_funcionario'] ?? 'funcionario';
 
-            session_write_close();
-            session_start();
 
             if (!isset($_SESSION['store_id']) || empty($_SESSION['store_id']) || $_SESSION['store_id'] != $storeData['id']) {
                 error_log("LOGIN ERRO CRÍTICO: store_id não foi salvo corretamente para funcionário {$user['id']}");

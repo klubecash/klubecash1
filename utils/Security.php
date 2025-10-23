@@ -2,6 +2,24 @@
 // utils/Security.php
 require_once __DIR__ . '/../config/constants.php';
 
+// ✅ CORREÇÃO: Configuração do log de erros no início do arquivo
+ini_set('log_errors', 1); // Habilita o log de erros em arquivo
+ini_set('error_reporting', E_ALL); // Loga todos os tipos de erros
+ini_set('display_errors', 0); // Desabilita a exibição de erros na tela
+
+// Define o caminho para o arquivo de log DENTRO de public_html
+// Certifique-se de que a pasta /public_html/logs/ exista e tenha permissão de escrita (ex: 750)
+$log_file_path = dirname(__DIR__, 2) . '/public_html/logs/php_debug.log'; 
+ini_set('error_log', $log_file_path);
+
+// Garante que a pasta exista (tenta criar se não existir)
+$log_dir = dirname($log_file_path);
+if (!is_dir($log_dir)) {
+    // Tenta criar o diretório com permissões seguras
+    if (!@mkdir($log_dir, 0750, true) && !is_dir($log_dir)) {
+        error_log("Falha ao criar diretório de log: " . $log_dir);
+    }
+}
 /**
  * Classe Security - Utilitários de segurança
  * * Esta classe fornece métodos para garantir a segurança do sistema,
@@ -44,39 +62,71 @@ class Security {
      * @param string $jwt O token a ser validado.
      * @return object|false Os dados do payload se o token for válido, ou false caso contrário.
      */
-public static function validateJWT(string $jwt) {
-    // Dividir o token em 3 partes
-    $tokenParts = explode('.', $jwt);
-    if (count($tokenParts) !== 3) {
-        return false;
+    public static function validateJWT(string $jwt) {
+        // Log inicial
+        error_log("KlubeCash Debug (validateJWT) - Iniciando validação para token: " . substr($jwt, 0, 10) . "..."); 
+
+        $tokenParts = explode('.', $jwt);
+        if (count($tokenParts) !== 3) {
+            error_log("KlubeCash Debug (validateJWT) - FALHA: Formato inválido, não são 3 partes.");
+            return false;
+        }
+
+        $headerB64 = $tokenParts[0];
+        $payloadB64 = $tokenParts[1];
+        $signatureProvided = $tokenParts[2];
+
+        $payload = self::base64UrlDecode($payloadB64);
+
+        if ($payload === false) {
+            error_log("KlubeCash Debug (validateJWT) - FALHA: Falha ao decodificar o payload.");
+            return false;
+        }
+
+        $payloadData = json_decode($payload);
+
+        // LOG DE EXPIRAÇÃO DETALHADO
+        if (isset($payloadData->exp)) {
+            $expirationTime = $payloadData->exp;
+            // ✅ Garante que o fuso horário está definido para a comparação
+            date_default_timezone_set('America/Sao_Paulo'); 
+            $currentTime = time();
+            $isExpired = $expirationTime < $currentTime;
+
+            error_log("KlubeCash Debug (validateJWT) - Verificando Expiração:");
+            error_log("  -> Tempo de Expiração (exp timestamp): " . $expirationTime . " | Data Formatada: " . date('Y-m-d H:i:s', $expirationTime));
+            error_log("  -> Hora Atual Servidor (time() timestamp): " . $currentTime . " | Data Formatada: " . date('Y-m-d H:i:s', $currentTime));
+            error_log("  -> Fuso Horário do PHP: " . date_default_timezone_get());
+            error_log("  -> Token Expirado? (exp < time()): " . ($isExpired ? 'SIM' : 'NÃO'));
+
+            if ($isExpired) {
+                return false; // Token expirado
+            }
+        } else {
+            error_log("KlubeCash Debug (validateJWT) - AVISO: Claim 'exp' não encontrado no token.");
+            // Considerar retornar false aqui por segurança se 'exp' for obrigatório
+        }
+
+        // LOG DE ASSINATURA
+        $dataToSign = $headerB64 . "." . $payloadB64;
+        $signature = hash_hmac('sha256', $dataToSign, JWT_SECRET, true);
+        $base64UrlSignature = self::base64UrlEncode($signature);
+
+        $signatureValid = hash_equals($base64UrlSignature, $signatureProvided);
+        error_log("KlubeCash Debug (validateJWT) - Verificando Assinatura:");
+        // error_log("  -> Assinatura Esperada: " . $base64UrlSignature); // Descomente se precisar comparar as strings
+        // error_log("  -> Assinatura Fornecida: " . $signatureProvided);
+        error_log("  -> Assinatura Válida? " . ($signatureValid ? 'SIM' : 'NÃO'));
+
+        if ($signatureValid) {
+            error_log("KlubeCash Debug (validateJWT) - SUCESSO: Token válido.");
+            return $payloadData; 
+        } else {
+             error_log("KlubeCash Debug (validateJWT) - FALHA: Assinatura inválida.");
+             return false; // Assinatura inválida
+        }
     }
 
-    // Apenas a parte do payload precisa ser decodificada agora para a verificação de expiração
-    $payload = self::base64UrlDecode($tokenParts[1]);
-    $signatureProvided = $tokenParts[2];
-
-    if ($payload === false) {
-        return false;
-    }
-
-    // Verificar expiração do token
-    $payloadData = json_decode($payload);
-    if (isset($payloadData->exp) && $payloadData->exp < time()) {
-        return false; // Token expirado
-    }
-
-    // ✅ CORREÇÃO: Usar as partes originais (Base64Url) do token para recriar a assinatura
-    $dataToSign = $tokenParts[0] . "." . $tokenParts[1];
-    $signature = hash_hmac('sha256', $dataToSign, JWT_SECRET, true);
-    $base64UrlSignature = self::base64UrlEncode($signature);
-
-    // Comparar as assinaturas de forma segura
-    if (hash_equals($base64UrlSignature, $signatureProvided)) {
-        return $payloadData; // Token é válido, retorna os dados
-    }
-
-    return false; // Assinatura inválida
-}
 
     /**
      * Codifica uma string para o formato Base64URL (seguro para URLs).

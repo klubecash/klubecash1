@@ -8,18 +8,17 @@ require_once '../../config/constants.php';
 require_once '../../config/database.php';
 require_once '../../controllers/AuthController.php';
 
-// Captura a origem da URL (se houver)
+
 $origem = $_GET['origem'] ?? '';
 
-// Define as regras para os cookies de sessão ANTES de iniciar a sessão.
-// Esta configuração deve ser IDÊNTICA em todos os ficheiros de API (balance.php, users.php)
+
 session_set_cookie_params([
     'lifetime' => 0,
     'path'     => '/',
-    'domain'   => '.klubecash.com', // O PONTO é crucial para incluir subdomínios
+    'domain'   => '.klubecash.com', 
     'secure'   => true,
     'httponly' => true,
-    'samesite' => 'None' // 'Lax' é a política mais segura e compatível para este cenário
+    'samesite' => 'None' 
 ]);
 
 // Inicia a sessão apenas se não houver uma ativa

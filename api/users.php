@@ -1,20 +1,32 @@
 <?php
 // api/users.php
 // API para gerenciar usuários do sistema Klube Cash
+ob_start();
 
 // Configurações iniciais
+ini_set('log_errors', 1); 
+ini_set('error_reporting', E_ALL); 
+ini_set('display_errors', 0); 
+
+$log_file_path = dirname(__DIR__) . '/logs/php_debug.log'; 
+ini_set('error_log', $log_file_path);
+
+$log_dir = dirname($log_file_path);
+if (!is_dir($log_dir)) {
+    @mkdir($log_dir, 0750, true); 
+}
+
+error_log("KlubeCash Debug - API USERS.PHP INICIADA - Request URI: " . $_SERVER['REQUEST_URI'] . " - Tentando logar em: " . $log_file_path); 
+
 header('Content-Type: application/json; charset=UTF-8');
-// O 'Access-Control-Allow-Origin' PRECISA ser o domínio exato, não '*'
 
 $allowed_origins = [
-    'https://klubecash.com',  
+    'https://klubecash.com',     
     'https://www.klubecash.com',
     'https://sest-senat.klubecash.com',
     'https://sdk.mercadopago.com'
-    // Adicione outros domínios de desenvolvimento se necessário
 ];
 
-// Verifica a origem da requisição e define o cabeçalho CORS dinamicamente
 if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowed_origins)) {
     header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
 }
@@ -32,120 +44,150 @@ session_set_cookie_params([
     'samesite' => 'None' 
 ]);
 
-// Responde à requisição pre-flight do navegador
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-// Inicia a sessão para ler o cookie PHPSESSID
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Incluir arquivos necessários
-require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../config/constants.php';
-require_once __DIR__ . '/../controllers/AuthController.php';
-require_once __DIR__ . '/../controllers/AdminController.php';
-require_once __DIR__ . '/../controllers/ClientController.php';
-require_once __DIR__ . '/../utils/Security.php';
-require_once __DIR__ . '/../utils/Validator.php';
-
-
-// Função para validar token JWT
-function validateToken() {
-    $token = $_COOKIE['jwt_token'] ?? '';
+// ✅ BLOCO DE DEBUG: Tenta carregar os arquivos e captura erros fatais
+try {
+    require_once __DIR__ . '/../config/database.php';
+    error_log("KlubeCash Debug - database.php CARREGADO.");
     
+    require_once __DIR__ . '/../config/constants.php';
+    error_log("KlubeCash Debug - constants.php CARREGADO.");
+    
+    require_once __DIR__ . '/../controllers/AuthController.php';
+    error_log("KlubeCash Debug - AuthController.php CARREGADO.");
+    
+    error_log("KlubeCash Debug - Carregando AdminController...");
+    require_once __DIR__ . '/../controllers/AdminController.php'; 
+    error_log("KlubeCash Debug - AdminController CARREGADO.");
+
+    require_once __DIR__ . '/../controllers/ClientController.php';
+    error_log("KlubeCash Debug - ClientController.php CARREGADO.");
+
+    require_once __DIR__ . '/../utils/Security.php';
+    error_log("KlubeCash Debug - Security.php CARREGADO.");
+    
+    error_log("KlubeCash Debug - Carregando Validator...");
+    require_once __DIR__ . '/../utils/Validator.php';
+    error_log("KlubeCash Debug - Validator CARREGADO.");
+
+} catch (Throwable $t) {
+    // Se qualquer include falhar (Erro Fatal, Parse Error), ele será pego aqui.
+    error_log("KlubeCash Debug - ERRO FATAL AO INCLUIR ARQUIVO: " . $t->getMessage() . " no arquivo " . $t->getFile() . " na linha " . $t->getLine());
+    
+    if (!headers_sent()) {
+        http_response_code(500);
+        if (ob_get_level() > 0) { ob_clean(); } 
+        echo json_encode(['status' => false, 'message' => 'Erro interno crítico do servidor ao carregar módulos.']);
+    }
+    ob_end_flush();
+    exit;
+}
+
+
+// Função UNIFICADA para validar token JWT e sincronizar a sessão COM LOGS
+function validateToken() {
+    // Se a sessão já for válida, retorna os dados da sessão.
+    if (isset($_SESSION['user_id'])) {
+        error_log("KlubeCash Debug (Auth) [users.php] - Autenticação via SESSÃO PHP OK para user ID: " . $_SESSION['user_id']);
+        return ['id' => $_SESSION['user_id'], 'tipo' => $_SESSION['user_type'] ?? null];
+    }
+
+    $token = $_COOKIE['jwt_token'] ?? '';
+    error_log("KlubeCash Debug (Auth) [users.php] - Tentando autenticação via JWT. Cookie 'jwt_token' " . (empty($token) ? 'NÃO encontrado.' : 'encontrado.'));
+
     if (empty($token)) {
         http_response_code(401);
         echo json_encode(['status' => false, 'message' => 'Token de autenticação não fornecido no cookie.']);
         exit;
     }
     
-    // Tenta validar o token e captura o motivo da falha.
-    // O segundo parâmetro (true) pode ser necessário dependendo da sua implementação de Security::validateJWT
-    // para retornar um erro detalhado. Assumindo que a função foi adaptada para isso.
-    $validationResult = Security::validateJWT($token);
+    error_log("KlubeCash Debug (Auth) [users.php] - Chamando Security::validateJWT...");
+    $validationResult = Security::validateJWT($token); 
+    error_log("KlubeCash Debug (Auth) [users.php] - Resultado de Security::validateJWT: " . print_r($validationResult, true));
     
     if (!$validationResult) {
         http_response_code(401);
-        // Tente decodificar para dar um erro mais específico
         $tokenParts = explode('.', $token);
         if (count($tokenParts) === 3) {
-            $payload = json_decode(base64_decode(strtr($tokenParts[1], '-_', '+/')));
-            if ($payload && isset($payload->exp) && $payload->exp < time()) {
-                echo json_encode(['status' => false, 'message' => 'Token expirado.']);
-                exit;
+            $payload = json_decode(Security::base64UrlDecode($tokenParts[1])); 
+            if ($payload && isset($payload->exp)) {
+                 date_default_timezone_set('America/Sao_Paulo'); 
+                 $currentTime = time();
+                 if($payload->exp < $currentTime) {
+                    error_log("KlubeCash Debug (Auth) [users.php] - FALHA DETECTADA AQUI: Token JWT expirado. Exp: " . $payload->exp . " (" . date('Y-m-d H:i:s',$payload->exp) . "), Now: " . $currentTime . " (" . date('Y-m-d H:i:s',$currentTime) . ")");
+                    echo json_encode(['status' => false, 'message' => 'Sessão expirada. Faça login novamente.']);
+                    exit;
+                 }
             }
         }
+        error_log("KlubeCash Debug (Auth) [users.php] - FALHA DETECTADA AQUI: Token JWT com assinatura inválida ou malformado.");
         echo json_encode(['status' => false, 'message' => 'Token com assinatura inválida.']);
         exit;
     }
     
-    // Retorna os dados do token como um array
-    return (array) $validationResult;
+    $tokenData = (array) $validationResult;
+
+    // Sincroniza a sessão PHP com os dados do token validado
+    $_SESSION['user_id'] = $tokenData['id'];
+    $_SESSION['user_type'] = $tokenData['tipo'] ?? null; 
+    
+    error_log("KlubeCash Debug (Auth) [users.php] - SUCESSO: Token JWT validado e sessão sincronizada para user ID: " . $tokenData['id']);
+    return $tokenData;
 }
 
-
-// ROTEAMENTO SIMPLIFICADO PARA O APP REACT (SEST-SENAT)
+// --- ROTEAMENTO PRINCIPAL ---
 $action = $_GET['action'] ?? '';
 
-// Rota para buscar os detalhes do usuário logado (usado pelo React)
+// Rotas Específicas (Login e Recover não precisam de validação prévia)
+if ($action === 'login') {
+    loginUser();
+    exit;
+}
+if ($action === 'recover') {
+    recoverPassword();
+    exit;
+}
+
+// Para todas as outras ações, a autenticação é necessária PRIMEIRO.
+$tokenData = validateToken(); 
+$userId = $tokenData['id'];
+$userType = $tokenData['tipo'] ?? null;
+
+// Rotas específicas do React
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'get_details') {
-    $tokenData = validateToken();
-    $userId = $tokenData['id'];
-
-    // Repopular a sessão PHP com base no token JWT válido.
-    $_SESSION['user_id'] = $tokenData['id'];
-    if (isset($tokenData['tipo'])) {
-        $_SESSION['user_type'] = $tokenData['tipo'];
-    }
-
     $result = ClientController::getProfileData($userId); 
-    
     echo json_encode($result);
     exit;
 }
-
-
-// Rota para atualizar os detalhes do usuário (usado pelo React)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_details') {
-    $tokenData = validateToken();
-    $userId = $tokenData['id'];
-    
-    // ✅ CORREÇÃO: Repopular a sessão PHP aqui também para consistência.
-    if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['user_id'] = $tokenData['id'];
-        if (isset($tokenData['tipo'])) {
-            $_SESSION['user_type'] = $tokenData['tipo'];
-        }
-    }
-
     $postedData = json_decode(file_get_contents('php://input'), true);
-
-
     $result = ClientController::updateProfile($userId, $postedData);
-    
     echo json_encode($result);
     exit;
 }
 
-// ========
-// Processar a requisição com base no método HTTP
+// Rotas Genéricas (agora também usam a validação unificada)
 $method = $_SERVER['REQUEST_METHOD'];
 
 switch ($method) {
     case 'GET':
-        handleGetRequest();
+        handleGetRequest($tokenData); // Passa os dados já validados
         break;
     case 'POST':
-        handlePostRequest();
+        handlePostRequest($tokenData); // Passa os dados já validados
         break;
     case 'PUT':
-        handlePutRequest();
+        handlePutRequest($tokenData); // Passa os dados já validados
         break;
     case 'DELETE':
-        handleDeleteRequest();
+        handleDeleteRequest($tokenData); // Passa os dados já validados
         break;
     default:
         http_response_code(405);
@@ -153,304 +195,187 @@ switch ($method) {
         break;
 }
 
-// Função para tratar requisições GET (consulta de usuários)
-function handleGetRequest() {
-    // Validar token
-    $userData = validateToken();
-    
-    // Verificar se é administrador (só admins podem listar usuários)
-    if ($userData['tipo'] !== USER_TYPE_ADMIN) {
-        // Se não for admin, só pode ver seu próprio perfil
-        if (isset($_GET['id']) && intval($_GET['id']) === $userData['id']) {
-            $result = ['status' => true, 'data' => ['usuario' => $userData]];
-        } else {
-            http_response_code(403);
-            echo json_encode(['status' => false, 'message' => 'Acesso não autorizado']);
-            exit;
-        }
-    } else {
-        // É admin, pode ver qualquer usuário
-        $userId = isset($_GET['id']) ? intval($_GET['id']) : null;
-        $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
-        $filters = [];
-        
-        // Aplicar filtros se fornecidos
-        if (isset($_GET['tipo'])) $filters['tipo'] = $_GET['tipo'];
-        if (isset($_GET['status'])) $filters['status'] = $_GET['status'];
-        if (isset($_GET['busca'])) $filters['busca'] = $_GET['busca'];
-        
-        if ($userId) {
-            $result = AdminController::getUserDetails($userId);
-        } else {
-            $result = AdminController::manageUsers($filters, $page);
-        }
+// --- Funções Handler Refatoradas ---
+
+function handleGetRequest($userData) { 
+    if (($userData['tipo'] ?? null) !== USER_TYPE_ADMIN) {
+         http_response_code(403);
+         echo json_encode(['status' => false, 'message' => 'Acesso não autorizado para esta operação GET.']);
+         exit;
     }
     
-    // Retornar resultado
+    $targetUserId = isset($_GET['id']) ? intval($_GET['id']) : null;
+    $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
+    $filters = [];
+    if (isset($_GET['tipo'])) $filters['tipo'] = $_GET['tipo'];
+    if (isset($_GET['status'])) $filters['status'] = $_GET['status'];
+    if (isset($_GET['busca'])) $filters['busca'] = $_GET['busca'];
+    
+    if ($targetUserId) {
+        $result = AdminController::getUserDetails($targetUserId);
+    } else {
+        $result = AdminController::manageUsers($filters, $page);
+    }
     echo json_encode($result);
 }
 
-// Função para tratar requisições POST (criar novo usuário)
-function handlePostRequest() {
-    // Validar token para criar usuários (exceto para registro público)
+function handlePostRequest($userData) { 
     $isPublicRegistration = isset($_GET['public']) && $_GET['public'] === 'true';
-    
-    if (!$isPublicRegistration) {
-        $userData = validateToken();
-        
-        // Verificar se é administrador (só admins podem criar usuários via API)
-        if ($userData['tipo'] !== USER_TYPE_ADMIN) {
-            http_response_code(403);
-            echo json_encode(['status' => false, 'message' => 'Apenas administradores podem criar usuários via API']);
-            exit;
-        }
+    if (!$isPublicRegistration && ($userData['tipo'] ?? null) !== USER_TYPE_ADMIN) {
+        http_response_code(403);
+        echo json_encode(['status' => false, 'message' => 'Apenas administradores podem criar usuários via API']);
+        exit;
     }
     
-    // Obter dados do corpo da requisição
     $data = json_decode(file_get_contents('php://input'), true);
-    
-    // Validar dados básicos
     if (!$data || !isset($data['nome']) || !isset($data['email']) || (!$isPublicRegistration && !isset($data['senha']))) {
         http_response_code(400);
         echo json_encode(['status' => false, 'message' => 'Dados incompletos para criar usuário']);
         exit;
     }
-    
-    // Registrar novo usuário
     $result = AuthController::register(
-        $data['nome'],
-        $data['email'],
-        $data['telefone'] ?? '',
-        $data['senha'],
+        $data['nome'], $data['email'], $data['telefone'] ?? '', $data['senha'],
         $isPublicRegistration ? USER_TYPE_CLIENT : ($data['tipo'] ?? USER_TYPE_CLIENT)
     );
-    
-    // Retornar resultado
     echo json_encode($result);
 }
 
-// Função para tratar requisições PUT (atualizar usuário existente)
-function handlePutRequest() {
-    // Validar token
-    $userData = validateToken();
-    
-    // Obter dados do corpo da requisição
+function handlePutRequest($userData) { 
     $data = json_decode(file_get_contents('php://input'), true);
-    
-    // Validar dados básicos
     if (!$data || !isset($data['id'])) {
         http_response_code(400);
         echo json_encode(['status' => false, 'message' => 'ID do usuário não fornecido']);
         exit;
     }
     
-    $userId = intval($data['id']);
-    
-    // Verificar permissões: admin pode editar qualquer usuário, outros só podem editar a si mesmos
-    if ($userData['tipo'] !== USER_TYPE_ADMIN && $userId !== $userData['id']) {
+    $targetUserId = intval($data['id']);
+    if (($userData['tipo'] ?? null) !== USER_TYPE_ADMIN && $targetUserId !== $userData['id']) {
         http_response_code(403);
         echo json_encode(['status' => false, 'message' => 'Você não tem permissão para editar este usuário']);
         exit;
     }
     
-    // Preparar dados para atualização
     $updateData = [];
-    
-    // Campos permitidos para atualização
     $allowedFields = ['nome', 'email', 'telefone'];
-    
-    // Admin pode alterar outros campos
-    if ($userData['tipo'] === USER_TYPE_ADMIN) {
+    if (($userData['tipo'] ?? null) === USER_TYPE_ADMIN) {
         $allowedFields = array_merge($allowedFields, ['tipo', 'status']);
     }
-    
-    // Copiar apenas os campos permitidos
     foreach ($allowedFields as $field) {
-        if (isset($data[$field])) {
-            $updateData[$field] = $data[$field];
-        }
+        if (isset($data[$field])) { $updateData[$field] = $data[$field]; }
     }
-    
-    // Senha pode ser alterada se fornecida
     if (isset($data['senha']) && !empty($data['senha'])) {
-        // Para não-admin, exigir senha atual
-        if ($userData['tipo'] !== USER_TYPE_ADMIN && (!isset($data['senha_atual']) || empty($data['senha_atual']))) {
-            http_response_code(400);
-            echo json_encode(['status' => false, 'message' => 'Senha atual obrigatória para alteração de senha']);
-            exit;
+        if (($userData['tipo'] ?? null) !== USER_TYPE_ADMIN && empty($data['senha_atual'])) {
+             http_response_code(400);
+             echo json_encode(['status' => false, 'message' => 'Senha atual obrigatória para alteração de senha']);
+             exit;
         }
-        
         $updateData['senha'] = $data['senha'];
-        
-        if (isset($data['senha_atual'])) {
-            $updateData['senha_atual'] = $data['senha_atual'];
-        }
+        if (isset($data['senha_atual'])) { $updateData['senha_atual'] = $data['senha_atual']; }
     }
     
-    // Atualizar usuário
-    if ($userData['tipo'] === USER_TYPE_ADMIN) {
-        $result = AdminController::updateUser($userId, $updateData);
+    if (($userData['tipo'] ?? null) === USER_TYPE_ADMIN) {
+        $result = AdminController::updateUser($targetUserId, $updateData);
     } else {
-        // Implementar atualização para cliente/loja (usar ClientController ou criar método específico)
-        $result = ['status' => false, 'message' => 'Função não implementada'];
+        $result = ClientController::updateProfile($targetUserId, $updateData); 
     }
-    
-    // Retornar resultado
     echo json_encode($result);
 }
 
-// Função para tratar requisições DELETE (desativar/remover usuário)
-function handleDeleteRequest() {
-    // Validar token
-    $userData = validateToken();
-    
-    // Apenas administradores podem desativar/remover usuários
-    if ($userData['tipo'] !== USER_TYPE_ADMIN) {
+function handleDeleteRequest($userData) { 
+    if (($userData['tipo'] ?? null) !== USER_TYPE_ADMIN) {
         http_response_code(403);
         echo json_encode(['status' => false, 'message' => 'Apenas administradores podem desativar usuários']);
         exit;
     }
     
-    // Obter ID do usuário da URL
-    $userId = isset($_GET['id']) ? intval($_GET['id']) : null;
-    
-    if (!$userId) {
+    $targetUserId = isset($_GET['id']) ? intval($_GET['id']) : null;
+    if (!$targetUserId) {
         http_response_code(400);
         echo json_encode(['status' => false, 'message' => 'ID do usuário não fornecido']);
         exit;
     }
-    
-    // Não permitir que um administrador desative a si mesmo
-    if ($userId === $userData['id']) {
+    if ($targetUserId === $userData['id']) {
         http_response_code(400);
         echo json_encode(['status' => false, 'message' => 'Não é possível desativar seu próprio usuário']);
         exit;
     }
     
-    // Desativar usuário (status = inativo)
-    $result = AdminController::updateUserStatus($userId, 'inativo');
-    
-    // Retornar resultado
+    $result = AdminController::updateUserStatus($targetUserId, 'inativo');
     echo json_encode($result);
 }
 
-// Rota específica para autenticação e obtenção de token JWT
-if (isset($_GET['action']) && $_GET['action'] === 'login') {
-    // Bypass do fluxo normal para processar login
-    loginUser();
-    exit;
-}
+// --- Funções de Login e Recover ---
 
-// Função para processar login e gerar token JWT
 function loginUser() {
-    // Verificar se é uma requisição POST
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        http_response_code(405);
-        echo json_encode(['status' => false, 'message' => 'Método não permitido para login']);
-        exit;
+        http_response_code(405); echo json_encode(['status' => false, 'message' => 'Método não permitido para login']); exit;
     }
-    
-    // Obter dados do corpo da requisição
     $data = json_decode(file_get_contents('php://input'), true);
-    
-    // Validar dados básicos
     if (!$data || !isset($data['email']) || !isset($data['senha'])) {
-        http_response_code(400);
-        echo json_encode(['status' => false, 'message' => 'Email e senha são obrigatórios']);
-        exit;
+        http_response_code(400); echo json_encode(['status' => false, 'message' => 'Email e senha são obrigatórios']); exit;
     }
     
-    // Autenticar usuário
-    $result = AuthController::login($data['email'], $data['senha']);
+    if (!class_exists('AuthController')) {
+        require_once __DIR__ . '/../controllers/AuthController.php';
+    }
+    
+    $result = AuthController::login($data['email'], $data['senha'], false, ($data['origem'] ?? '')); 
     
     if ($result['status']) {
-        // ✅ CORREÇÃO 1: Garante que uma sessão limpa seja criada.
-        // Isso força o envio do cookie PHPSESSID.
-        if (session_status() === PHP_SESSION_ACTIVE) {
-            session_destroy();
-        }
+        if (session_status() === PHP_SESSION_ACTIVE) { session_destroy(); }
         session_start();
         session_regenerate_id(true);
 
-        // Popula a nova sessão PHP.
         $_SESSION['user_id'] = $result['user_data']['id'];
         $_SESSION['user_type'] = $result['user_data']['tipo'];
 
-        // Gera o token JWT
-        $token = Security::generateJWT([
-            'id'   => $result['user_data']['id'],
-            'nome' => $result['user_data']['nome'],
-            'tipo' => $result['user_data']['tipo'],
-            'exp'  => time() + (defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400) // 24 horas
-        ]);
+        $token = $result['token'] ?? null; 
         
-        // ✅ CORREÇÃO 2: Envia o token JWT como um cookie seguro.
-        setcookie(
-            'jwt_token',
-            $token,
-            [
-                'expires'  => time() + (defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400),
-                'path'     => '/',
-                'domain'   => '.klubecash.com',
-                'secure'   => true,
-                'httponly' => true,
-                'samesite' => 'None'
-            ]
-        );
-        
-        // Remove o token da resposta JSON, pois ele agora é tratado via cookie.
-        unset($result['token']);
+        if($token){
+             if (!class_exists('Security')) { require_once __DIR__ . '/../utils/Security.php'; }
+             setcookie(
+                'jwt_token', $token,
+                [
+                    'expires'  => time() + (defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400),
+                    'path'     => '/', 'domain'   => '.klubecash.com',
+                    'secure'   => true, 'httponly' => true, 'samesite' => 'None'
+                ]
+            );
+        }
+        unset($result['token']); 
     }
-    
-    // Retornar resultado (sem o token)
     echo json_encode($result);
 }
 
-// Rota específica para recuperação de senha
-if (isset($_GET['action']) && $_GET['action'] === 'recover') {
-    // Bypass do fluxo normal para processar recuperação de senha
-    recoverPassword();
-    exit;
-}
-
-// Função para processar solicitação de recuperação de senha
 function recoverPassword() {
-    // Verificar se é uma requisição POST
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        http_response_code(405);
-        echo json_encode(['status' => false, 'message' => 'Método não permitido para recuperação de senha']);
-        exit;
+        http_response_code(405); echo json_encode(['status' => false, 'message' => 'Método não permitido']); exit;
     }
-    
-    // Obter dados do corpo da requisição
     $data = json_decode(file_get_contents('php://input'), true);
-    
-    // Validar dados básicos
     if (!$data || !isset($data['email'])) {
-        http_response_code(400);
-        echo json_encode(['status' => false, 'message' => 'Email obrigatório']);
-        exit;
+        http_response_code(400); echo json_encode(['status' => false, 'message' => 'Email obrigatório']); exit;
     }
     
-    // Solicitar recuperação de senha
+    if (!class_exists('AuthController')) {
+        require_once __DIR__ . '/../controllers/AuthController.php';
+    }
     $result = AuthController::recoverPassword($data['email']);
-    
-    // Retornar resultado
     echo json_encode($result);
 }
 
-// Para qualquer erro não tratado anteriormente
+// Manipulador de Erros Genérico
 function handleError($errno, $errstr, $errfile, $errline) {
-    http_response_code(500);
-    echo json_encode([
-        'status' => false, 
-        'message' => 'Erro interno do servidor',
-        'error' => $errstr,
-        'file' => $errfile,
-        'line' => $errline
-    ]);
-    exit;
-}
+    error_log("Erro PHP: [$errno] $errstr em $errfile na linha $errline"); 
 
-// Registrar manipulador de erros
+    if (!headers_sent() && ($errno === E_ERROR || $errno === E_PARSE || $errno === E_CORE_ERROR || $errno === E_COMPILE_ERROR || $errno === E_USER_ERROR)) {
+       http_response_code(500);
+       if (ob_get_level() > 0) { ob_clean(); } 
+       echo json_encode(['status' => false, 'message' => 'Erro interno crítico do servidor.']);
+       exit; 
+    }
+}
 set_error_handler('handleError');
+
+ob_end_flush();
+?>
+
