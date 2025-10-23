@@ -77,8 +77,8 @@ class AbacatePayClient {
 
         return [
             'gateway_charge_id' => $response['id'],
-            'qr_code_base64' => $response['qrCode']['base64'] ?? null,
-            'copia_cola' => $response['qrCode']['text'] ?? null,
+            'qr_code_base64' => $response['qrCode']['base64Image'] ?? $response['qrCode']['base64'] ?? null,
+            'copia_cola' => $response['qrCode']['emvqr'] ?? $response['qrCode']['text'] ?? null,
             'expires_at' => isset($response['expiresAt']) ? date('Y-m-d H:i:s', $response['expiresAt']) : null,
             'status' => $response['status'] ?? 'pending',
             'amount' => $response['amount'] ?? $payload['amount']

@@ -1,55 +1,80 @@
 <?php
 // api/balance.php
 
-// Lista de domínios permitidos para acessar esta API
+// Configurações iniciais
+header('Content-Type: application/json; charset=UTF-8');
+
 $allowed_origins = [
     'https://sest-senat.klubecash.com',
     'https://sdk.mercadopago.com'
     // Adicione outros domínios se necessário, ex: 'http://localhost:5173'
 ];
 
-// Verifica a origem da requisição
 if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowed_origins)) {
-    // Se a origem for permitida, responda autorizando especificamente ela
     header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
 }
 
-header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header("Access-Control-Allow-Credentials: true");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
-// Configura o cookie de sessão para funcionar em todos os subdomínios
 session_set_cookie_params([
     'lifetime' => 0,
     'path'     => '/',
     'domain'   => '.klubecash.com',
     'secure'   => true,
     'httponly' => true,
-    'samesite' => 'none'
+    'samesite' => 'None'
 ]);
 
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     exit(0);
 }
 
-session_start();
-
-// Incluir arquivos necessários
-require_once '../config/database.php';
-require_once '../config/constants.php';
-require_once '../controllers/AuthController.php';
-require_once '../controllers/ClientController.php';
-require_once '../models/CashbackBalance.php';
-
-// Verificar autenticação
-if (!AuthController::isAuthenticated()) {
-    echo json_encode(['status' => false, 'message' => 'Usuário não autenticado. Sessão não encontrada.']);
-    exit;
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
 
+// Incluir arquivos necessários
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/constants.php';
+require_once __DIR__ . '/../controllers/AuthController.php';
+require_once __DIR__ . '/../controllers/ClientController.php';
+require_once __DIR__ . '/../models/CashbackBalance.php';
+require_once __DIR__ . '/../utils/Security.php'; // Incluir para usar Security::validateJWT
+
+// ✅ CORREÇÃO FINAL: Bloco de Autenticação Híbrida Refatorado
+$userId = null;
+
+// 1. Tenta obter o ID do usuário diretamente da sessão PHP, se já existir.
+if (isset($_SESSION['user_id'])) {
+    $userId = $_SESSION['user_id'];
+} 
+// 2. Se a sessão não existir, tenta validar o token JWT do cookie.
+else {
+    $token = $_COOKIE['jwt_token'] ?? '';
+    if (!empty($token)) {
+        $validationResult = Security::validateJWT($token);
+        if ($validationResult) {
+            $tokenData = (array) $validationResult;
+            $userId = $tokenData['id']; // Pega o ID diretamente do token validado.
+            
+            // Recria a sessão para garantir consistência com outras partes do sistema.
+            $_SESSION['user_id'] = $tokenData['id'];
+            $_SESSION['user_type'] = $tokenData['tipo'];
+        }
+    }
+}
+
+// 3. Se, após as duas tentativas, não houver um ID de usuário, a autenticação falhou.
+if ($userId === null) {
+    http_response_code(401);
+    echo json_encode(['status' => false, 'message' => 'Sessão expirada. Faça login novamente.']);
+    exit;
+}
+// Fim da correção
+
 // O restante do seu código continua exatamente o mesmo...
-$userId = AuthController::getCurrentUserId();
 $method = $_SERVER['REQUEST_METHOD'];
 
 try {
@@ -63,11 +88,13 @@ try {
             break;
             
         default:
+            http_response_code(405);
             echo json_encode(['status' => false, 'message' => 'Método não permitido']);
             break;
     }
 } catch (Exception $e) {
     error_log('Erro na API de saldo: ' . $e->getMessage());
+    http_response_code(500);
     echo json_encode(['status' => false, 'message' => 'Erro interno do servidor']);
 }
 
@@ -106,6 +133,7 @@ function handleGetRequest($userId) {
             break;
             
         default:
+            http_response_code(404);
             echo json_encode(['status' => false, 'message' => 'Ação não encontrada']);
             break;
     }
@@ -131,7 +159,7 @@ function handlePostRequest($userId) {
                 return;
             }
             
-            // Verificar se é cliente
+            // Esta verificação usa a sessão, que agora está sincronizada.
             if (!AuthController::isClient()) {
                 echo json_encode(['status' => false, 'message' => 'Apenas clientes podem usar saldo']);
                 return;
@@ -142,9 +170,11 @@ function handlePostRequest($userId) {
             break;
             
         default:
+            http_response_code(404);
             echo json_encode(['status' => false, 'message' => 'Ação não encontrada']);
             break;
     }
 }
 ?>
+
 
