@@ -38,6 +38,14 @@ if ($assinatura) {
     $stmtFaturas = $db->prepare($sqlFaturas);
     $stmtFaturas->execute([$assinatura['id']]);
     $faturasPendentes = $stmtFaturas->fetchAll(PDO::FETCH_ASSOC);
+
+    // DEBUG
+    error_log("SUBSCRIPTION PAGE - Faturas pendentes encontradas: " . count($faturasPendentes));
+    if (!empty($faturasPendentes)) {
+        foreach ($faturasPendentes as $f) {
+            error_log("  - Fatura ID: {$f['id']}, Número: {$f['numero']}, Valor: R$ {$f['amount']}, Vencimento: {$f['due_date']}");
+        }
+    }
 }
 
 $activeMenu = 'meu-plano';
@@ -51,7 +59,7 @@ $activeMenu = 'meu-plano';
     <link rel="stylesheet" href="../../assets/css/store.css">
 </head>
 <body>
-    <?php include '../../views/components/sidebar-lojista-responsiva.php'; ?>
+    <?php include __DIR__ . '/../components/sidebar-store.php'; ?>
 
     <div class="main-content">
         <div class="page-header">
@@ -150,9 +158,9 @@ $activeMenu = 'meu-plano';
             </div>
 
             <!-- Faturas Pendentes -->
-            <?php if (!empty($faturasPendentes)): ?>
-                <div class="pending-invoices-card">
-                    <h2>Faturas Pendentes</h2>
+            <div class="pending-invoices-card">
+                <h2>Faturas Pendentes</h2>
+                <?php if (!empty($faturasPendentes)): ?>
                     <?php foreach ($faturasPendentes as $fatura): ?>
                         <?php
                         $isOverdue = strtotime($fatura['due_date']) < time();
@@ -173,8 +181,13 @@ $activeMenu = 'meu-plano';
                             </div>
                         </div>
                     <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
+                <?php else: ?>
+                    <div class="empty-state">
+                        <p>Você não possui faturas pendentes no momento.</p>
+                        <p class="text-muted">Todas as suas faturas estão em dia! 🎉</p>
+                    </div>
+                <?php endif; ?>
+            </div>
 
             <!-- Mensagem de Inadimplência -->
             <?php if ($assinatura['status'] === 'inadimplente'): ?>
@@ -246,6 +259,8 @@ $activeMenu = 'meu-plano';
         .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; text-decoration: none; display: inline-block; font-weight: 500; }
         .btn-primary { background: <?php echo PRIMARY_COLOR; ?>; color: white; }
         .btn-primary:hover { background: #e66d00; }
+        .empty-state { text-align: center; padding: 40px 20px; color: #666; }
+        .empty-state .text-muted { color: #999; margin-top: 8px; }
     </style>
 </body>
 </html>

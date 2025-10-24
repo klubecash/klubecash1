@@ -12,7 +12,14 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'loja') {
     exit;
 }
 
-$lojaId = $_SESSION['loja_id'];
+// CORREÇÃO: Usar store_id ou loja_id (compatibilidade)
+$lojaId = $_SESSION['store_id'] ?? $_SESSION['loja_id'] ?? $_SESSION['user_id'] ?? null;
+
+if (!$lojaId) {
+    header('Location: ' . LOGIN_URL . '?error=' . urlencode('Erro ao identificar loja'));
+    exit;
+}
+
 $invoiceId = $_GET['invoice_id'] ?? null;
 
 if (!$invoiceId) {
@@ -132,27 +139,44 @@ $activeMenu = 'meu-plano';
         if (btnGeneratePix) {
             btnGeneratePix.addEventListener('click', async function() {
                 this.disabled = true;
-                this.textContent = 'Gerando...';
+                this.textContent = 'Gerando PIX...';
 
                 try {
+                    console.log('Iniciando geração de PIX para invoice_id:', <?php echo $invoiceId; ?>);
+
                     const response = await fetch('<?php echo SITE_URL; ?>/api/abacatepay.php?action=create_invoice_pix', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
                         body: JSON.stringify({ invoice_id: <?php echo $invoiceId; ?> })
                     });
 
+                    console.log('Response status:', response.status);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('Erro HTTP:', response.status, errorText);
+                        throw new Error(`Erro HTTP ${response.status}: ${errorText}`);
+                    }
+
                     const data = await response.json();
+                    console.log('Response data:', data);
 
                     if (data.success && data.pix) {
-                        // Recarregar página para exibir PIX
+                        alert('PIX gerado com sucesso! Recarregando página...');
                         window.location.reload();
                     } else {
-                        alert('Erro ao gerar PIX: ' + (data.message || 'Erro desconhecido'));
+                        const errorMsg = data.message || data.error || 'Erro desconhecido ao gerar PIX';
+                        console.error('Erro na resposta:', data);
+                        alert('Erro ao gerar PIX: ' + errorMsg);
                         this.disabled = false;
                         this.textContent = 'Gerar PIX';
                     }
                 } catch (error) {
-                    alert('Erro na requisição: ' + error.message);
+                    console.error('Erro na requisição:', error);
+                    alert('Erro na requisição: ' + error.message + '\n\nVerifique o console do navegador para mais detalhes.');
                     this.disabled = false;
                     this.textContent = 'Gerar PIX';
                 }
