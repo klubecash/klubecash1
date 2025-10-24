@@ -12,7 +12,14 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'loja') {
     exit;
 }
 
-$lojaId = $_SESSION['loja_id'];
+// CORREÇÃO: Usar store_id ou loja_id (compatibilidade)
+$lojaId = $_SESSION['store_id'] ?? $_SESSION['loja_id'] ?? $_SESSION['user_id'] ?? null;
+
+if (!$lojaId) {
+    header('Location: ' . LOGIN_URL . '?error=' . urlencode('Erro ao identificar loja'));
+    exit;
+}
+
 $invoiceId = $_GET['invoice_id'] ?? null;
 
 if (!$invoiceId) {
@@ -21,6 +28,9 @@ if (!$invoiceId) {
 }
 
 $db = (new Database())->getConnection();
+
+// DEBUG: Log para verificar IDs
+error_log("INVOICE PIX - invoice_id: {$invoiceId}, loja_id: {$lojaId}");
 
 // Buscar fatura com verificação de propriedade
 $sql = "SELECT f.*, a.loja_id, a.id as assinatura_id
@@ -31,10 +41,28 @@ $stmt = $db->prepare($sql);
 $stmt->execute([$invoiceId, $lojaId]);
 $fatura = $stmt->fetch(PDO::FETCH_ASSOC);
 
+// DEBUG: Se não encontrou, tentar buscar sem verificação de loja para debug
 if (!$fatura) {
+    error_log("INVOICE PIX - Fatura não encontrada com loja_id. Tentando buscar sem validação...");
+    $sqlDebug = "SELECT f.*, a.loja_id, a.id as assinatura_id
+                FROM faturas f
+                JOIN assinaturas a ON f.assinatura_id = a.id
+                WHERE f.id = ?";
+    $stmtDebug = $db->prepare($sqlDebug);
+    $stmtDebug->execute([$invoiceId]);
+    $faturaDebug = $stmtDebug->fetch(PDO::FETCH_ASSOC);
+
+    if ($faturaDebug) {
+        error_log("INVOICE PIX - Fatura existe mas loja_id não bate! Fatura loja_id: {$faturaDebug['loja_id']}, Sessão loja_id: {$lojaId}");
+    } else {
+        error_log("INVOICE PIX - Fatura {$invoiceId} não existe no banco");
+    }
+
     header('Location: ' . STORE_SUBSCRIPTION_URL . '?error=fatura_nao_encontrada');
     exit;
 }
+
+error_log("INVOICE PIX - Fatura encontrada: ID={$fatura['id']}, Numero={$fatura['numero']}");
 
 // Gerar PIX se ainda não foi gerado
 $needsPixGeneration = empty($fatura['pix_qr_code']) || empty($fatura['pix_copia_cola']);
