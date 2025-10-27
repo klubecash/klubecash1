@@ -69,32 +69,29 @@ require_once './session-guardian.php'; // ADICIONAR ESTA LINHA
  * Função para renderizar logo da loja (mantida igual)
  */
 function renderStoreLogo($store) {
-    static $logoCache = [];
-    
     $nomeFantasia = htmlspecialchars($store['nome_fantasia']);
-    $primeiraLetra = strtoupper(substr($nomeFantasia, 0, 1));
-    
+    $logoUrl = '';
+
     if (!empty($store['logo'])) {
         $logoFilename = $store['logo'];
-        
-        if (!isset($logoCache[$logoFilename])) {
-            if (preg_match('/^[a-zA-Z0-9_.-]+\.(jpg|jpeg|png|gif)$/i', $logoFilename)) {
-                $fullPath = __DIR__ . '/uploads/store_logos/' . $logoFilename;
-                $logoCache[$logoFilename] = file_exists($fullPath);
-            } else {
-                $logoCache[$logoFilename] = false;
-                error_log("Arquivo suspeito detectado: " . $logoFilename);
+        // Basic validation to prevent directory traversal
+        if (preg_match('/^[a-zA-Z0-9_.-]+\.(jpg|jpeg|png|gif)$/i', $logoFilename)) {
+            $logoPath = '/uploads/store_logos/' . $logoFilename;
+            $fullPath = __DIR__ . $logoPath;
+            if (file_exists($fullPath)) {
+                $logoUrl = $logoPath;
             }
         }
-        
-        if ($logoCache[$logoFilename]) {
-            $logoPath = '/uploads/store_logos/' . htmlspecialchars($logoFilename);
-            return '<img src="' . $logoPath . '" alt="Logo ' . $nomeFantasia . '" class="store-logo-image" loading="lazy">';
-        }
     }
-    
-    $corDeFundo = generateColorFromName($nomeFantasia);
-    return '<div class="store-logo-fallback" style="background: linear-gradient(135deg, ' . $corDeFundo . ', ' . adjustBrightness($corDeFundo, -20) . ')" title="' . $nomeFantasia . '">' . $primeiraLetra . '</div>';
+
+    if ($logoUrl) {
+        return '<img src="' . htmlspecialchars($logoUrl) . '" alt="Logo ' . $nomeFantasia . '" class="store-logo-image" loading="lazy">';
+    } else {
+        // Fallback to a placeholder or the initial-based div
+        $primeiraLetra = strtoupper(substr($nomeFantasia, 0, 1));
+        $corDeFundo = generateColorFromName($nomeFantasia);
+        return '<div class="store-logo-fallback" style="background: linear-gradient(135deg, ' . $corDeFundo . ', ' . adjustBrightness($corDeFundo, -20) . ')" title="' . $nomeFantasia . '">' . $primeiraLetra . '</div>';
+    }
 }
 
 function generateColorFromName($name) {
@@ -165,7 +162,7 @@ try {
         FROM lojas 
         WHERE status = 'aprovado' 
         ORDER BY RAND() 
-        LIMIT 8
+        LIMIT 12
     ");
     $partnerStores = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
