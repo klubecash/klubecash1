@@ -97,8 +97,9 @@ class AuthController {
         $_SESSION['user_type'] = $user['tipo'];
         $_SESSION['user_senat'] = $user['senat'] ?? 'Não';
         $_SESSION['last_activity'] = time();
+        $_SESSION['needs_wallet_selection'] = ($user['tipo'] === 'cliente' && $user['senat'] === 'Sim');
 
-        error_log("LOGIN: Sessão básica definida - User ID: {$user['id']}");
+        error_log("LOGIN: Sessão básica definida - User ID: {$user['id']}, Senat: {$user['senat']}, Needs Wallet: " . ($_SESSION['needs_wallet_selection'] ? 'Yes' : 'No'));
 
         // Lógica para loja
         if ($user['tipo'] === 'loja') {

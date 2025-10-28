@@ -29,10 +29,15 @@ error_log("Sessão iniciada em " . $_SERVER['HTTP_HOST'] . " – ID: " . session
 // 1. VERIFICAR SE O UTILIZADOR JÁ ESTÁ LOGADO E REDIRECIONAR
 if (isset($_SESSION['user_id']) && !isset($_GET['force_login'])) {
     $userType = $_SESSION['user_type'] ?? '';
+    $userSenat = $_SESSION['user_senat'] ?? 'Não';
+
     if ($userType == 'admin') {
         header('Location: ' . ADMIN_DASHBOARD_URL);
     } else if ($userType == 'loja' || $userType == 'funcionario') {
         header('Location: ' . STORE_DASHBOARD_URL);
+    } else if ($userType == 'cliente' && $userSenat === 'Sim') {
+        // Cliente com senat=Sim deve ver seleção de carteira
+        header('Location: ' . SITE_URL . '/views/auth/wallet-select.php');
     } else {
         header('Location: ' . CLIENT_DASHBOARD_URL);
     }
@@ -77,9 +82,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Definir URL de redirecionamento
         $redirectUrl = CLIENT_DASHBOARD_URL; // padrão
-        if ($origem_post === 'sest-senat' && !empty($userData['senat']) && in_array(strtolower($userData['senat']), ['true','1','sim'])) {
+
+        // Se origem é sest-senat, redirecionar direto
+        if ($origem_post === 'sest-senat' && !empty($userData['senat']) && $userData['senat'] === 'Sim') {
             $redirectUrl = 'https://sest-senat.klubecash.com/';
-        } else if ($userType == 'admin') {
+        }
+        // Se é cliente com senat=Sim e não veio de sest-senat, mostrar seleção de carteira
+        else if ($userType == 'cliente' && !empty($userData['senat']) && $userData['senat'] === 'Sim') {
+            $redirectUrl = SITE_URL . '/views/auth/wallet-select.php';
+        }
+        // Redirecionamentos padrão
+        else if ($userType == 'admin') {
             $redirectUrl = ADMIN_DASHBOARD_URL;
         } else if ($userType == 'loja' || $userType == 'funcionario') {
             $redirectUrl = STORE_DASHBOARD_URL;
