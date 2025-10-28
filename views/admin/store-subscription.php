@@ -64,8 +64,15 @@ if ($assinaturaId) {
     $lojaId = $assinatura['loja_id'] ?? null;
 }
 
-// Buscar planos disponíveis
-$sqlPlanos = "SELECT * FROM planos WHERE ativo = 1 ORDER BY preco_mensal ASC";
+// Buscar planos disponíveis (ordenar por tipo e preço)
+$sqlPlanos = "SELECT * FROM planos WHERE ativo = 1
+              ORDER BY
+                CASE
+                    WHEN recorrencia = 'monthly' THEN 1
+                    WHEN recorrencia = 'yearly' THEN 2
+                    ELSE 3
+                END,
+                COALESCE(preco_mensal, preco_anual/12) ASC";
 $stmtPlanos = $db->prepare($sqlPlanos);
 $stmtPlanos->execute();
 $planos = $stmtPlanos->fetchAll(PDO::FETCH_ASSOC);
@@ -201,23 +208,72 @@ $activeMenu = 'assinaturas';
                 <input type="hidden" name="loja_id" value="<?php echo $lojaId; ?>">
 
                 <div class="form-group">
-                    <label>Plano</label>
+                    <label>Plano (Código entre parênteses para fornecer ao lojista)</label>
                     <select name="plano_slug" required>
-                        <?php foreach ($planos as $plano): ?>
-                            <option value="<?php echo $plano['slug']; ?>">
-                                <?php echo htmlspecialchars($plano['nome']); ?> - R$ <?php echo number_format($plano['preco_mensal'], 2, ',', '.'); ?>/mês
+                        <?php
+                        $lastType = null;
+                        foreach ($planos as $plano):
+                            $currentType = $plano['recorrencia'];
+
+                            // Adicionar separador visual entre mensais e anuais
+                            if ($lastType !== null && $lastType !== $currentType) {
+                                echo '<option disabled>────────────────────</option>';
+                            }
+
+                            // Determinar preço e período de exibição
+                            if ($plano['recorrencia'] === 'yearly') {
+                                $preco = number_format($plano['preco_anual'], 2, ',', '.');
+                                $periodo = '/ano';
+                            } else {
+                                $preco = number_format($plano['preco_mensal'], 2, ',', '.');
+                                $periodo = '/mês';
+                            }
+
+                            $codigo = $plano['codigo'] ? ' (' . $plano['codigo'] . ')' : '';
+                            $lastType = $currentType;
+                        ?>
+                            <option value="<?php echo $plano['slug']; ?>"
+                                    data-recorrencia="<?php echo $plano['recorrencia']; ?>">
+                                <?php echo htmlspecialchars($plano['nome']); ?> - R$ <?php echo $preco . $periodo . $codigo; ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label>Ciclo</label>
-                    <select name="ciclo">
+                    <label>Ciclo (preenchido automaticamente pelo plano escolhido)</label>
+                    <select name="ciclo" id="ciclo_input">
                         <option value="monthly">Mensal</option>
                         <option value="yearly">Anual</option>
                     </select>
+                    <small style="color: #666; display: block; margin-top: 5px;">
+                        ℹ️ O ciclo será definido automaticamente de acordo com o plano selecionado
+                    </small>
                 </div>
+
+                <script>
+                    // Atualizar ciclo automaticamente quando plano for selecionado
+                    document.querySelector('select[name="plano_slug"]').addEventListener('change', function() {
+                        const selectedOption = this.options[this.selectedIndex];
+                        const recorrencia = selectedOption.getAttribute('data-recorrencia');
+                        const cicloInput = document.getElementById('ciclo_input');
+
+                        if (recorrencia === 'yearly') {
+                            cicloInput.value = 'yearly';
+                            cicloInput.disabled = true;
+                        } else if (recorrencia === 'monthly') {
+                            cicloInput.value = 'monthly';
+                            cicloInput.disabled = true;
+                        } else {
+                            cicloInput.disabled = false;
+                        }
+                    });
+
+                    // Executar ao carregar a página
+                    document.addEventListener('DOMContentLoaded', function() {
+                        document.querySelector('select[name="plano_slug"]').dispatchEvent(new Event('change'));
+                    });
+                </script>
 
                 <div class="form-group">
                     <label>Dias de Trial (opcional)</label>

@@ -51,13 +51,17 @@ $activeMenu = 'transactions';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transações - Klube Cash</title>
     <link rel="shortcut icon" type="image/jpg" href="../../assets/images/icons/KlubeCashLOGO.ico"/>
+    <link rel="stylesheet" href="/assets/css/sidebar-lojista_sest.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="../../assets/css/views/stores/transactions.css">
 </head>
 <body>
     <div class="dashboard-container">
         <!-- Incluir o componente sidebar -->
-        <?php include_once '../components/sidebar-store.php'; ?>
+        <?php
+        $activeMenu = 'dashboard'; // Menu ativo para transações
+        include '../../views/components/sidebar-lojista-responsiva.php';
+        ?>
         
         <div class="main-content" id="mainContent">
             <div class="dashboard-header">
@@ -649,5 +653,6 @@ $activeMenu = 'transactions';
         // Fechar modal clicando no backdrop
         document.getElementById('filterModalBackdrop').addEventListener('click', closeFilterModal);
     </script>
+    <script src="/assets/js/sidebar-lojista.js"></script>
 </body>
 </html>

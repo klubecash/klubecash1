@@ -1,0 +1,8 @@
+2025-10-27 23:08:57 [INFO] Creating PIX charge {"amount":10000,"description":"Assinatura Klube Cash - Fatura #TEST-001","customer":{"name":"Loja Teste Klube Cash","cellphone":"11999999999","email":"teste@klubecash.com","taxId":"11144477735"},"expiresIn":86400}
+2025-10-27 23:08:58 [INFO] Getting charge status {"charge_id":"pix_char_AHnNhPwgf6SukYXywx0KRQBn"}
+2025-10-27 23:08:58 [ERROR] API error {"http_code":404,"response":{"message":"Route GET:\/v1\/pixQrCode\/get?id=pix_char_AHnNhPwgf6SukYXywx0KRQBn not found","error":"Not Found","statusCode":404}}
+2025-10-27 23:09:45 [INFO] Creating PIX charge {"amount":10000,"description":"Assinatura Klube Cash - Fatura #TEST-001","customer":{"name":"Loja Teste Klube Cash","cellphone":"11999999999","email":"teste@klubecash.com","taxId":"11144477735"},"expiresIn":86400}
+2025-10-27 23:09:45 [INFO] Status check requested (webhook-based) {"charge_id":"pix_char_ag4QcZpEpymZJ4C5D1edWKgW"}
+2025-10-27 23:17:28 [INFO] Creating PIX charge {"amount":9990,"description":"Teste - CNPJ Inv\u00e1lido","customer":{"name":"Sync Holding","cellphone":"11999999999","email":"teste@klubecash.com","taxId":"11144477735"},"expiresIn":86400}
+2025-10-27 23:17:28 [INFO] Creating PIX charge {"amount":5000,"description":"Teste - CNPJ V\u00e1lido","customer":{"name":"Empresa Teste","cellphone":"11999999999","email":"teste@klubecash.com","taxId":"00000000000191"},"expiresIn":86400}
+2025-10-27 19:22:24 [INFO] Creating PIX charge {"amount":9990,"description":"Assinatura Klube Cash - Fatura INV-202510-3B07DF","customer":{"name":"Sync Holding","cellphone":"(38) 99104-5205","email":"kauamathes123487654@gmail.com","taxId":"59826857000108"},"expiresIn":86400}

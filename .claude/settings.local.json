@@ -4,7 +4,14 @@
       "Bash(unzip:*)",
       "Read(//c/Users/Kaua/Documents/Projetos/**)",
       "Bash(cat:*)",
-      "Bash(mysql:*)"
+      "Bash(mysql:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(php:*)",
+      "Bash(del test_abacate_api.php test_abacate_api2.php test_status_endpoint.php test_complete_flow.php)",
+      "Bash(del:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

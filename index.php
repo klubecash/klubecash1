@@ -69,32 +69,29 @@ require_once './session-guardian.php'; // ADICIONAR ESTA LINHA
  * Função para renderizar logo da loja (mantida igual)
  */
 function renderStoreLogo($store) {
-    static $logoCache = [];
-    
     $nomeFantasia = htmlspecialchars($store['nome_fantasia']);
-    $primeiraLetra = strtoupper(substr($nomeFantasia, 0, 1));
-    
+    $logoUrl = '';
+
     if (!empty($store['logo'])) {
         $logoFilename = $store['logo'];
-        
-        if (!isset($logoCache[$logoFilename])) {
-            if (preg_match('/^[a-zA-Z0-9_.-]+\.(jpg|jpeg|png|gif)$/i', $logoFilename)) {
-                $fullPath = __DIR__ . '/uploads/store_logos/' . $logoFilename;
-                $logoCache[$logoFilename] = file_exists($fullPath);
-            } else {
-                $logoCache[$logoFilename] = false;
-                error_log("Arquivo suspeito detectado: " . $logoFilename);
+        // Basic validation to prevent directory traversal
+        if (preg_match('/^[a-zA-Z0-9_.-]+\.(jpg|jpeg|png|gif)$/i', $logoFilename)) {
+            $logoPath = '/uploads/store_logos/' . $logoFilename;
+            $fullPath = __DIR__ . $logoPath;
+            if (file_exists($fullPath)) {
+                $logoUrl = $logoPath;
             }
         }
-        
-        if ($logoCache[$logoFilename]) {
-            $logoPath = '/uploads/store_logos/' . htmlspecialchars($logoFilename);
-            return '<img src="' . $logoPath . '" alt="Logo ' . $nomeFantasia . '" class="store-logo-image" loading="lazy">';
-        }
     }
-    
-    $corDeFundo = generateColorFromName($nomeFantasia);
-    return '<div class="store-logo-fallback" style="background: linear-gradient(135deg, ' . $corDeFundo . ', ' . adjustBrightness($corDeFundo, -20) . ')" title="' . $nomeFantasia . '">' . $primeiraLetra . '</div>';
+
+    if ($logoUrl) {
+        return '<img src="' . htmlspecialchars($logoUrl) . '" alt="Logo ' . $nomeFantasia . '" class="store-logo-image" loading="lazy">';
+    } else {
+        // Fallback to a placeholder or the initial-based div
+        $primeiraLetra = strtoupper(substr($nomeFantasia, 0, 1));
+        $corDeFundo = generateColorFromName($nomeFantasia);
+        return '<div class="store-logo-fallback" style="background: linear-gradient(135deg, ' . $corDeFundo . ', ' . adjustBrightness($corDeFundo, -20) . ')" title="' . $nomeFantasia . '">' . $primeiraLetra . '</div>';
+    }
 }
 
 function generateColorFromName($name) {
@@ -165,7 +162,7 @@ try {
         FROM lojas 
         WHERE status = 'aprovado' 
         ORDER BY RAND() 
-        LIMIT 8
+        LIMIT 12
     ");
     $partnerStores = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
@@ -1055,6 +1052,51 @@ try {
                         <a href="<?php echo STORE_REGISTER_URL; ?>" class="btn btn-primary">Seja o Primeiro Parceiro</a>
                     </div>
                 <?php endif; ?>
+            </div>
+        </section>
+
+        <!-- Sobre -->
+        <section id="sobre" class="section bg-light">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-badge">Quem Somos</span>
+                    <h2 class="section-title">Sobre o Klube Cash</h2>
+                    <p class="section-description">
+                        Conheça nossa história e missão de transformar a forma como você economiza
+                    </p>
+                </div>
+
+                <div class="grid grid-3">
+                    <div class="card fade-in">
+                        <div class="card-icon">🎯</div>
+                        <h3>Nossa Missão</h3>
+                        <p>Democratizar o acesso ao cashback no Brasil, oferecendo uma plataforma intuitiva, segura e que realmente coloca dinheiro de volta no bolso dos nossos usuários.</p>
+                    </div>
+
+                    <div class="card fade-in">
+                        <div class="card-icon">👁️</div>
+                        <h3>Nossa Visão</h3>
+                        <p>Ser a maior e mais confiável plataforma de cashback do Brasil, reconhecida pela transparência, inovação e pelo compromisso com a satisfação dos nossos clientes.</p>
+                    </div>
+
+                    <div class="card fade-in">
+                        <div class="card-icon">💎</div>
+                        <h3>Nossos Valores</h3>
+                        <p>Transparência total, segurança em primeiro lugar, compromisso com o cliente, inovação constante e parcerias justas para todos.</p>
+                    </div>
+                </div>
+
+                <div style="margin-top: 60px; text-align: center; max-width: 800px; margin-left: auto; margin-right: auto;">
+                    <h3 style="font-size: 1.8rem; margin-bottom: 20px; color: #333;">Por Que Klube Cash?</h3>
+                    <p style="font-size: 1.1rem; color: #666; line-height: 1.8; margin-bottom: 15px;">
+                        Nascemos da vontade de criar algo diferente no mercado de cashback brasileiro. Cansados de sistemas complicados,
+                        taxas escondidas e benefícios que nunca se concretizam, decidimos criar uma plataforma onde o cliente é realmente valorizado.
+                    </p>
+                    <p style="font-size: 1.1rem; color: #666; line-height: 1.8;">
+                        Hoje, ajudamos milhares de brasileiros a economizar todos os dias, conectando consumidores a lojas parceiras
+                        de forma simples, rápida e 100% transparente. Seu dinheiro de volta, do jeito que deveria ser.
+                    </p>
+                </div>
             </div>
         </section>
 

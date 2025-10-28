@@ -5,40 +5,42 @@
  */
 
 require_once __DIR__ . '/../config/constants.php';
+require_once __DIR__ . '/FeatureGate.php';
 
 class StoreHelper {
-    
+
     /**
      * Verificação obrigatória para páginas da loja - USA EM TODOS OS ARQUIVOS
      * Substitui todas as verificações complexas de permissão
+     * AGORA COM CONTROLE DE PLANO ATIVO
      */
     public static function requireStoreAccess() {
         // Garantir que a sessão esteja iniciada
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
-        
+
         // Verificar autenticação básica
         if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type'])) {
             header("Location: /login?error=session_expired");
             exit;
         }
-        
+
         $userType = $_SESSION['user_type'];
         $userId = $_SESSION['user_id'];
-        
+
         // Verificar tipo de usuário permitido
         $allowedTypes = [
             defined('USER_TYPE_STORE') ? USER_TYPE_STORE : 'loja',
             defined('USER_TYPE_EMPLOYEE') ? USER_TYPE_EMPLOYEE : 'funcionario'
         ];
-        
+
         if (!in_array($userType, $allowedTypes)) {
             error_log("ACESSO NEGADO: Usuário {$userId} tipo '{$userType}' tentou acessar área da loja");
             header("Location: /login?error=access_denied");
             exit;
         }
-        
+
         // CRÍTICO: Verificar se store_id existe
         if (!isset($_SESSION['store_id']) || empty($_SESSION['store_id'])) {
             error_log("ERRO CRÍTICO: store_id não definido para usuário {$userId} tipo {$userType}");
@@ -53,7 +55,42 @@ class StoreHelper {
             header("Location: " . (defined('LOGIN_URL') ? LOGIN_URL : '/login') . "?error=" . urlencode("Sessão inválida. Faça login novamente."));
             exit;
         }
-        
+
+        // === NOVO: CONTROLE DE ACESSO POR PLANO ATIVO ===
+        $lojaId = $_SESSION['store_id'];
+
+        // Verificar se o plano está ativo
+        if (!FeatureGate::isActive($lojaId)) {
+            // Páginas permitidas SEM plano ativo:
+            // 1. Registro de vendas (para continuar gerando receita)
+            // 2. Página de assinatura (para ver plano e pagar)
+            // 3. Página de pagamento PIX (para pagar faturas)
+            $allowedPages = [
+                '/views/stores/register-transaction.php',
+                '/views/stores/subscription.php',
+                '/views/stores/invoice-pix.php',
+                '/views/stores/payment-pix.php'
+            ];
+
+            $currentPage = $_SERVER['PHP_SELF'] ?? '';
+
+            // Verificar se a página atual está na lista de permitidas
+            $isAllowed = false;
+            foreach ($allowedPages as $allowedPage) {
+                if (strpos($currentPage, $allowedPage) !== false) {
+                    $isAllowed = true;
+                    break;
+                }
+            }
+
+            if (!$isAllowed) {
+                // Redirecionar para página de assinatura com mensagem
+                $subscriptionUrl = defined('STORE_SUBSCRIPTION_URL') ? STORE_SUBSCRIPTION_URL : '/views/stores/subscription.php';
+                header("Location: {$subscriptionUrl}?error=" . urlencode("Você precisa de um plano ativo para acessar esta funcionalidade"));
+                exit;
+            }
+        }
+
         // Log de acesso bem-sucedido
         if (defined('TRACK_USER_ACTIONS') && TRACK_USER_ACTIONS) {
             self::logUserAction($userId, 'store_access', [

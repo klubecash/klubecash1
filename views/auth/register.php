@@ -1,3 +1,4 @@
+<?php header("Content-Security-Policy: connect-src 'self' https://viacep.com.br"); ?>
 <?php
 // Arquivo: views/auth/register.php
 // Incluir arquivos de configuração

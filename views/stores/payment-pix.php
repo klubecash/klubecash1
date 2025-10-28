@@ -53,13 +53,17 @@ $activeMenu = 'payment-pix';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pagamento PIX - Klube Cash</title>
     <link rel="shortcut icon" type="image/jpg" href="../../assets/images/icons/KlubeCashLOGO.ico"/>
+    <link rel="stylesheet" href="/assets/css/sidebar-lojista_sest.css">
     <link rel="stylesheet" href="../../assets/css/views/stores/payment-pix.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <script src="../../assets/js/mercadopago-sdk.js?v=2.1.0"></script>
 </head>
 <body>
-    <?php include_once '../components/sidebar-store.php'; ?>
+    <?php
+    $activeMenu = 'pagamentos'; // Menu ativo
+    include '../../views/components/sidebar-lojista-responsiva.php';
+    ?>
     
     <div class="main-content" id="mainContent">
         <!-- Header Moderno -->
@@ -665,5 +669,6 @@ $activeMenu = 'payment-pix';
     }
 }
 </style>
+<script src="/assets/js/sidebar-lojista.js"></script>
 </body>
 </html>

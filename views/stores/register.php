@@ -72,6 +72,11 @@ if (session_status() === PHP_SESSION_NONE) {
     debug_log("Sessão iniciada com sucesso");
 }
 
+if (isset($_SESSION['success_message'])) {
+    $success = $_SESSION['success_message'];
+    unset($_SESSION['success_message']);
+}
+
 // Sexta camada: Verificação de estado de autenticação
 $isLoggedIn = isset($_SESSION['user_id']);
 $isAdmin = $isLoggedIn && isset($_SESSION['user_type']) && $_SESSION['user_type'] == USER_TYPE_ADMIN;
@@ -256,9 +261,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             debug_log("Resultado do registro: " . ($result['status'] ? 'Sucesso' : 'Falha'));
             
             if ($result['status']) {
-                $success = $result['message'];
-                $data = [];
-                debug_log("Cadastro realizado com sucesso, formulário limpo");
+                $_SESSION['success_message'] = $result['message'];
+                $_SESSION['form_submitted'] = true;
+                header("Location: " . $_SERVER['REQUEST_URI']);
+                exit;
             } else {
                 $error = $result['message'];
                 debug_log("Erro no cadastro: " . $result['message']);
@@ -859,6 +865,16 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
             }
         }
 
+        /* Loading state for CEP input */
+        .form-input.loading-cep {
+            opacity: 0.7;
+            cursor: wait;
+            background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg version="1.1" id="L9" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 100 100" enable-background="new 0 0 0 0" xml:space="preserve"%3e%3cpath fill="%23FF7A00" d="M73,50c0-12.7-10.3-23-23-23S27,37.3,27,50c0,12.7,10.3,23,23,23S73,62.7,73,50z"%3e%3canimateTransform attributeName="transform" attributeType="XML" type="rotate" dur="1s" from="0 50 50" to="360 50 50" repeatCount="indefinite" /%3e%3c/path%3e%3c/svg%3e');
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 20px 20px;
+        }
+
         /* Animações de validação */
         .form-input.valid {
             border-color: var(--success-color);
@@ -1187,7 +1203,6 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
                                     id="cep" 
                                     name="cep" 
                                     class="form-input" 
-                                    required 
                                     value="<?php echo isset($data['endereco']['cep']) ? htmlspecialchars($data['endereco']['cep']) : ''; ?>"
                                     placeholder="00000-000"
                                 >
@@ -1205,7 +1220,6 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
                                     id="logradouro" 
                                     name="logradouro" 
                                     class="form-input" 
-                                    required 
                                     value="<?php echo isset($data['endereco']['logradouro']) ? htmlspecialchars($data['endereco']['logradouro']) : ''; ?>"
                                     placeholder="Rua, Avenida, etc."
                                 >
@@ -1221,7 +1235,6 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
                                     id="numero" 
                                     name="numero" 
                                     class="form-input" 
-                                    required 
                                     value="<?php echo isset($data['endereco']['numero']) ? htmlspecialchars($data['endereco']['numero']) : ''; ?>"
                                     placeholder="123"
                                 >
@@ -1250,7 +1263,6 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
                                     id="bairro" 
                                     name="bairro" 
                                     class="form-input" 
-                                    required 
                                     value="<?php echo isset($data['endereco']['bairro']) ? htmlspecialchars($data['endereco']['bairro']) : ''; ?>"
                                     placeholder="Centro, Vila Nova, etc."
                                 >
@@ -1266,7 +1278,6 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
                                     id="cidade" 
                                     name="cidade" 
                                     class="form-input" 
-                                    required 
                                     value="<?php echo isset($data['endereco']['cidade']) ? htmlspecialchars($data['endereco']['cidade']) : ''; ?>"
                                     placeholder="São Paulo"
                                 >
@@ -1339,7 +1350,7 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
                             </div>
                             
                             <div class="checkbox-group">
-                                <input type="checkbox" id="aceite_termos" name="aceite_termos" required>
+                                <input type="checkbox" id="aceite_termos" name="aceite_termos">
                                 <label for="aceite_termos">
                                     Li e concordo com os termos e condições acima <span class="required">*</span>
                                 </label>
@@ -1412,6 +1423,13 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
 
         // Inicialização
         document.addEventListener('DOMContentLoaded', function() {
+            const formSubmitted = <?php echo isset($_SESSION['form_submitted']) ? 'true' : 'false'; ?>;
+            if (formSubmitted) {
+                clearDataFromLocalStorage();
+                <?php unset($_SESSION['form_submitted']); ?>
+            }
+
+            loadDataFromLocalStorage();
             showStep(currentStep);
             setupEventListeners();
         });
@@ -1439,6 +1457,39 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
 
             // Submit do formulário
             form.addEventListener('submit', handleFormSubmit);
+
+            // Salvar dados no localStorage a cada alteração
+            form.addEventListener('input', saveDataToLocalStorage);
+        }
+
+        // Salvar dados no localStorage
+        function saveDataToLocalStorage() {
+            const data = new FormData(form);
+            const object = {};
+            data.forEach((value, key) => {
+                object[key] = value;
+            });
+            localStorage.setItem('storeRegistrationForm', JSON.stringify(object));
+        }
+
+        // Carregar dados do localStorage
+        function loadDataFromLocalStorage() {
+            const savedData = localStorage.getItem('storeRegistrationForm');
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                for (const key in data) {
+                    if (form.elements[key]) {
+                        if (form.elements[key].type !== 'file') {
+                            form.elements[key].value = data[key];
+                        }
+                    }
+                }
+            }
+        }
+
+        // Limpar dados do localStorage
+        function clearDataFromLocalStorage() {
+            localStorage.removeItem('storeRegistrationForm');
         }
 
         // Mostrar etapa específica
@@ -1719,39 +1770,84 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
             }
         }
 
-        // Configurar busca de CEP (mantida original)
+        // Configurar busca de CEP
         function setupCepSearch() {
-            document.getElementById('cep').addEventListener('blur', function() {
+            const cepInput = document.getElementById('cep');
+            const logradouroInput = document.getElementById('logradouro');
+            const bairroInput = document.getElementById('bairro');
+            const cidadeInput = document.getElementById('cidade');
+            const estadoInput = document.getElementById('estado');
+
+            // Armazenar o texto original da mensagem de validação do CEP
+            const cepMsgElement = document.getElementById('cep_msg');
+            if (cepMsgElement && !cepMsgElement.dataset.originalText) {
+                cepMsgElement.dataset.originalText = cepMsgElement.textContent;
+            }
+
+            cepInput.addEventListener('blur', function() {
                 const cep = this.value.replace(/\D/g, '');
-                
-                if (cep.length !== 8) return;
-                
-                this.style.opacity = '0.7';
-                
+
+                // Limpa campos de endereço se o CEP for inválido ou vazio
+                if (cep.length !== 8) {
+                    clearAddressFields();
+                    if (cep.length > 0) {
+                        showFieldError(cepInput, 'CEP inválido. Digite 8 dígitos.');
+                    } else {
+                        clearFieldError(cepInput);
+                    }
+                    return;
+                }
+
+                // Adiciona classe de loading e desabilita o campo
+                cepInput.classList.add('loading-cep');
+                cepInput.disabled = true;
+                showFieldError(cepInput, 'Buscando CEP...', 'info'); // Mensagem de busca
+
                 fetch(`https://viacep.com.br/ws/${cep}/json/`)
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Erro de rede ou servidor ViaCEP');
+                        }
+                        return response.json();
+                    })
                     .then(data => {
                         if (!data.erro) {
-                            document.getElementById('logradouro').value = data.logradouro || '';
-                            document.getElementById('bairro').value = data.bairro || '';
-                            document.getElementById('cidade').value = data.localidade || '';
-                            document.getElementById('estado').value = data.uf || '';
-                            
+                            logradouroInput.value = data.logradouro || '';
+                            bairroInput.value = data.bairro || '';
+                            cidadeInput.value = data.localidade || '';
+                            estadoInput.value = data.uf || '';
+                            clearFieldError(cepInput); // Limpa qualquer erro anterior
+
+                            // Foca no número se o logradouro foi preenchido
                             if (data.logradouro) {
                                 document.getElementById('numero').focus();
                             }
                         } else {
-                            alert('CEP não encontrado. Verifique se o CEP está correto.');
+                            clearAddressFields();
+                            showFieldError(cepInput, 'CEP não encontrado. Verifique se o CEP está correto.');
                         }
                     })
                     .catch(error => {
                         console.error('Erro ao buscar CEP:', error);
-                        alert('Erro ao buscar CEP. Verifique sua conexão e tente novamente.');
+                        clearAddressFields();
+                        showFieldError(cepInput, 'Erro ao buscar CEP. Verifique sua conexão ou tente novamente.');
                     })
                     .finally(() => {
-                        this.style.opacity = '';
+                        cepInput.classList.remove('loading-cep');
+                        cepInput.disabled = false;
+                        // Restaura a mensagem original se não houver erro
+                        if (!cepInput.classList.contains('error')) {
+                            clearFieldError(cepInput);
+                        }
                     });
             });
+
+            function clearAddressFields() {
+                logradouroInput.value = '';
+                bairroInput.value = '';
+                cidadeInput.value = '';
+                estadoInput.value = '';
+            }
         }
 
         // Configurar validação de senhas (mantida original)
@@ -1821,12 +1917,23 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
         }
 
         // Funções utilitárias
-        function showFieldError(field, message) {
-            field.classList.add('error');
+        function showFieldError(field, message, type = 'error') {
             const msgElement = field.parentNode.querySelector('.validation-message');
             if (msgElement) {
+                // Salva o texto original se ainda não foi salvo
+                if (!msgElement.dataset.originalText) {
+                    msgElement.dataset.originalText = msgElement.textContent;
+                }
                 msgElement.textContent = message;
-                msgElement.classList.add('error');
+                msgElement.classList.remove('error', 'success', 'info');
+                msgElement.classList.add(type);
+            }
+            if (type === 'error') {
+                field.classList.add('error');
+                field.classList.remove('valid');
+            } else {
+                field.classList.remove('error');
+                field.classList.add('valid');
             }
         }
 
@@ -1835,7 +1942,8 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
             field.classList.add('valid');
             const msgElement = field.parentNode.querySelector('.validation-message');
             if (msgElement) {
-                msgElement.classList.remove('error');
+                msgElement.classList.remove('error', 'success', 'info');
+                // Restaura o texto original se existir
                 if (msgElement.dataset.originalText) {
                     msgElement.textContent = msgElement.dataset.originalText;
                 } else {
@@ -1878,17 +1986,7 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
             }
         });
 
-        // Prevenir perda de dados ao sair da página
-        window.addEventListener('beforeunload', function(e) {
-            const hasData = Object.keys(formData).length > 0 || 
-                          document.querySelector('.form-input').value;
-            
-            if (hasData && currentStep > 1) {
-                e.preventDefault();
-                e.returnValue = 'Você tem dados não salvos. Tem certeza que deseja sair?';
-                return e.returnValue;
-            }
-        });
+
     </script>
 
     <?php debug_log("Página renderizada com sucesso"); ?>

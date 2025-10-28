@@ -274,12 +274,16 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Upload em Lote - Klube Cash</title>
         <link rel="shortcut icon" type="image/jpg" href="../../assets/images/icons/KlubeCashLOGO.ico"/>
+        <link rel="stylesheet" href="/assets/css/sidebar-lojista_sest.css">
         <link rel="stylesheet" href="../../assets/css/views/stores/batch-upload.css">
     </head>
     <body>
         <div class="dashboard-container">
             <!-- Incluir sidebar/menu lateral -->
-            <?php include_once '../components/sidebar-store.php'; ?>
+            <?php
+            $activeMenu = 'nova-venda'; // Menu ativo para upload em lote
+            include '../../views/components/sidebar-lojista-responsiva.php';
+            ?>
             
             <div class="main-content" id="mainContent">
                 <div class="dashboard-header">
@@ -601,5 +605,6 @@
                 });
             }
         </script>
+        <script src="/assets/js/sidebar-lojista.js"></script>
     </body>
     </html>

@@ -1,4 +1,4 @@
-Ôªø<?php
+<?php
 // controllers/TransactionController.php
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/constants.php';
@@ -10,29 +10,29 @@ require_once __DIR__ . '/../utils/Validator.php';
 
 
 /**
- * Controlador de Transa√ß√µes
- * Gerencia opera√ß√µes relacionadas a transa√ß√µes, comiss√µes e cashback
+ * Controlador de TransaÁıes
+ * Gerencia operaÁıes relacionadas a transaÁıes, comissıes e cashback
  */
 class TransactionController {
-    // Adicionar este m√©todo no TransactionController.php
+    // Adicionar este mÈtodo no TransactionController.php
    /**
-    * Obt√©m todas as transa√ß√µes de uma loja com filtros
+    * ObtÈm todas as transaÁıes de uma loja com filtros
     * 
     * @param int $storeId ID da loja
     * @param array $filters Filtros para a listagem
-    * @param int $page P√°gina atual
-    * @return array Lista de transa√ß√µes
+    * @param int $page P·gina atual
+    * @return array Lista de transaÁıes
     */
     public static function getStoreTransactions($storeId, $filters = [], $page = 1) {
         try {
-            // Verificar se o usu√°rio est√° autenticado
+            // Verificar se o usu·rio est· autenticado
             if (!AuthController::isAuthenticated()) {
-                return ['status' => false, 'message' => 'Usu√°rio n√£o autenticado.'];
+                return ['status' => false, 'message' => 'Usu·rio n„o autenticado.'];
             }
             
             $db = Database::getConnection();
             
-            // Verificar permiss√µes - apenas a loja dona das transa√ß√µes ou admin podem acessar
+            // Verificar permissıes - apenas a loja dona das transaÁıes ou admin podem acessar
             if (AuthController::isStore()) {
                 $currentUserId = AuthController::getCurrentUserId();
                 $storeOwnerQuery = $db->prepare("SELECT usuario_id FROM lojas WHERE id = :loja_id");
@@ -41,10 +41,10 @@ class TransactionController {
                 $storeOwner = $storeOwnerQuery->fetch(PDO::FETCH_ASSOC);
                 
                 if (!$storeOwner || $storeOwner['usuario_id'] != $currentUserId) {
-                    return ['status' => false, 'message' => 'Acesso n√£o autorizado a esta loja.'];
+                    return ['status' => false, 'message' => 'Acesso n„o autorizado a esta loja.'];
                 }
             } elseif (!AuthController::isAdmin()) {
-                return ['status' => false, 'message' => 'Acesso n√£o autorizado.'];
+                return ['status' => false, 'message' => 'Acesso n„o autorizado.'];
             }
             
             // Verificar se a loja existe
@@ -54,7 +54,7 @@ class TransactionController {
             $store = $storeStmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$store) {
-                return ['status' => false, 'message' => 'Loja n√£o encontrada.'];
+                return ['status' => false, 'message' => 'Loja n„o encontrada.'];
             }
             
             // Construir consulta
@@ -79,7 +79,7 @@ class TransactionController {
                     $params[':status'] = $filters['status'];
                 }
                 
-                // Filtro por per√≠odo
+                // Filtro por perÌodo
                 if (isset($filters['data_inicio']) && !empty($filters['data_inicio'])) {
                     $query .= " AND t.data_transacao >= :data_inicio";
                     $params[':data_inicio'] = $filters['data_inicio'] . ' 00:00:00';
@@ -96,23 +96,23 @@ class TransactionController {
                     $params[':cliente'] = '%' . $filters['cliente'] . '%';
                 }
                 
-                // Filtro por valor m√≠nimo
+                // Filtro por valor mÌnimo
                 if (isset($filters['valor_min']) && !empty($filters['valor_min'])) {
                     $query .= " AND t.valor_total >= :valor_min";
                     $params[':valor_min'] = $filters['valor_min'];
                 }
                 
-                // Filtro por valor m√°ximo
+                // Filtro por valor m·ximo
                 if (isset($filters['valor_max']) && !empty($filters['valor_max'])) {
                     $query .= " AND t.valor_total <= :valor_max";
                     $params[':valor_max'] = $filters['valor_max'];
                 }
             }
             
-            // Ordena√ß√£o
+            // OrdenaÁ„o
             $query .= " ORDER BY t.data_transacao DESC";
             
-            // Contagem total para pagina√ß√£o
+            // Contagem total para paginaÁ„o
             $countQuery = str_replace(
                 "t.*, u.nome as cliente_nome, u.email as cliente_email, pc.id as pagamento_id, pc.status as status_pagamento, pc.data_aprovacao as data_pagamento", 
                 "COUNT(*) as total", 
@@ -127,7 +127,7 @@ class TransactionController {
             $countStmt->execute();
             $totalCount = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
             
-            // Pagina√ß√£o
+            // PaginaÁ„o
             $perPage = defined('ITEMS_PER_PAGE') ? ITEMS_PER_PAGE : 10;
             $totalPages = ceil($totalCount / $perPage);
             $page = max(1, min($page, $totalPages));
@@ -191,30 +191,30 @@ class TransactionController {
             ];
             
         } catch (PDOException $e) {
-            error_log('Erro ao obter transa√ß√µes da loja: ' . $e->getMessage());
-            return ['status' => false, 'message' => 'Erro ao obter transa√ß√µes. Tente novamente.'];
+            error_log('Erro ao obter transaÁıes da loja: ' . $e->getMessage());
+            return ['status' => false, 'message' => 'Erro ao obter transaÁıes. Tente novamente.'];
         }
     }
 
     /**
-    * Obt√©m hist√≥rico de pagamentos com informa√ß√µes de saldo usado
+    * ObtÈm histÛrico de pagamentos com informaÁıes de saldo usado
     * 
     * @param int $storeId ID da loja
     * @param array $filters Filtros adicionais
-    * @param int $page P√°gina atual para pagina√ß√£o
-    * @return array Resultado da opera√ß√£o
+    * @param int $page P·gina atual para paginaÁ„o
+    * @return array Resultado da operaÁ„o
     */
     public static function getPaymentHistoryWithBalance($storeId, $filters = [], $page = 1) {
         try {
             if (!AuthController::isAuthenticated()) {
-                return ['status' => false, 'message' => 'Usu√°rio n√£o autenticado.'];
+                return ['status' => false, 'message' => 'Usu·rio n„o autenticado.'];
             }
             
             $db = Database::getConnection();
             $limit = ITEMS_PER_PAGE;
             $offset = ($page - 1) * $limit;
             
-            // CORRE√á√ÉO MVP: Verificar se a loja √© MVP para incluir transa√ß√µes aprovadas automaticamente
+            // CORRE«√O MVP: Verificar se a loja È MVP para incluir transaÁıes aprovadas automaticamente
             $storeMvpQuery = "SELECT u.mvp FROM lojas l JOIN usuarios u ON l.usuario_id = u.id WHERE l.id = :store_id";
             $storeMvpStmt = $db->prepare($storeMvpQuery);
             $storeMvpStmt->bindParam(':store_id', $storeId);
@@ -222,17 +222,17 @@ class TransactionController {
             $storeMvpResult = $storeMvpStmt->fetch(PDO::FETCH_ASSOC);
             $isStoreMvp = ($storeMvpResult && $storeMvpResult['mvp'] === 'sim');
             
-            error_log("PAYMENT HISTORY DEBUG: Loja {$storeId} - MVP: " . ($isStoreMvp ? 'SIM' : 'N√ÉO'));
+            error_log("PAYMENT HISTORY DEBUG: Loja {$storeId} - MVP: " . ($isStoreMvp ? 'SIM' : 'N√O'));
             
             if ($isStoreMvp) {
-                // LOJA MVP: Mostrar transa√ß√µes aprovadas como "pagamentos" virtuais sem cobran√ßa
-                error_log("PAYMENT HISTORY DEBUG: Usando query MVP para transa√ß√µes aprovadas");
+                // LOJA MVP: Mostrar transaÁıes aprovadas como "pagamentos" virtuais sem cobranÁa
+                error_log("PAYMENT HISTORY DEBUG: Usando query MVP para transaÁıes aprovadas");
                 
-                // Para MVP, construir condi√ß√µes baseadas nas transa√ß√µes aprovadas
+                // Para MVP, construir condiÁıes baseadas nas transaÁıes aprovadas
                 $whereConditions = ["t.loja_id = :loja_id", "t.status = 'aprovado'"];
                 $params = [':loja_id' => $storeId];
                 
-                // Aplicar filtros nas transa√ß√µes
+                // Aplicar filtros nas transaÁıes
                 if (!empty($filters['data_inicio'])) {
                     $whereConditions[] = "DATE(t.data_transacao) >= :data_inicio";
                     $params[':data_inicio'] = $filters['data_inicio'];
@@ -243,15 +243,15 @@ class TransactionController {
                     $params[':data_fim'] = $filters['data_fim'];
                 }
                 
-                // Para MVP, n√£o h√° status de pagamento real, ent√£o ignorar esse filtro ou mapear para aprovado
+                // Para MVP, n„o h· status de pagamento real, ent„o ignorar esse filtro ou mapear para aprovado
                 if (!empty($filters['status']) && $filters['status'] !== 'aprovado') {
-                    // Se filtrar por pendente ou rejeitado, n√£o mostrar nada para MVP
-                    $whereConditions[] = "1 = 0"; // Condi√ß√£o imposs√≠vel
+                    // Se filtrar por pendente ou rejeitado, n„o mostrar nada para MVP
+                    $whereConditions[] = "1 = 0"; // CondiÁ„o impossÌvel
                 }
                 
                 $whereClause = "WHERE " . implode(" AND ", $whereConditions);
                 
-                // Query para transa√ß√µes MVP aprovadas (simular como pagamentos virtuais)
+                // Query para transaÁıes MVP aprovadas (simular como pagamentos virtuais)
                 $paymentsQuery = "
                     SELECT 
                         t.id as id,
@@ -260,7 +260,7 @@ class TransactionController {
                         t.data_transacao as data_registro,
                         t.data_transacao as data_aprovacao,
                         'aprovado' as status,
-                        'Transa√ß√£o MVP - Aprovada automaticamente (sem cobran√ßa de comiss√£o)' as observacao,
+                        'TransaÁ„o MVP - Aprovada automaticamente (sem cobranÁa de comiss„o)' as observacao,
                         1 as qtd_transacoes,
                         t.valor_total as valor_vendas_originais,
                         COALESCE((SELECT SUM(cm.valor) 
@@ -283,8 +283,8 @@ class TransactionController {
                     LIMIT :limit OFFSET :offset
                 ";
             } else {
-                // LOJA NORMAL: Query original com pagamentos de comiss√£o reais
-                error_log("PAYMENT HISTORY DEBUG: Usando query normal para pagamentos de comiss√£o");
+                // LOJA NORMAL: Query original com pagamentos de comiss„o reais
+                error_log("PAYMENT HISTORY DEBUG: Usando query normal para pagamentos de comiss„o");
                 
                 $whereConditions = ["pc.loja_id = :loja_id"];
                 $params = [':loja_id' => $storeId];
@@ -312,7 +312,7 @@ class TransactionController {
                 
                 $whereClause = "WHERE " . implode(" AND ", $whereConditions);
                 
-                // Query original para pagamentos com informa√ß√µes agregadas de saldo
+                // Query original para pagamentos com informaÁıes agregadas de saldo
                 $paymentsQuery = "
                     SELECT 
                         pc.*,
@@ -355,7 +355,7 @@ class TransactionController {
             
             // Query para contar total - DIFERENTES PARA MVP E NORMAL
             if ($isStoreMvp) {
-                // Para MVP, contar transa√ß√µes aprovadas
+                // Para MVP, contar transaÁıes aprovadas
                 $countQuery = "
                     SELECT COUNT(*) as total
                     FROM transacoes_cashback t
@@ -363,7 +363,7 @@ class TransactionController {
                     $whereClause
                 ";
             } else {
-                // Para loja normal, contar pagamentos de comiss√£o
+                // Para loja normal, contar pagamentos de comiss„o
                 $countQuery = "
                     SELECT COUNT(DISTINCT pc.id) as total
                     FROM pagamentos_comissao pc
@@ -380,7 +380,7 @@ class TransactionController {
             $countStmt->execute();
             $totalCount = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
             
-            // Calcular pagina√ß√£o
+            // Calcular paginaÁ„o
             $totalPages = ceil($totalCount / $limit);
             
             return [
@@ -397,59 +397,59 @@ class TransactionController {
             ];
             
         } catch (PDOException $e) {
-            error_log('Erro ao buscar hist√≥rico de pagamentos com saldo: ' . $e->getMessage());
-            return ['status' => false, 'message' => 'Erro ao buscar hist√≥rico de pagamentos.'];
+            error_log('Erro ao buscar histÛrico de pagamentos com saldo: ' . $e->getMessage());
+            return ['status' => false, 'message' => 'Erro ao buscar histÛrico de pagamentos.'];
         }
     }
     /**
-     * Envia notifica√ß√£o WhatsApp para nova transa√ß√£o
-     * Integra com o sistema existente de notifica√ß√µes
+     * Envia notificaÁ„o WhatsApp para nova transaÁ„o
+     * Integra com o sistema existente de notificaÁıes
      */
     private static function sendWhatsAppNotificationNewTransaction($userId, $transactionData) {
         try {
-            // Verificar se WhatsApp est√° habilitado
+            // Verificar se WhatsApp est· habilitado
             if (!defined('WHATSAPP_ENABLED') || !WHATSAPP_ENABLED) {
                 return ['status' => false, 'message' => 'WhatsApp desabilitado'];
             }
             
-            // Incluir a classe WhatsApp se ainda n√£o estiver carregada
+            // Incluir a classe WhatsApp se ainda n„o estiver carregada
             if (!class_exists('WhatsAppBot')) {
                 require_once __DIR__ . '/../utils/WhatsAppBot.php';
             }
             
-            // Obter telefone do usu√°rio
+            // Obter telefone do usu·rio
             $db = Database::getConnection();
             $userStmt = $db->prepare("SELECT telefone FROM usuarios WHERE id = ?");
             $userStmt->execute([$userId]);
             $user = $userStmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$user || empty($user['telefone'])) {
-                error_log("WhatsApp: Usu√°rio {$userId} sem telefone cadastrado");
-                return ['status' => false, 'message' => 'Usu√°rio sem telefone'];
+                error_log("WhatsApp: Usu·rio {$userId} sem telefone cadastrado");
+                return ['status' => false, 'message' => 'Usu·rio sem telefone'];
             }
             
-            // Enviar notifica√ß√£o via WhatsApp
+            // Enviar notificaÁ„o via WhatsApp
             $result = WhatsAppBot::sendNewTransactionNotification($user['telefone'], $transactionData);
             
             if ($result['success']) {
-                error_log("WhatsApp: Notifica√ß√£o de nova transa√ß√£o enviada para {$user['telefone']}");
+                error_log("WhatsApp: NotificaÁ„o de nova transaÁ„o enviada para {$user['telefone']}");
             }
             
             return $result;
             
         } catch (Exception $e) {
-            error_log("WhatsApp: Erro ao enviar notifica√ß√£o de nova transa√ß√£o: " . $e->getMessage());
+            error_log("WhatsApp: Erro ao enviar notificaÁ„o de nova transaÁ„o: " . $e->getMessage());
             return ['status' => false, 'error' => $e->getMessage()];
         }
     }
     /**
-     * NOVO M√âTODO: createNewPixPayment
-     * Gera uma nova transa√ß√£o PIX a cada clique, mantendo transa√ß√µes pendentes vis√≠veis
+     * NOVO M…TODO: createNewPixPayment
+     * Gera uma nova transaÁ„o PIX a cada clique, mantendo transaÁıes pendentes visÌveis
      */
     public static function createNewPixPayment($paymentId, $storeId) {
         try {
             if (!AuthController::isAuthenticated() || !AuthController::isStore()) {
-                return ['status' => false, 'message' => 'Acesso n√£o autorizado.'];
+                return ['status' => false, 'message' => 'Acesso n„o autorizado.'];
             }
             
             $db = Database::getConnection();
@@ -465,7 +465,7 @@ class TransactionController {
             $existingPayment = $checkStmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$existingPayment) {
-                return ['status' => false, 'message' => 'Pagamento n√£o encontrado ou j√° processado.'];
+                return ['status' => false, 'message' => 'Pagamento n„o encontrado ou j· processado.'];
             }
             
             // NOVIDADE: Expirar PIX anterior se existir
@@ -513,8 +513,8 @@ class TransactionController {
                 return ['status' => false, 'message' => 'Erro interno. Tente novamente.'];
             }
             
-            // Log da nova transa√ß√£o
-            error_log("‚úÖ NOVO PIX GERADO - Payment ID: {$paymentId}, MP ID: {$pixData['data']['mp_payment_id']}, Valor: R$ {$existingPayment['valor_total']}");
+            // Log da nova transaÁ„o
+            error_log("? NOVO PIX GERADO - Payment ID: {$paymentId}, MP ID: {$pixData['data']['mp_payment_id']}, Valor: R$ {$existingPayment['valor_total']}");
             
             return [
                 'status' => true,
@@ -535,14 +535,14 @@ class TransactionController {
     }
 
     /**
-     * M√âTODO AUXILIAR: generateMercadoPagoPix
-     * Integra√ß√£o otimizada com Mercado Pago
+     * M…TODO AUXILIAR: generateMercadoPagoPix
+     * IntegraÁ„o otimizada com Mercado Pago
      */
     private static function generateMercadoPagoPix($amount, $paymentId) {
         try {
             $postData = [
                 'transaction_amount' => (float) $amount,
-                'description' => "Comiss√£o Klube Cash - Pagamento #{$paymentId}",
+                'description' => "Comiss„o Klube Cash - Pagamento #{$paymentId}",
                 'payment_method_id' => 'pix',
                 'external_reference' => "KLUBE_PAYMENT_{$paymentId}_" . time(),
                 'notification_url' => MP_WEBHOOK_URL,
@@ -582,8 +582,8 @@ class TransactionController {
             $data = json_decode($response, true);
             
             if (!isset($data['id']) || !isset($data['point_of_interaction']['transaction_data']['qr_code'])) {
-                error_log("Resposta MP inv√°lida: " . $response);
-                return ['status' => false, 'message' => 'Dados PIX inv√°lidos recebidos.'];
+                error_log("Resposta MP inv·lida: " . $response);
+                return ['status' => false, 'message' => 'Dados PIX inv·lidos recebidos.'];
             }
             
             return [
@@ -596,25 +596,25 @@ class TransactionController {
             ];
             
         } catch (Exception $e) {
-            error_log("Exce√ß√£o ao gerar PIX: " . $e->getMessage());
+            error_log("ExceÁ„o ao gerar PIX: " . $e->getMessage());
             return ['status' => false, 'message' => 'Erro interno.'];
         }
     }
     /**
-    * Obt√©m detalhes completos de uma transa√ß√£o espec√≠fica
+    * ObtÈm detalhes completos de uma transaÁ„o especÌfica
     * 
-    * @param int $transactionId ID da transa√ß√£o
-    * @return array Detalhes da transa√ß√£o
+    * @param int $transactionId ID da transaÁ„o
+    * @return array Detalhes da transaÁ„o
     */
     public static function getTransactionDetails($transactionId) {
         try {
             if (!AuthController::isAuthenticated()) {
-                return ['status' => false, 'message' => 'Usu√°rio n√£o autenticado.'];
+                return ['status' => false, 'message' => 'Usu·rio n„o autenticado.'];
             }
             
             $db = Database::getConnection();
             
-            // Buscar detalhes completos da transa√ß√£o
+            // Buscar detalhes completos da transaÁ„o
             $stmt = $db->prepare("
                 SELECT 
                     t.*, 
@@ -638,24 +638,24 @@ class TransactionController {
             $transaction = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$transaction) {
-                return ['status' => false, 'message' => 'Transa√ß√£o n√£o encontrada.'];
+                return ['status' => false, 'message' => 'TransaÁ„o n„o encontrada.'];
             }
             
-            // Verificar permiss√µes - apenas admin ou loja propriet√°ria
+            // Verificar permissıes - apenas admin ou loja propriet·ria
             $currentUserId = AuthController::getCurrentUserId();
             
             if (!AuthController::isAdmin()) {
                 if (AuthController::isStore()) {
-                    // Verificar se √© a loja propriet√°ria
+                    // Verificar se È a loja propriet·ria
                     $storeCheckStmt = $db->prepare("SELECT usuario_id FROM lojas WHERE id = ?");
                     $storeCheckStmt->execute([$transaction['loja_id']]);
                     $storeCheck = $storeCheckStmt->fetch(PDO::FETCH_ASSOC);
                     
                     if (!$storeCheck || $storeCheck['usuario_id'] != $currentUserId) {
-                        return ['status' => false, 'message' => 'Acesso n√£o autorizado a esta transa√ß√£o.'];
+                        return ['status' => false, 'message' => 'Acesso n„o autorizado a esta transaÁ„o.'];
                     }
                 } else {
-                    return ['status' => false, 'message' => 'Acesso n√£o autorizado.'];
+                    return ['status' => false, 'message' => 'Acesso n„o autorizado.'];
                 }
             }
             
@@ -665,21 +665,21 @@ class TransactionController {
             ];
             
         } catch (PDOException $e) {
-            error_log('Erro ao obter detalhes da transa√ß√£o: ' . $e->getMessage());
-            return ['status' => false, 'message' => 'Erro ao obter detalhes da transa√ß√£o.'];
+            error_log('Erro ao obter detalhes da transaÁ„o: ' . $e->getMessage());
+            return ['status' => false, 'message' => 'Erro ao obter detalhes da transaÁ„o.'];
         }
     }
 
     /**
-    * Obt√©m detalhes de um pagamento espec√≠fico com informa√ß√µes de saldo
+    * ObtÈm detalhes de um pagamento especÌfico com informaÁıes de saldo
     * 
     * @param int $paymentId ID do pagamento
-    * @return array Resultado da opera√ß√£o
+    * @return array Resultado da operaÁ„o
     */
     public static function getPaymentDetailsWithBalance($paymentId) {
         try {
             if (!AuthController::isAuthenticated()) {
-                return ['status' => false, 'message' => 'Usu√°rio n√£o autenticado.'];
+                return ['status' => false, 'message' => 'Usu·rio n„o autenticado.'];
             }
             
             $db = Database::getConnection();
@@ -711,28 +711,28 @@ class TransactionController {
             $payment = $paymentStmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$payment) {
-                return ['status' => false, 'message' => 'Pagamento n√£o encontrado.'];
+                return ['status' => false, 'message' => 'Pagamento n„o encontrado.'];
             }
             
-            // Verificar permiss√µes - apenas admin ou loja propriet√°ria
+            // Verificar permissıes - apenas admin ou loja propriet·ria
             $currentUserId = AuthController::getCurrentUserId();
             
             if (!AuthController::isAdmin()) {
                 if (AuthController::isStore()) {
-                    // Verificar se √© a loja propriet√°ria
+                    // Verificar se È a loja propriet·ria
                     $storeCheckStmt = $db->prepare("SELECT usuario_id FROM lojas WHERE id = ?");
                     $storeCheckStmt->execute([$payment['loja_id']]);
                     $storeCheck = $storeCheckStmt->fetch(PDO::FETCH_ASSOC);
                     
                     if (!$storeCheck || $storeCheck['usuario_id'] != $currentUserId) {
-                        return ['status' => false, 'message' => 'Acesso n√£o autorizado a este pagamento.'];
+                        return ['status' => false, 'message' => 'Acesso n„o autorizado a este pagamento.'];
                     }
                 } else {
-                    return ['status' => false, 'message' => 'Acesso n√£o autorizado.'];
+                    return ['status' => false, 'message' => 'Acesso n„o autorizado.'];
                 }
             }
             
-            // Buscar transa√ß√µes do pagamento com informa√ß√µes de saldo
+            // Buscar transaÁıes do pagamento com informaÁıes de saldo
             $transactionsQuery = "
                 SELECT 
                     t.*,
@@ -774,26 +774,26 @@ class TransactionController {
     }
 
     /**
-    * Obt√©m transa√ß√µes pendentes com informa√ß√µes de saldo usado
+    * ObtÈm transaÁıes pendentes com informaÁıes de saldo usado
     * 
     * @param int $storeId ID da loja
     * @param array $filters Filtros adicionais
-    * @param int $page P√°gina atual para pagina√ß√£o
-    * @return array Resultado da opera√ß√£o
+    * @param int $page P·gina atual para paginaÁ„o
+    * @return array Resultado da operaÁ„o
     */
     public static function getPendingTransactionsWithBalance($storeId, $filters = [], $page = 1) {
         try {
             if (!AuthController::isAuthenticated()) {
-                return ['status' => false, 'message' => 'Usu√°rio n√£o autenticado.'];
+                return ['status' => false, 'message' => 'Usu·rio n„o autenticado.'];
             }
             
             $db = Database::getConnection();
             $limit = ITEMS_PER_PAGE;
             $offset = ($page - 1) * $limit;
             
-            // Construir condi√ß√µes WHERE - EXCLUIR TRANSA√á√ïES MVP APROVADAS
-            // Para lojas MVP, transa√ß√µes pendentes indicam problema no sistema
-            // Transa√ß√µes de lojas MVP deveriam estar automaticamente aprovadas
+            // Construir condiÁıes WHERE - EXCLUIR TRANSA«’ES MVP APROVADAS
+            // Para lojas MVP, transaÁıes pendentes indicam problema no sistema
+            // TransaÁıes de lojas MVP deveriam estar automaticamente aprovadas
             $whereConditions = [
                 "t.loja_id = :loja_id", 
                 "t.status = :status"
@@ -803,7 +803,7 @@ class TransactionController {
                 ':status' => TRANSACTION_PENDING
             ];
             
-            // CORRE√á√ÉO: Verificar se a loja √© MVP e ajustar a consulta
+            // CORRE«√O: Verificar se a loja È MVP e ajustar a consulta
             $storeMvpQuery = "SELECT u.mvp FROM lojas l JOIN usuarios u ON l.usuario_id = u.id WHERE l.id = :store_id";
             $storeMvpStmt = $db->prepare($storeMvpQuery);
             $storeMvpStmt->bindParam(':store_id', $storeId);
@@ -811,13 +811,13 @@ class TransactionController {
             $storeMvpResult = $storeMvpStmt->fetch(PDO::FETCH_ASSOC);
             $isStoreMvp = ($storeMvpResult && $storeMvpResult['mvp'] === 'sim');
             
-            // Se for loja MVP, OCULTAR transa√ß√µes pendentes pois elas deveriam estar aprovadas
+            // Se for loja MVP, OCULTAR transaÁıes pendentes pois elas deveriam estar aprovadas
             if ($isStoreMvp) {
-                error_log("PENDENTES DEBUG: Loja {$storeId} √© MVP - OCULTANDO todas as transa√ß√µes pendentes desta tela");
-                // Para lojas MVP, for√ßar query que n√£o retorna nada
-                $whereConditions[] = "1 = 0"; // Condi√ß√£o que nunca √© verdadeira = n√£o mostra nada
+                error_log("PENDENTES DEBUG: Loja {$storeId} È MVP - OCULTANDO todas as transaÁıes pendentes desta tela");
+                // Para lojas MVP, forÁar query que n„o retorna nada
+                $whereConditions[] = "1 = 0"; // CondiÁ„o que nunca È verdadeira = n„o mostra nada
             } else {
-                error_log("PENDENTES DEBUG: Loja {$storeId} n√£o √© MVP - Mostrando todas as pendentes normalmente");
+                error_log("PENDENTES DEBUG: Loja {$storeId} n„o È MVP - Mostrando todas as pendentes normalmente");
             }
             
             // Aplicar filtros
@@ -843,7 +843,7 @@ class TransactionController {
             
             $whereClause = "WHERE " . implode(" AND ", $whereConditions);
             
-            // Query para obter transa√ß√µes com informa√ß√µes de saldo usado
+            // Query para obter transaÁıes com informaÁıes de saldo usado
             $transactionsQuery = "
                 SELECT 
                     t.*,
@@ -874,7 +874,7 @@ class TransactionController {
             
             $transactions = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // Query para contar total de transa√ß√µes
+            // Query para contar total de transaÁıes
             $countQuery = "
                 SELECT COUNT(*) as total
                 FROM transacoes_cashback t
@@ -902,7 +902,7 @@ class TransactionController {
                         AND cm.tipo_operacao = 'uso'
                         AND cm.transacao_uso_id = t.id)
                     ), 0) as total_saldo_usado,
-                    -- CORRE√á√ÉO: Calcular comiss√£o total como 10% do valor efetivamente cobrado
+                    -- CORRE«√O: Calcular comiss„o total como 10% do valor efetivamente cobrado
                     SUM(
                         (t.valor_total - COALESCE(
                             (SELECT SUM(cm.valor) 
@@ -925,7 +925,7 @@ class TransactionController {
             $totalsStmt->execute();
             $totals = $totalsStmt->fetch(PDO::FETCH_ASSOC);
             
-            // Calcular pagina√ß√£o
+            // Calcular paginaÁ„o
             $totalPages = ceil($totalCount / $limit);
             
             return [
@@ -943,33 +943,33 @@ class TransactionController {
             ];
             
         } catch (PDOException $e) {
-            error_log('Erro ao buscar transa√ß√µes pendentes com saldo: ' . $e->getMessage());
-            return ['status' => false, 'message' => 'Erro ao buscar transa√ß√µes pendentes.'];
+            error_log('Erro ao buscar transaÁıes pendentes com saldo: ' . $e->getMessage());
+            return ['status' => false, 'message' => 'Erro ao buscar transaÁıes pendentes.'];
         }
     }
     /**
-    * Registra uma nova transa√ß√£o de cashback
+    * Registra uma nova transaÁ„o de cashback
     * 
-    * @param array $data Dados da transa√ß√£o
-    * @return array Resultado da opera√ß√£o
+    * @param array $data Dados da transaÁ„o
+    * @return array Resultado da operaÁ„o
     */
     public static function registerTransaction($data) {
         try {
-            // Validar dados obrigat√≥rios
+            // Validar dados obrigatÛrios
             $requiredFields = ['loja_id', 'usuario_id', 'valor_total', 'codigo_transacao'];
             foreach ($requiredFields as $field) {
                 if (!isset($data[$field]) || empty($data[$field])) {
-                    return ['status' => false, 'message' => 'Dados da transa√ß√£o incompletos. Campo faltante: ' . $field];
+                    return ['status' => false, 'message' => 'Dados da transaÁ„o incompletos. Campo faltante: ' . $field];
                 }
             }
             
-            // Verificar se o usu√°rio est√° autenticado e √© loja ou admin
+            // Verificar se o usu·rio est· autenticado e È loja ou admin
             if (!AuthController::isAuthenticated()) {
-                return ['status' => false, 'message' => 'Usu√°rio n√£o autenticado.'];
+                return ['status' => false, 'message' => 'Usu·rio n„o autenticado.'];
             }
             
             if (!AuthController::isStore() && !AuthController::isAdmin()) {
-                return ['status' => false, 'message' => 'Apenas lojas e administradores podem registrar transa√ß√µes.'];
+                return ['status' => false, 'message' => 'Apenas lojas e administradores podem registrar transaÁıes.'];
             }
             
             $db = Database::getConnection();
@@ -985,11 +985,11 @@ class TransactionController {
             $user = $userStmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$user) {
-                return ['status' => false, 'message' => 'Cliente n√£o encontrado ou inativo.'];
+                return ['status' => false, 'message' => 'Cliente n„o encontrado ou inativo.'];
             }
             
-            // Verificar se a loja existe e est√° aprovada
-            $isStoreMvp = false; // Default para n√£o-MVP
+            // Verificar se a loja existe e est· aprovada
+            $isStoreMvp = false; // Default para n„o-MVP
             
             try {
                 // Tentar query com campo MVP primeiro
@@ -1011,8 +1011,8 @@ class TransactionController {
                 }
                 
             } catch (PDOException $e) {
-                // Se falhar (campo MVP n√£o existe), usar query b√°sica
-                error_log("MVP FIELD ERROR: " . $e->getMessage() . " - Usando query b√°sica");
+                // Se falhar (campo MVP n„o existe), usar query b·sica
+                error_log("MVP FIELD ERROR: " . $e->getMessage() . " - Usando query b·sica");
                 
                 $storeStmt = $db->prepare("
                     SELECT l.*
@@ -1025,31 +1025,31 @@ class TransactionController {
                 $storeStmt->execute();
                 $store = $storeStmt->fetch(PDO::FETCH_ASSOC);
                 
-                $isStoreMvp = false; // Campo MVP n√£o existe, ent√£o n√£o √© MVP
+                $isStoreMvp = false; // Campo MVP n„o existe, ent„o n„o È MVP
             }
             
             if (!$store) {
-                return ['status' => false, 'message' => 'Loja n√£o encontrada ou n√£o aprovada.'];
+                return ['status' => false, 'message' => 'Loja n„o encontrada ou n„o aprovada.'];
             }
             
             // Log de debug
-            error_log("MVP CHECK: Loja ID {$data['loja_id']} - MVP: " . ($isStoreMvp ? 'SIM' : 'N√ÉO') . " (store_mvp: " . ($store['store_mvp'] ?? 'NULL') . ")");
+            error_log("MVP CHECK: Loja ID {$data['loja_id']} - MVP: " . ($isStoreMvp ? 'SIM' : 'N√O') . " (store_mvp: " . ($store['store_mvp'] ?? 'NULL') . ")");
             
-            // Verificar se o valor da transa√ß√£o √© v√°lido
+            // Verificar se o valor da transaÁ„o È v·lido
             if (!is_numeric($data['valor_total']) || $data['valor_total'] <= 0) {
-                return ['status' => false, 'message' => 'Valor da transa√ß√£o inv√°lido.'];
+                return ['status' => false, 'message' => 'Valor da transaÁ„o inv·lido.'];
             }
             
-            // CORRE√á√ÉO 1: Verificar se vai usar saldo do cliente (aceita tanto string 'sim' quanto boolean true)
+            // CORRE«√O 1: Verificar se vai usar saldo do cliente (aceita tanto string 'sim' quanto boolean true)
             $usarSaldo = (isset($data['usar_saldo']) && ($data['usar_saldo'] === 'sim' || $data['usar_saldo'] === true));
             $valorSaldoUsado = floatval($data['valor_saldo_usado'] ?? 0);
-            $valorOriginal = $data['valor_total']; // Guardar valor original para refer√™ncia
+            $valorOriginal = $data['valor_total']; // Guardar valor original para referÍncia
             
-            // CORRE√á√ÉO 2: Definir $balanceModel ANTES de usar
+            // CORRE«√O 2: Definir $balanceModel ANTES de usar
             require_once __DIR__ . '/../models/CashbackBalance.php';
             $balanceModel = new CashbackBalance();
             
-            // Valida√ß√µes de saldo
+            // ValidaÁıes de saldo
             if ($usarSaldo && $valorSaldoUsado > 0) {
                 // Verificar se o cliente tem saldo suficiente
                 $saldoDisponivel = $balanceModel->getStoreBalance($data['usuario_id'], $data['loja_id']);
@@ -1057,33 +1057,33 @@ class TransactionController {
                 if ($saldoDisponivel < $valorSaldoUsado) {
                     return [
                         'status' => false, 
-                        'message' => 'Saldo insuficiente. Cliente possui R$ ' . number_format($saldoDisponivel, 2, ',', '.') . ' dispon√≠vel.'
+                        'message' => 'Saldo insuficiente. Cliente possui R$ ' . number_format($saldoDisponivel, 2, ',', '.') . ' disponÌvel.'
                     ];
                 }
                 
-                // Validar se o valor do saldo usado n√£o √© maior que o valor total
+                // Validar se o valor do saldo usado n„o È maior que o valor total
                 if ($valorSaldoUsado > $data['valor_total']) {
                     return [
                         'status' => false, 
-                        'message' => 'O valor do saldo usado n√£o pode ser maior que o valor total da venda.'
+                        'message' => 'O valor do saldo usado n„o pode ser maior que o valor total da venda.'
                     ];
                 }
             }
             
-            // CORRE√á√ÉO 3: Calcular valor efetivo SEM alterar $data['valor_total']
+            // CORRE«√O 3: Calcular valor efetivo SEM alterar $data['valor_total']
             $valorEfetivamentePago = $data['valor_total'] - $valorSaldoUsado;
             
-            // Verificar valor m√≠nimo ap√≥s desconto do saldo
+            // Verificar valor mÌnimo apÛs desconto do saldo
             if ($valorEfetivamentePago < 0) {
-                return ['status' => false, 'message' => 'Valor da transa√ß√£o ap√≥s desconto do saldo n√£o pode ser negativo.'];
+                return ['status' => false, 'message' => 'Valor da transaÁ„o apÛs desconto do saldo n„o pode ser negativo.'];
             }
             
-            // Se sobrou algum valor ap√≥s usar saldo, verificar valor m√≠nimo
+            // Se sobrou algum valor apÛs usar saldo, verificar valor mÌnimo
             if ($valorEfetivamentePago > 0 && $valorEfetivamentePago < MIN_TRANSACTION_VALUE) {
-                return ['status' => false, 'message' => 'Valor m√≠nimo para transa√ß√£o (ap√≥s desconto do saldo) √© R$ ' . number_format(MIN_TRANSACTION_VALUE, 2, ',', '.')];
+                return ['status' => false, 'message' => 'Valor mÌnimo para transaÁ„o (apÛs desconto do saldo) È R$ ' . number_format(MIN_TRANSACTION_VALUE, 2, ',', '.')];
             }
             
-            // Verificar se j√° existe uma transa√ß√£o com o mesmo c√≥digo
+            // Verificar se j· existe uma transaÁ„o com o mesmo cÛdigo
             $checkStmt = $db->prepare("
                 SELECT id FROM transacoes_cashback 
                 WHERE codigo_transacao = :codigo_transacao AND loja_id = :loja_id
@@ -1093,25 +1093,25 @@ class TransactionController {
             $checkStmt->execute();
             
             if ($checkStmt->rowCount() > 0) {
-                return ['status' => false, 'message' => 'J√° existe uma transa√ß√£o com este c√≥digo.'];
+                return ['status' => false, 'message' => 'J· existe uma transaÁ„o com este cÛdigo.'];
             }
             
-            // Obter configura√ß√µes de cashback
+            // Obter configuraÁıes de cashback
             $configStmt = $db->prepare("SELECT * FROM configuracoes_cashback ORDER BY id DESC LIMIT 1");
             $configStmt->execute();
             $config = $configStmt->fetch(PDO::FETCH_ASSOC);
             
-            // CORRE√á√ÉO 4: Sempre usar 10% como valor total de cashback (comiss√£o da loja)
+            // CORRE«√O 4: Sempre usar 10% como valor total de cashback (comiss„o da loja)
             $porcentagemTotal = DEFAULT_CASHBACK_TOTAL; // Sempre 10%
             
-            // CORRE√á√ÉO: Garantir que a divis√£o √© sempre 5% cliente, 5% admin
+            // CORRE«√O: Garantir que a divis„o È sempre 5% cliente, 5% admin
             $porcentagemCliente = DEFAULT_CASHBACK_CLIENT; // 5%
             $porcentagemAdmin = DEFAULT_CASHBACK_ADMIN; // 5%
             
-            // CORRE√á√ÉO: Remover qualquer personaliza√ß√£o de porcentagem por loja
-            // Se a configura√ß√£o do sistema for diferente do padr√£o, aplicar ajuste proporcional
+            // CORRE«√O: Remover qualquer personalizaÁ„o de porcentagem por loja
+            // Se a configuraÁ„o do sistema for diferente do padr„o, aplicar ajuste proporcional
             if (isset($config['porcentagem_cliente']) && isset($config['porcentagem_admin'])) {
-                // Verificar se o total configurado √© 10%
+                // Verificar se o total configurado È 10%
                 $configTotal = $config['porcentagem_cliente'] + $config['porcentagem_admin'];
                 
                 if ($configTotal == 10.00) {
@@ -1132,26 +1132,26 @@ class TransactionController {
             // Valor da loja sempre zero
             $valorLoja = 0.00;
             
-            // Iniciar transa√ß√£o no banco de dados
+            // Iniciar transaÁ„o no banco de dados
             $db->beginTransaction();
             
             try {
-                // Definir o status da transa√ß√£o
-                // üéØ MVP: Aprovar automaticamente transa√ß√µes de lojas MVP
+                // Definir o status da transaÁ„o
+                // ?? MVP: Aprovar automaticamente transaÁıes de lojas MVP
                 if ($isStoreMvp) {
                     $transactionStatus = TRANSACTION_APPROVED;
-                    error_log("MVP AUTO-APPROVAL: Transa√ß√£o automaticamente aprovada para loja MVP ID {$data['loja_id']}");
+                    error_log("MVP AUTO-APPROVAL: TransaÁ„o automaticamente aprovada para loja MVP ID {$data['loja_id']}");
                 } else {
                     $transactionStatus = isset($data['status']) ? $data['status'] : TRANSACTION_PENDING;
                 }
                 
-                // Preparar descri√ß√£o da transa√ß√£o
+                // Preparar descriÁ„o da transaÁ„o
                 $descricao = isset($data['descricao']) ? $data['descricao'] : 'Compra na ' . $store['nome_fantasia'];
                 if ($usarSaldo && $valorSaldoUsado > 0) {
                     $descricao .= " (Usado R$ " . number_format($valorSaldoUsado, 2, ',', '.') . " do saldo)";
                 }
                 
-                // Registrar transa√ß√£o principal (com valor original para hist√≥rico)
+                // Registrar transaÁ„o principal (com valor original para histÛrico)
                 $stmt = $db->prepare("
                     INSERT INTO transacoes_cashback (
                         usuario_id, loja_id, valor_total, valor_cashback,
@@ -1181,19 +1181,19 @@ class TransactionController {
                 $stmt->execute();
                 $transactionId = $db->lastInsertId();
                 
-                // === MARCADOR DE TRACE: TransactionController - Nova transa√ß√£o criada ===
+                // === MARCADOR DE TRACE: TransactionController - Nova transaÁ„o criada ===
                 if (file_exists('trace-integration.php')) {
-                    error_log("[TRACE] TransactionController::registerTransaction() - Transa√ß√£o criada com ID: {$transactionId}", 3, 'integration_trace.log');
+                    error_log("[TRACE] TransactionController::registerTransaction() - TransaÁ„o criada com ID: {$transactionId}", 3, 'integration_trace.log');
                 }
                 
-                // === INTEGRA√á√ÉO AUTOM√ÅTICA: Sistema de Notifica√ß√£o Corrigido ===
-                // Disparar notifica√ß√£o para transa√ß√µes pendentes E aprovadas
+                // === INTEGRA«√O AUTOM¡TICA: Sistema de NotificaÁ„o Corrigido ===
+                // Disparar notificaÁ„o para transaÁıes pendentes E aprovadas
                 if ($transactionStatus === TRANSACTION_PENDING || $transactionStatus === TRANSACTION_APPROVED) {
                     try {
-                        // Log de in√≠cio da notifica√ß√£o
-                        error_log("[FIXED] TransactionController::registerTransaction() - Iniciando notifica√ß√£o para ID: {$transactionId}, status: {$transactionStatus}");
+                        // Log de inÌcio da notificaÁ„o
+                        error_log("[FIXED] TransactionController::registerTransaction() - Iniciando notificaÁ„o para ID: {$transactionId}, status: {$transactionStatus}");
 
-                        // NOTIFICA√á√ÉO ULTRA DIRETA VIA WHATSAPP (M√°xima Prioridade)
+                        // NOTIFICA«√O ULTRA DIRETA VIA WHATSAPP (M·xima Prioridade)
                         $ultraDirectPath = __DIR__ . '/../classes/UltraDirectNotifier.php';
                         $immediateSystemPath = __DIR__ . '/../classes/ImmediateNotificationSystem.php';
                         $fallbackSystemPath = __DIR__ . '/../classes/FixedBrutalNotificationSystem.php';
@@ -1201,14 +1201,14 @@ class TransactionController {
                         $result = ['success' => false, 'message' => 'Nenhum sistema encontrado'];
                         $systemUsed = 'none';
 
-                        // 1Ô∏è‚É£ PRIORIDADE M√ÅXIMA: UltraDirectNotifier (Direto no bot)
+                        // 1?? PRIORIDADE M¡XIMA: UltraDirectNotifier (Direto no bot)
                         if (file_exists($ultraDirectPath)) {
                             require_once $ultraDirectPath;
                             if (class_exists('UltraDirectNotifier')) {
-                                error_log("[ULTRA] Usando UltraDirectNotifier para transa√ß√£o {$transactionId}");
+                                error_log("[ULTRA] Usando UltraDirectNotifier para transaÁ„o {$transactionId}");
                                 $notifier = new UltraDirectNotifier();
 
-                                // Buscar dados da transa√ß√£o para envio (m√©todo est√°tico)
+                                // Buscar dados da transaÁ„o para envio (mÈtodo est·tico)
                                 $db = Database::getConnection();
                                 $stmt = $db->prepare("
                                     SELECT t.*, u.nome as cliente_nome, u.telefone as cliente_telefone, l.nome_fantasia as loja_nome
@@ -1231,11 +1231,11 @@ class TransactionController {
                             }
                         }
 
-                        // 2Ô∏è‚É£ Fallback: Sistema imediato
+                        // 2?? Fallback: Sistema imediato
                         if (!$result['success'] && file_exists($immediateSystemPath)) {
                             require_once $immediateSystemPath;
                             if (class_exists('ImmediateNotificationSystem')) {
-                                error_log("[IMMEDIATE] Usando sistema de notifica√ß√£o imediata para transa√ß√£o {$transactionId}");
+                                error_log("[IMMEDIATE] Usando sistema de notificaÁ„o imediata para transaÁ„o {$transactionId}");
                                 $notificationSystem = new ImmediateNotificationSystem();
                                 $result = $notificationSystem->sendImmediateNotification($transactionId);
                                 $systemUsed = 'ImmediateNotificationSystem (fallback)';
@@ -1246,7 +1246,7 @@ class TransactionController {
                         if (!$result['success'] && file_exists($fallbackSystemPath)) {
                             require_once $fallbackSystemPath;
                             if (class_exists('FixedBrutalNotificationSystem')) {
-                                error_log("[FALLBACK] Usando sistema fallback para transa√ß√£o {$transactionId}");
+                                error_log("[FALLBACK] Usando sistema fallback para transaÁ„o {$transactionId}");
                                 $notificationSystem = new FixedBrutalNotificationSystem();
                                 $result = $notificationSystem->forceNotifyTransaction($transactionId);
                                 $systemUsed = 'FixedBrutalNotificationSystem (fallback)';
@@ -1257,34 +1257,34 @@ class TransactionController {
                         if ($result['success']) {
                             $method = $result['method_used'] ?? 'unknown';
                             $timeInfo = isset($result['all_results']) ? $this->getTimeInfo($result['all_results']) : '';
-                            error_log("[SUCCESS] TransactionController - Notifica√ß√£o enviada via {$systemUsed} usando m√©todo {$method} para transa√ß√£o {$transactionId}{$timeInfo}");
+                            error_log("[SUCCESS] TransactionController - NotificaÁ„o enviada via {$systemUsed} usando mÈtodo {$method} para transaÁ„o {$transactionId}{$timeInfo}");
                         } else {
-                            error_log("[FAIL] TransactionController - Falha na notifica√ß√£o para transa√ß√£o {$transactionId} via {$systemUsed}: " . $result['message']);
+                            error_log("[FAIL] TransactionController - Falha na notificaÁ„o para transaÁ„o {$transactionId} via {$systemUsed}: " . $result['message']);
                         }
 
                     } catch (Exception $e) {
-                        // Log de erro mas n√£o quebrar o fluxo principal
-                        error_log("[FIXED] TransactionController - Erro na notifica√ß√£o para transa√ß√£o {$transactionId}: " . $e->getMessage());
+                        // Log de erro mas n„o quebrar o fluxo principal
+                        error_log("[FIXED] TransactionController - Erro na notificaÁ„o para transaÁ„o {$transactionId}: " . $e->getMessage());
                     }
                 }
                 
-                // MVP ser√° processado AP√ìS o commit para evitar transa√ß√µes aninhadas
+                // MVP ser· processado AP”S o commit para evitar transaÁıes aninhadas
                 
-                // CORRE√á√ÉO 5: Se usou saldo, debitar do saldo do cliente IMEDIATAMENTE
+                // CORRE«√O 5: Se usou saldo, debitar do saldo do cliente IMEDIATAMENTE
                 if ($usarSaldo && $valorSaldoUsado > 0) {
-                    $descricaoUso = "Uso do saldo na compra - C√≥digo: " . $data['codigo_transacao'] . " - Transa√ß√£o #" . $transactionId;
+                    $descricaoUso = "Uso do saldo na compra - CÛdigo: " . $data['codigo_transacao'] . " - TransaÁ„o #" . $transactionId;
                     
                     error_log("REGISTRO: Tentando debitar saldo - Usuario: {$data['usuario_id']}, Loja: {$data['loja_id']}, Valor: {$valorSaldoUsado}");
                     
                     $debitResult = $balanceModel->useBalance($data['usuario_id'], $data['loja_id'], $valorSaldoUsado, $descricaoUso, $transactionId);
                     
                     if (!$debitResult) {
-                        // Se falhou ao debitar saldo, reverter transa√ß√£o
+                        // Se falhou ao debitar saldo, reverter transaÁ„o
                         if ($db->inTransaction()) {
                             $db->rollBack();
                         }
-                        error_log("REGISTRO: FALHA ao debitar saldo - revertendo transa√ß√£o");
-                        return ['status' => false, 'message' => 'Erro ao debitar saldo do cliente. Transa√ß√£o cancelada.'];
+                        error_log("REGISTRO: FALHA ao debitar saldo - revertendo transaÁ„o");
+                        return ['status' => false, 'message' => 'Erro ao debitar saldo do cliente. TransaÁ„o cancelada.'];
                     }
                     
                     error_log("REGISTRO: Saldo debitado com sucesso");
@@ -1301,7 +1301,7 @@ class TransactionController {
                     $useSaldoStmt->execute();
                 }
                 
-                // Registrar comiss√£o para o administrador (sobre valor efetivamente pago)
+                // Registrar comiss„o para o administrador (sobre valor efetivamente pago)
                 if ($valorCashbackAdmin > 0) {
                     $comissionAdminStmt = $db->prepare("
                         INSERT INTO transacoes_comissao (
@@ -1314,7 +1314,7 @@ class TransactionController {
                     ");
                     
                     $tipoAdmin = USER_TYPE_ADMIN;
-                    $adminId = 1; // Administrador padr√£o
+                    $adminId = 1; // Administrador padr„o
                     
                     $comissionAdminStmt->bindParam(':tipo_usuario', $tipoAdmin);
                     $comissionAdminStmt->bindParam(':usuario_id', $adminId);
@@ -1330,33 +1330,33 @@ class TransactionController {
                 
                 // Preparar mensagem de sucesso
                 if ($isStoreMvp) {
-                    $successMessage = 'üéâ Transa√ß√£o MVP aprovada instantaneamente! Cashback creditado automaticamente.';
+                    $successMessage = '?? TransaÁ„o MVP aprovada instantaneamente! Cashback creditado automaticamente.';
                 } else {
-                    $successMessage = 'Transa√ß√£o registrada com sucesso!';
+                    $successMessage = 'TransaÁ„o registrada com sucesso!';
                 }
                 
                 if ($usarSaldo && $valorSaldoUsado > 0) {
                     $successMessage .= ' Saldo de R$ ' . number_format($valorSaldoUsado, 2, ',', '.') . ' foi usado na compra.';
                 }
                 
-                // Criar notifica√ß√£o para o cliente (apenas se n√£o for MVP, pois MVP j√° criou notifica√ß√£o especial)
+                // Criar notificaÁ„o para o cliente (apenas se n„o for MVP, pois MVP j· criou notificaÁ„o especial)
                 if (!$isStoreMvp) {
-                    $notificationMessage = 'Voc√™ tem um novo cashback de R$ ' . number_format($valorCashbackCliente, 2, ',', '.') . ' pendente da loja ' . $store['nome_fantasia'];
+                    $notificationMessage = 'VocÍ tem um novo cashback de R$ ' . number_format($valorCashbackCliente, 2, ',', '.') . ' pendente da loja ' . $store['nome_fantasia'];
                     if ($usarSaldo && $valorSaldoUsado > 0) {
-                        $notificationMessage .= '. Voc√™ usou R$ ' . number_format($valorSaldoUsado, 2, ',', '.') . ' do seu saldo nesta compra.';
+                        $notificationMessage .= '. VocÍ usou R$ ' . number_format($valorSaldoUsado, 2, ',', '.') . ' do seu saldo nesta compra.';
                     }
                     
                     // self::createNotification(
                     //     $data['usuario_id'],
-                    //     'Nova transa√ß√£o registrada',
+                    //     'Nova transaÁ„o registrada',
                     //     $notificationMessage,
                     //     'info'
                     // );
                 }
-                // INTEGRA√á√ÉO WHATSAPP: Com tratamento de erro aprimorado
+                // INTEGRA«√O WHATSAPP: Com tratamento de erro aprimorado
                 if (defined('WHATSAPP_ENABLED') && WHATSAPP_ENABLED && $valorCashbackCliente > 0) {
                     try {
-                        // Carregar as classes necess√°rias para WhatsApp
+                        // Carregar as classes necess·rias para WhatsApp
                         if (!class_exists('WhatsAppBot')) {
                             require_once __DIR__ . '/../utils/WhatsAppBot.php';
                         }
@@ -1368,35 +1368,35 @@ class TransactionController {
                         
                         // Verificar se o cliente tem WhatsApp cadastrado
                         if ($userData && !empty($userData['telefone'])) {
-                            // Preparar as informa√ß√µes da transa√ß√£o para a mensagem WhatsApp
+                            // Preparar as informaÁıes da transaÁ„o para a mensagem WhatsApp
                             $whatsappData = [
-                                'valor_cashback' => $valorCashbackCliente, // Valor do cashback desta transa√ß√£o
-                                'valor_usado' => $valorSaldoUsado ?? 0, // Valor usado do saldo (se aplic√°vel)
+                                'valor_cashback' => $valorCashbackCliente, // Valor do cashback desta transaÁ„o
+                                'valor_usado' => $valorSaldoUsado ?? 0, // Valor usado do saldo (se aplic·vel)
                                 'nome_loja' => $store['nome_fantasia'] // Nome da loja onde a compra foi realizada
                             ];
                             
-                            // Enviar a notifica√ß√£o via WhatsApp usando nosso template espec√≠fico
+                            // Enviar a notificaÁ„o via WhatsApp usando nosso template especÌfico
                             $whatsappResult = WhatsAppBot::sendNewTransactionNotification(
                                 $userData['telefone'], 
                                 $whatsappData
                             );
                             
-                            // O resultado ser√° automaticamente registrado em nosso sistema de logs
-                            // Voc√™ poder√° acompanhar o sucesso ou falha na interface de monitoramento
+                            // O resultado ser· automaticamente registrado em nosso sistema de logs
+                            // VocÍ poder· acompanhar o sucesso ou falha na interface de monitoramento
                         }
                     } catch (Throwable $e) {
-                        // Capturar TODOS os tipos de erro (Exception, Error, etc.) sem interromper a transa√ß√£o
-                        // Isso garante que o sistema principal continue funcionando mesmo se houver problema cr√≠tico com WhatsApp
-                        error_log("WhatsApp Nova Transa√ß√£o - Erro cr√≠tico: " . $e->getMessage() . " em " . $e->getFile() . ":" . $e->getLine());
-                        // N√£o relan√ßar a exce√ß√£o para n√£o afetar o fluxo principal
+                        // Capturar TODOS os tipos de erro (Exception, Error, etc.) sem interromper a transaÁ„o
+                        // Isso garante que o sistema principal continue funcionando mesmo se houver problema crÌtico com WhatsApp
+                        error_log("WhatsApp Nova TransaÁ„o - Erro crÌtico: " . $e->getMessage() . " em " . $e->getFile() . ":" . $e->getLine());
+                        // N„o relanÁar a exceÁ„o para n„o afetar o fluxo principal
                     }
                 }
-                // Enviar email para o cliente (opcional, pode remover se n√£o quiser)
+                // Enviar email para o cliente (opcional, pode remover se n„o quiser)
                 if (!empty($user['email'])) {
                     $subject = 'Novo Cashback Pendente - Klube Cash';
                     $emailMessage = "
-                        <h3>Ol√°, {$user['nome']}!</h3>
-                        <p>Uma nova transa√ß√£o foi registrada em sua conta no Klube Cash.</p>
+                        <h3>Ol·, {$user['nome']}!</h3>
+                        <p>Uma nova transaÁ„o foi registrada em sua conta no Klube Cash.</p>
                         <p><strong>Loja:</strong> {$store['nome_fantasia']}</p>
                         <p><strong>Valor total da compra:</strong> R$ " . number_format($valorOriginal, 2, ',', '.') . "</p>";
                     
@@ -1408,22 +1408,22 @@ class TransactionController {
                     $emailMessage .= "
                         <p><strong>Cashback (pendente):</strong> R$ " . number_format($valorCashbackCliente, 2, ',', '.') . "</p>
                         <p><strong>Data:</strong> " . date('d/m/Y H:i', strtotime($dataTransacao)) . "</p>
-                        <p>O cashback ser√° disponibilizado assim que a loja confirmar o pagamento da comiss√£o.</p>
+                        <p>O cashback ser· disponibilizado assim que a loja confirmar o pagamento da comiss„o.</p>
                         <p>Atenciosamente,<br>Equipe Klube Cash</p>
                     ";
                     
                     // Email::send($user['email'], $subject, $emailMessage, $user['nome']); // Descomente se quiser enviar email
                 }
                 
-                // Confirmar transa√ß√£o
+                // Confirmar transaÁ„o
                 $db->commit();
                 
-                // üéØ MVP: Processar cashback instantaneamente AP√ìS commit para evitar transa√ß√µes aninhadas
+                // ?? MVP: Processar cashback instantaneamente AP”S commit para evitar transaÁıes aninhadas
                 if ($isStoreMvp && $valorCashbackCliente > 0) {
-                    error_log("MVP CASHBACK: Processando cashback instant√¢neo para loja MVP - Valor: R$ {$valorCashbackCliente}");
+                    error_log("MVP CASHBACK: Processando cashback instant‚neo para loja MVP - Valor: R$ {$valorCashbackCliente}");
                     
                     // Creditar cashback imediatamente
-                    $descricaoCashback = "Cashback MVP - Compra aprovada instantaneamente - C√≥digo: " . $data['codigo_transacao'];
+                    $descricaoCashback = "Cashback MVP - Compra aprovada instantaneamente - CÛdigo: " . $data['codigo_transacao'];
                     $creditResult = $balanceModel->addBalance(
                         $data['usuario_id'], 
                         $data['loja_id'], 
@@ -1433,17 +1433,17 @@ class TransactionController {
                     );
                     
                     if ($creditResult) {
-                        error_log("MVP CASHBACK: Cashback creditado com sucesso - R$ {$valorCashbackCliente} para usu√°rio {$data['usuario_id']}");
+                        error_log("MVP CASHBACK: Cashback creditado com sucesso - R$ {$valorCashbackCliente} para usu·rio {$data['usuario_id']}");
                         
-                        // Criar notifica√ß√£o especial para MVP (temporariamente comentado)
+                        // Criar notificaÁ„o especial para MVP (temporariamente comentado)
                         // self::createNotification(
                         //     $data['usuario_id'],
-                        //     'Cashback MVP Creditado! üéâ',
+                        //     'Cashback MVP Creditado! ??',
                         //     "Seu cashback de R$ " . number_format($valorCashbackCliente, 2, ',', '.') . " foi creditado instantaneamente! Loja MVP: " . $store['nome_fantasia'],
                         //     'success'
                         // );
                     } else {
-                        error_log("MVP CASHBACK: ERRO ao creditar cashback para usu√°rio {$data['usuario_id']}");
+                        error_log("MVP CASHBACK: ERRO ao creditar cashback para usu·rio {$data['usuario_id']}");
                     }
                 }
                 
@@ -1464,7 +1464,7 @@ class TransactionController {
                 ];
                 
             } catch (Exception $e) {
-                // Reverter transa√ß√£o em caso de erro
+                // Reverter transaÁ„o em caso de erro
                 if ($db->inTransaction()) {
                     $db->rollBack();
                 }
@@ -1472,7 +1472,7 @@ class TransactionController {
             }
             
         } catch (Exception $e) {
-            // Reverter transa√ß√£o em caso de erro
+            // Reverter transaÁ„o em caso de erro
             if (isset($db) && $db->inTransaction()) {
                 $db->rollBack();
             }
@@ -1481,10 +1481,10 @@ class TransactionController {
             error_log('Arquivo: ' . $e->getFile() . ' - Linha: ' . $e->getLine());
             error_log('Stack trace completo: ' . $e->getTraceAsString());
             
-            // Se for o erro espec√≠fico de transa√ß√£o, vamos dar mais detalhes
+            // Se for o erro especÌfico de transaÁ„o, vamos dar mais detalhes
             if (strpos($e->getMessage(), 'There is no active transaction') !== false) {
-                error_log('PROBLEMA DE TRANSA√á√ÉO DETECTADO - Investigando origem...');
-                error_log('Estado atual do DB: inTransaction = ' . ($db->inTransaction() ? 'SIM' : 'N√ÉO'));
+                error_log('PROBLEMA DE TRANSA«√O DETECTADO - Investigando origem...');
+                error_log('Estado atual do DB: inTransaction = ' . ($db->inTransaction() ? 'SIM' : 'N√O'));
             }
             
             return ['status' => false, 'message' => 'Erro: ' . $e->getMessage()];
@@ -1492,25 +1492,25 @@ class TransactionController {
     }
     
     /**
-     * Vers√£o limpa e funcional do registro de transa√ß√µes com funcionalidade MVP
+     * Vers„o limpa e funcional do registro de transaÁıes com funcionalidade MVP
      */
     public static function registerTransactionFixed($data) {
         try {
-            // Validar dados obrigat√≥rios
+            // Validar dados obrigatÛrios
             $requiredFields = ['loja_id', 'usuario_id', 'valor_total', 'codigo_transacao'];
             foreach ($requiredFields as $field) {
                 if (!isset($data[$field]) || empty($data[$field])) {
-                    return ['status' => false, 'message' => 'Dados da transa√ß√£o incompletos. Campo faltante: ' . $field];
+                    return ['status' => false, 'message' => 'Dados da transaÁ„o incompletos. Campo faltante: ' . $field];
                 }
             }
 
-            // Verificar autentica√ß√£o
+            // Verificar autenticaÁ„o
             if (!AuthController::isAuthenticated()) {
-                return ['status' => false, 'message' => 'Usu√°rio n√£o autenticado.'];
+                return ['status' => false, 'message' => 'Usu·rio n„o autenticado.'];
             }
 
             if (!AuthController::isStore() && !AuthController::isAdmin()) {
-                return ['status' => false, 'message' => 'Apenas lojas e administradores podem registrar transa√ß√µes.'];
+                return ['status' => false, 'message' => 'Apenas lojas e administradores podem registrar transaÁıes.'];
             }
 
             $db = Database::getConnection();
@@ -1521,7 +1521,7 @@ class TransactionController {
             $user = $userStmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$user) {
-                return ['status' => false, 'message' => 'Cliente n√£o encontrado ou inativo.'];
+                return ['status' => false, 'message' => 'Cliente n„o encontrado ou inativo.'];
             }
 
             // Verificar loja e MVP
@@ -1535,10 +1535,10 @@ class TransactionController {
             $store = $storeStmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$store) {
-                return ['status' => false, 'message' => 'Loja n√£o encontrada ou n√£o aprovada.'];
+                return ['status' => false, 'message' => 'Loja n„o encontrada ou n„o aprovada.'];
             }
 
-            // Obter configura√ß√µes de cashback da loja
+            // Obter configuraÁıes de cashback da loja
             $storeConfigQuery = $db->prepare("
                 SELECT l.*, u.mvp,
                        COALESCE(l.porcentagem_cliente, 5.00) as porcentagem_cliente,
@@ -1553,31 +1553,31 @@ class TransactionController {
             $storeConfig = $storeConfigQuery->fetch(PDO::FETCH_ASSOC);
 
             if (!$storeConfig) {
-                return ['status' => false, 'message' => 'Loja n√£o encontrada.'];
+                return ['status' => false, 'message' => 'Loja n„o encontrada.'];
             }
 
             if ($storeConfig['cashback_ativo'] != 1) {
-                return ['status' => false, 'message' => 'Esta loja n√£o oferece cashback no momento.'];
+                return ['status' => false, 'message' => 'Esta loja n„o oferece cashback no momento.'];
             }
 
             $isStoreMvp = ($storeConfig['mvp'] === 'sim');
 
-            // Validar valor da transa√ß√£o
+            // Validar valor da transaÁ„o
             $valorOriginal = (float) $data['valor_total'];
             if (!is_numeric($valorOriginal) || $valorOriginal <= 0) {
-                return ['status' => false, 'message' => 'Valor da transa√ß√£o inv√°lido.'];
+                return ['status' => false, 'message' => 'Valor da transaÁ„o inv·lido.'];
             }
 
             if ($valorOriginal < MIN_TRANSACTION_VALUE) {
-                return ['status' => false, 'message' => 'Valor m√≠nimo para transa√ß√£o √© R$ ' . number_format(MIN_TRANSACTION_VALUE, 2, ',', '.')];
+                return ['status' => false, 'message' => 'Valor mÌnimo para transaÁ„o È R$ ' . number_format(MIN_TRANSACTION_VALUE, 2, ',', '.')];
             }
 
-            // Verificar c√≥digo duplicado
+            // Verificar cÛdigo duplicado
             $checkStmt = $db->prepare("SELECT id FROM transacoes_cashback WHERE codigo_transacao = ? AND loja_id = ?");
             $checkStmt->execute([$data['codigo_transacao'], $data['loja_id']]);
 
             if ($checkStmt->rowCount() > 0) {
-                return ['status' => false, 'message' => 'J√° existe uma transa√ß√£o com este c√≥digo.'];
+                return ['status' => false, 'message' => 'J· existe uma transaÁ„o com este cÛdigo.'];
             }
 
             // Preparar uso de saldo
@@ -1600,7 +1600,7 @@ class TransactionController {
             $valorEfetivamentePago = $valorOriginal;
             if ($usarSaldo) {
                 if ($valorSaldoUsado > $valorOriginal) {
-                    return ['status' => false, 'message' => 'O valor do saldo usado n√£o pode ser maior que o valor total da venda.'];
+                    return ['status' => false, 'message' => 'O valor do saldo usado n„o pode ser maior que o valor total da venda.'];
                 }
 
                 if (!class_exists('CashbackBalance')) {
@@ -1613,14 +1613,14 @@ class TransactionController {
                 if ($saldoDisponivel + 0.0001 < $valorSaldoUsado) {
                     return [
                         'status' => false,
-                        'message' => 'Saldo insuficiente. Cliente possui R$ ' . number_format($saldoDisponivel, 2, ',', '.') . ' dispon√≠vel.'
+                        'message' => 'Saldo insuficiente. Cliente possui R$ ' . number_format($saldoDisponivel, 2, ',', '.') . ' disponÌvel.'
                     ];
                 }
 
                 $valorEfetivamentePago = max(0, round($valorOriginal - $valorSaldoUsado, 2));
 
                 if ($valorEfetivamentePago > 0 && $valorEfetivamentePago < MIN_TRANSACTION_VALUE) {
-                    return ['status' => false, 'message' => 'Valor m√≠nimo para transa√ß√£o (ap√≥s desconto do saldo) √© R$ ' . number_format(MIN_TRANSACTION_VALUE, 2, ',', '.')];
+                    return ['status' => false, 'message' => 'Valor mÌnimo para transaÁ„o (apÛs desconto do saldo) È R$ ' . number_format(MIN_TRANSACTION_VALUE, 2, ',', '.')];
                 }
             }
 
@@ -1634,19 +1634,19 @@ class TransactionController {
             $valorCashbackTotal = $valorCashbackCliente + $valorCashbackAdmin;
             $valorLoja = 0.00;
 
-            error_log('CASHBACK CONFIG: Loja ' . $data['loja_id'] . ' - Cliente: ' . $porcentagemCliente . '%, Admin: ' . $porcentagemAdmin . '%, MVP: ' . ($isStoreMvp ? 'SIM' : 'N√ÉO') . ', Base c√°lculo: R$ ' . number_format($valorEfetivamentePago, 2, ',', '.'));
+            error_log('CASHBACK CONFIG: Loja ' . $data['loja_id'] . ' - Cliente: ' . $porcentagemCliente . '%, Admin: ' . $porcentagemAdmin . '%, MVP: ' . ($isStoreMvp ? 'SIM' : 'N√O') . ', Base c·lculo: R$ ' . number_format($valorEfetivamentePago, 2, ',', '.'));
 
-            // Definir status da transa√ß√£o
+            // Definir status da transaÁ„o
             $transactionStatus = $isStoreMvp ? TRANSACTION_APPROVED : (isset($data['status']) ? $data['status'] : TRANSACTION_PENDING);
 
-            // Preparar descri√ß√£o e data
+            // Preparar descriÁ„o e data
             $descricao = isset($data['descricao']) ? $data['descricao'] : 'Compra na ' . $store['nome_fantasia'];
             if ($usarSaldo && $valorSaldoUsado > 0) {
                 $descricao .= ' (Usado R$ ' . number_format($valorSaldoUsado, 2, ',', '.') . ' do saldo)';
             }
             $dataTransacao = isset($data['data_transacao']) ? $data['data_transacao'] : date('Y-m-d H:i:s');
 
-            // Inserir transa√ß√£o
+            // Inserir transaÁ„o
             $db->beginTransaction();
 
             $insertStmt = $db->prepare("
@@ -1675,7 +1675,7 @@ class TransactionController {
                 if ($db->inTransaction()) {
                     $db->rollBack();
                 }
-                return ['status' => false, 'message' => 'Falha ao inserir transa√ß√£o no banco.'];
+                return ['status' => false, 'message' => 'Falha ao inserir transaÁ„o no banco.'];
             }
 
             $transactionId = $db->lastInsertId();
@@ -1689,12 +1689,12 @@ class TransactionController {
                     $balanceModel = new CashbackBalance();
                 }
 
-                $descricaoUso = 'Uso do saldo na compra - C√≥digo: ' . $data['codigo_transacao'] . ' - Transa√ß√£o #' . $transactionId;
+                $descricaoUso = 'Uso do saldo na compra - CÛdigo: ' . $data['codigo_transacao'] . ' - TransaÁ„o #' . $transactionId;
                 if (!$balanceModel->useBalance($data['usuario_id'], $data['loja_id'], $valorSaldoUsado, $descricaoUso, $transactionId)) {
                     if ($db->inTransaction()) {
                         $db->rollBack();
                     }
-                    return ['status' => false, 'message' => 'Erro ao debitar saldo do cliente. Transa√ß√£o cancelada.'];
+                    return ['status' => false, 'message' => 'Erro ao debitar saldo do cliente. TransaÁ„o cancelada.'];
                 }
 
                 $useSaldoStmt = $db->prepare("
@@ -1713,13 +1713,13 @@ class TransactionController {
                     $updateSaldoColStmt->bindParam(':id', $transactionId, PDO::PARAM_INT);
                     $updateSaldoColStmt->execute();
                 } catch (PDOException $saldoColumnException) {
-                    error_log('registerTransactionFixed: coluna saldo_usado indispon√≠vel - ' . $saldoColumnException->getMessage());
+                    error_log('registerTransactionFixed: coluna saldo_usado indisponÌvel - ' . $saldoColumnException->getMessage());
                 }
             }
 
-            // Integra√ß√£o UltraDirectNotifier (prioridade m√°xima)
+            // IntegraÁ„o UltraDirectNotifier (prioridade m·xima)
             try {
-                error_log('[ULTRA] TransactionController::registerTransactionFixed() - Disparando notifica√ß√£o ULTRA para transa√ß√£o ' . $transactionId);
+                error_log('[ULTRA] TransactionController::registerTransactionFixed() - Disparando notificaÁ„o ULTRA para transaÁ„o ' . $transactionId);
 
                 $ultraPath = __DIR__ . '/../classes/UltraDirectNotifier.php';
                 if (file_exists($ultraPath)) {
@@ -1740,29 +1740,29 @@ class TransactionController {
                         $result = $notifier->notifyTransaction($transactionData);
                         error_log('[ULTRA] registerTransactionFixed - Resultado: ' . ($result['success'] ? 'SUCESSO' : 'FALHA') . ' em ' . ($result['time_ms'] ?? 0) . 'ms');
                     } else {
-                        error_log('[ULTRA] TransactionController::registerTransactionFixed() - Classe UltraDirectNotifier n√£o encontrada');
-                        $result = ['success' => false, 'message' => 'Classe UltraDirectNotifier n√£o encontrada'];
+                        error_log('[ULTRA] TransactionController::registerTransactionFixed() - Classe UltraDirectNotifier n„o encontrada');
+                        $result = ['success' => false, 'message' => 'Classe UltraDirectNotifier n„o encontrada'];
                     }
                 } else {
-                    error_log('[ULTRA] TransactionController::registerTransactionFixed() - Arquivo n√£o encontrado: ' . $ultraPath);
-                    $result = ['success' => false, 'message' => 'UltraDirectNotifier n√£o encontrado'];
+                    error_log('[ULTRA] TransactionController::registerTransactionFixed() - Arquivo n„o encontrado: ' . $ultraPath);
+                    $result = ['success' => false, 'message' => 'UltraDirectNotifier n„o encontrado'];
                 }
 
                 if ($result['success']) {
-                    error_log('[ULTRA] TransactionController::registerTransactionFixed() - Notifica√ß√£o ULTRA enviada com sucesso!');
+                    error_log('[ULTRA] TransactionController::registerTransactionFixed() - NotificaÁ„o ULTRA enviada com sucesso!');
                 } else {
-                    error_log('[ULTRA] TransactionController::registerTransactionFixed() - Falha na notifica√ß√£o ULTRA: ' . ($result['error'] ?? $result['message']));
+                    error_log('[ULTRA] TransactionController::registerTransactionFixed() - Falha na notificaÁ„o ULTRA: ' . ($result['error'] ?? $result['message']));
                 }
 
             } catch (Exception $e) {
-                error_log('[ULTRA] TransactionController::registerTransactionFixed() - Erro na notifica√ß√£o ULTRA: ' . $e->getMessage());
+                error_log('[ULTRA] TransactionController::registerTransactionFixed() - Erro na notificaÁ„o ULTRA: ' . $e->getMessage());
             }
 
             $db->commit();
 
             $successMessage = $isStoreMvp ?
-                'üéâ Transa√ß√£o MVP aprovada instantaneamente! Cashback creditado automaticamente.' :
-                'Transa√ß√£o registrada com sucesso!';
+                '?? TransaÁ„o MVP aprovada instantaneamente! Cashback creditado automaticamente.' :
+                'TransaÁ„o registrada com sucesso!';
 
             if ($usarSaldo && $valorSaldoUsado > 0) {
                 $successMessage .= ' Saldo de R$ ' . number_format($valorSaldoUsado, 2, ',', '.') . ' foi usado na compra.';
@@ -1856,92 +1856,29 @@ class TransactionController {
             }
 
             error_log('Erro em registerTransactionFixed: ' . $e->getMessage());
-            return ['status' => false, 'message' => 'Erro ao registrar transa√ß√£o. Tente novamente.'];
+            return ['status' => false, 'message' => 'Erro ao registrar transaÁ„o. Tente novamente.'];
         }
     }
 
     
-    public function getClientTransactionsPWA($clientId, $filtros = [], $limit = 20, $offset = 0) {
-        try {
-            $sql = "
-                SELECT 
-                    t.id,
-                    t.valor_total,
-                    t.valor_cashback,
-                    t.saldo_usado,
-                    t.data_transacao,
-                    t.status,
-                    t.tipo,
-                    l.nome_fantasia as nome_loja,
-                    l.id as loja_id
-                FROM transacoes_cashback t
-                INNER JOIN lojas l ON t.loja_id = l.id
-                WHERE t.usuario_id = ?
-            ";
-            
-            $params = [$clientId];
-            
-            // Aplicar filtros
-            if (!empty($filtros['data_inicio'])) {
-                $sql .= " AND DATE(t.data_transacao) >= ?";
-                $params[] = $filtros['data_inicio'];
-            }
-            
-            if (!empty($filtros['data_fim'])) {
-                $sql .= " AND DATE(t.data_transacao) <= ?";
-                $params[] = $filtros['data_fim'];
-            }
-            
-            if (!empty($filtros['status'])) {
-                $sql .= " AND t.status = ?";
-                $params[] = $filtros['status'];
-            }
-            
-            if (!empty($filtros['loja_id'])) {
-                $sql .= " AND t.loja_id = ?";
-                $params[] = $filtros['loja_id'];
-            }
-            
-            if (!empty($filtros['tipo'])) {
-                if ($filtros['tipo'] === 'cashback') {
-                    $sql .= " AND t.tipo = 'cashback'";
-                } elseif ($filtros['tipo'] === 'uso_saldo') {
-                    $sql .= " AND t.saldo_usado > 0";
-                }
-            }
-            
-            $sql .= " ORDER BY t.data_transacao DESC LIMIT ? OFFSET ?";
-            $params[] = $limit;
-            $params[] = $offset;
-            
-            $stmt = $this->conn->prepare($sql);
-            $stmt->execute($params);
-            
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-        } catch (Exception $e) {
-            error_log('Erro ao buscar transa√ß√µes PWA: ' . $e->getMessage());
-            return [];
-        }
-    }
 
 
     /**
-     * Processa transa√ß√µes em lote a partir de um arquivo CSV
+     * Processa transaÁıes em lote a partir de um arquivo CSV
      * 
      * @param array $file Arquivo enviado ($_FILES['arquivo'])
      * @param int $storeId ID da loja
-     * @return array Resultado da opera√ß√£o
+     * @return array Resultado da operaÁ„o
      */
     public static function processBatchTransactions($file, $storeId) {
         try {
-            // Verificar se o usu√°rio est√° autenticado e √© loja ou admin
+            // Verificar se o usu·rio est· autenticado e È loja ou admin
             if (!AuthController::isAuthenticated()) {
-                return ['status' => false, 'message' => 'Usu√°rio n√£o autenticado.'];
+                return ['status' => false, 'message' => 'Usu·rio n„o autenticado.'];
             }
             
             if (!AuthController::isStore() && !AuthController::isAdmin()) {
-                return ['status' => false, 'message' => 'Apenas lojas e administradores podem registrar transa√ß√µes em lote.'];
+                return ['status' => false, 'message' => 'Apenas lojas e administradores podem registrar transaÁıes em lote.'];
             }
             
             // Validar o arquivo
@@ -1949,12 +1886,12 @@ class TransactionController {
                 return ['status' => false, 'message' => 'Erro no upload do arquivo.'];
             }
             
-            // Verificar extens√£o
+            // Verificar extens„o
             $fileInfo = pathinfo($file['name']);
             $extension = strtolower($fileInfo['extension']);
             
             if ($extension !== 'csv') {
-                return ['status' => false, 'message' => 'Apenas arquivos CSV s√£o permitidos.'];
+                return ['status' => false, 'message' => 'Apenas arquivos CSV s„o permitidos.'];
             }
             
             // Verificar se a loja existe
@@ -1966,7 +1903,7 @@ class TransactionController {
             $storeStmt->execute();
             
             if ($storeStmt->rowCount() == 0) {
-                return ['status' => false, 'message' => 'Loja n√£o encontrada ou n√£o aprovada.'];
+                return ['status' => false, 'message' => 'Loja n„o encontrada ou n„o aprovada.'];
             }
             
             // Ler o arquivo CSV
@@ -1974,18 +1911,18 @@ class TransactionController {
             $handle = fopen($filePath, 'r');
             
             if (!$handle) {
-                return ['status' => false, 'message' => 'N√£o foi poss√≠vel abrir o arquivo.'];
+                return ['status' => false, 'message' => 'N„o foi possÌvel abrir o arquivo.'];
             }
             
-            // Ler cabe√ßalho
+            // Ler cabeÁalho
             $header = fgetcsv($handle, 1000, ',');
             
             if (!$header || count($header) < 3) {
                 fclose($handle);
-                return ['status' => false, 'message' => 'Formato de arquivo inv√°lido. Verifique o modelo.'];
+                return ['status' => false, 'message' => 'Formato de arquivo inv·lido. Verifique o modelo.'];
             }
             
-            // Verificar colunas necess√°rias
+            // Verificar colunas necess·rias
             $requiredColumns = ['email', 'valor', 'codigo_transacao'];
             $headerMap = [];
             
@@ -2002,7 +1939,7 @@ class TransactionController {
                 
                 if (!$found) {
                     fclose($handle);
-                    return ['status' => false, 'message' => 'Coluna obrigat√≥ria n√£o encontrada: ' . $required];
+                    return ['status' => false, 'message' => 'Coluna obrigatÛria n„o encontrada: ' . $required];
                 }
             }
             
@@ -2012,7 +1949,7 @@ class TransactionController {
             $errorCount = 0;
             $errors = [];
             
-            // Iniciar transa√ß√£o de banco de dados
+            // Iniciar transaÁ„o de banco de dados
             $db->beginTransaction();
             
             while (($row = fgetcsv($handle, 1000, ',')) !== false) {
@@ -2023,7 +1960,7 @@ class TransactionController {
                 $valor = str_replace(['R$', '.', ','], ['', '', '.'], trim($row[$headerMap['valor']]));
                 $codigoTransacao = trim($row[$headerMap['codigo_transacao']]);
                 
-                // Obter descri√ß√£o se existir
+                // Obter descriÁ„o se existir
                 $descricao = '';
                 if (isset($headerMap['descricao']) && isset($row[$headerMap['descricao']])) {
                     $descricao = trim($row[$headerMap['descricao']]);
@@ -2041,7 +1978,7 @@ class TransactionController {
                     }
                 }
                 
-                // Valida√ß√µes b√°sicas
+                // ValidaÁıes b·sicas
                 if (empty($email) || empty($valor) || empty($codigoTransacao)) {
                     $errorCount++;
                     $errors[] = "Linha {$totalProcessed}: Dados incompletos";
@@ -2050,11 +1987,11 @@ class TransactionController {
                 
                 if (!is_numeric($valor) || $valor <= 0) {
                     $errorCount++;
-                    $errors[] = "Linha {$totalProcessed}: Valor inv√°lido";
+                    $errors[] = "Linha {$totalProcessed}: Valor inv·lido";
                     continue;
                 }
                 
-                // Buscar ID do usu√°rio pelo email
+                // Buscar ID do usu·rio pelo email
                 $userStmt = $db->prepare("SELECT id FROM usuarios WHERE email = :email AND tipo = :tipo AND status = :status");
                 $userStmt->bindParam(':email', $email);
                 $tipoCliente = USER_TYPE_CLIENT;
@@ -2066,11 +2003,11 @@ class TransactionController {
                 
                 if (!$user) {
                     $errorCount++;
-                    $errors[] = "Linha {$totalProcessed}: Cliente com email {$email} n√£o encontrado ou inativo";
+                    $errors[] = "Linha {$totalProcessed}: Cliente com email {$email} n„o encontrado ou inativo";
                     continue;
                 }
                 
-                // Verificar se j√° existe transa√ß√£o com este c√≥digo
+                // Verificar se j· existe transaÁ„o com este cÛdigo
                 $checkStmt = $db->prepare("
                     SELECT id FROM transacoes_cashback 
                     WHERE codigo_transacao = :codigo_transacao AND loja_id = :loja_id
@@ -2081,7 +2018,7 @@ class TransactionController {
                 
                 if ($checkStmt->rowCount() > 0) {
                     $errorCount++;
-                    $errors[] = "Linha {$totalProcessed}: Transa√ß√£o com c√≥digo {$codigoTransacao} j√° existe";
+                    $errors[] = "Linha {$totalProcessed}: TransaÁ„o com cÛdigo {$codigoTransacao} j· existe";
                     continue;
                 }
                 
@@ -2095,7 +2032,7 @@ class TransactionController {
                     'data_transacao' => $dataTransacao
                 ];
                 
-                // Registrar transa√ß√£o
+                // Registrar transaÁ„o
                 $result = self::registerTransaction($transactionData);
                 
                 if ($result['status']) {
@@ -2108,12 +2045,12 @@ class TransactionController {
             
             fclose($handle);
             
-            // Finalizar transa√ß√£o
+            // Finalizar transaÁ„o
             if ($errorCount == 0) {
                 $db->commit();
                 return [
                     'status' => true,
-                    'message' => "Processamento conclu√≠do com sucesso. {$successCount} transa√ß√µes registradas.",
+                    'message' => "Processamento concluÌdo com sucesso. {$successCount} transaÁıes registradas.",
                     'data' => [
                         'total_processado' => $totalProcessed,
                         'sucesso' => $successCount,
@@ -2126,7 +2063,7 @@ class TransactionController {
                 }
                 return [
                     'status' => false,
-                    'message' => "Processamento conclu√≠do com erros. Nenhuma transa√ß√£o foi registrada.",
+                    'message' => "Processamento concluÌdo com erros. Nenhuma transaÁ„o foi registrada.",
                     'data' => [
                         'total_processado' => $totalProcessed,
                         'sucesso' => 0,
@@ -2137,34 +2074,34 @@ class TransactionController {
             }
             
         } catch (Exception $e) {
-            // Reverter transa√ß√£o em caso de erro
+            // Reverter transaÁ„o em caso de erro
             if (isset($db) && $db->inTransaction()) {
                 $db->rollBack();
             }
             
-            error_log('Erro ao processar transa√ß√µes em lote: ' . $e->getMessage());
-            return ['status' => false, 'message' => 'Erro ao processar transa√ß√µes em lote. Tente novamente.'];
+            error_log('Erro ao processar transaÁıes em lote: ' . $e->getMessage());
+            return ['status' => false, 'message' => 'Erro ao processar transaÁıes em lote. Tente novamente.'];
         }
     }
     
     /**
-    * Registra pagamento de comiss√µes (VERS√ÉO CORRIGIDA)
+    * Registra pagamento de comissıes (VERS√O CORRIGIDA)
     * 
     * @param array $data Dados do pagamento
-    * @return array Resultado da opera√ß√£o
+    * @return array Resultado da operaÁ„o
     */
     public static function registerPayment($data) {
         try {
             error_log("registerPayment - Dados recebidos: " . print_r($data, true));
             
-            // Valida√ß√£o b√°sica
+            // ValidaÁ„o b·sica
             if (!isset($data['loja_id']) || !isset($data['transacoes']) || !isset($data['valor_total'])) {
-                return ['status' => false, 'message' => 'Dados obrigat√≥rios faltando'];
+                return ['status' => false, 'message' => 'Dados obrigatÛrios faltando'];
             }
             
-            // Verificar se o usu√°rio est√° autenticado e √© loja ou admin
+            // Verificar se o usu·rio est· autenticado e È loja ou admin
             if (!AuthController::isAuthenticated()) {
-                return ['status' => false, 'message' => 'Usu√°rio n√£o autenticado.'];
+                return ['status' => false, 'message' => 'Usu·rio n„o autenticado.'];
             }
             
             if (!AuthController::isStore() && !AuthController::isAdmin()) {
@@ -2173,17 +2110,17 @@ class TransactionController {
             
             $db = Database::getConnection();
             
-            // Converter transa√ß√µes para array se necess√°rio
+            // Converter transaÁıes para array se necess·rio
             $transactionIds = is_array($data['transacoes']) ? $data['transacoes'] : explode(',', $data['transacoes']);
             $transactionIds = array_map('intval', $transactionIds);
             
             if (empty($transactionIds)) {
-                return ['status' => false, 'message' => 'Nenhuma transa√ß√£o selecionada'];
+                return ['status' => false, 'message' => 'Nenhuma transaÁ„o selecionada'];
             }
             
             error_log("registerPayment - IDs: " . implode(',', $transactionIds));
             
-            // CORRE√á√ÉO: Validar se todas as transa√ß√µes existem e calcular valor total correto
+            // CORRE«√O: Validar se todas as transaÁıes existem e calcular valor total correto
             $placeholders = implode(',', array_fill(0, count($transactionIds), '?'));
             $validateStmt = $db->prepare("
                 SELECT 
@@ -2199,15 +2136,15 @@ class TransactionController {
             $validateStmt->execute($validateParams);
             $transactions = $validateStmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // Verificar se todas as transa√ß√µes foram encontradas
+            // Verificar se todas as transaÁıes foram encontradas
             if (count($transactions) !== count($transactionIds)) {
                 return [
                     'status' => false, 
-                    'message' => 'Algumas transa√ß√µes n√£o foram encontradas ou n√£o est√£o pendentes. Esperado: ' . count($transactionIds) . ', Encontrado: ' . count($transactions)
+                    'message' => 'Algumas transaÁıes n„o foram encontradas ou n„o est„o pendentes. Esperado: ' . count($transactionIds) . ', Encontrado: ' . count($transactions)
                 ];
             }
             
-            // CORRE√á√ÉO: Calcular valor total correto (soma das comiss√µes totais)
+            // CORRE«√O: Calcular valor total correto (soma das comissıes totais)
             $totalCalculated = 0;
             foreach ($transactions as $transaction) {
                 $totalCalculated += $transaction['comissao_total'];
@@ -2220,16 +2157,16 @@ class TransactionController {
                 return [
                     'status' => false, 
                     'message' => 'Valor total informado (R$ ' . number_format($valorInformado, 2, ',', '.') . 
-                    ') n√£o confere com o valor das transa√ß√µes selecionadas (R$ ' . number_format($totalCalculated, 2, ',', '.') . ')'
+                    ') n„o confere com o valor das transaÁıes selecionadas (R$ ' . number_format($totalCalculated, 2, ',', '.') . ')'
                 ];
             }
             
-            // Validar valores num√©ricos
+            // Validar valores numÈricos
             if ($valorInformado <= 0) {
                 return ['status' => false, 'message' => 'Valor total deve ser maior que zero'];
             }
             
-            // Iniciar transa√ß√£o no banco de dados
+            // Iniciar transaÁ„o no banco de dados
             $db->beginTransaction();
             
             try {
@@ -2242,7 +2179,7 @@ class TransactionController {
                 
                 $result = $stmt->execute([
                     $data['loja_id'],
-                    $totalCalculated, // Usar valor calculado para garantir precis√£o
+                    $totalCalculated, // Usar valor calculado para garantir precis„o
                     $data['metodo_pagamento'] ?? 'pix',
                     $data['numero_referencia'] ?? '',
                     $data['comprovante'] ?? '',
@@ -2256,44 +2193,44 @@ class TransactionController {
                 $paymentId = $db->lastInsertId();
                 error_log("registerPayment - Payment ID criado: $paymentId");
                 
-                // 2. Associar transa√ß√µes ao pagamento
+                // 2. Associar transaÁıes ao pagamento
                 $assocStmt = $db->prepare("INSERT INTO pagamentos_transacoes (pagamento_id, transacao_id) VALUES (?, ?)");
                 
                 foreach ($transactionIds as $transId) {
                     $assocResult = $assocStmt->execute([$paymentId, $transId]);
                     if (!$assocResult) {
-                        throw new Exception("Erro ao associar transa√ß√£o $transId");
+                        throw new Exception("Erro ao associar transaÁ„o $transId");
                     }
-                    error_log("registerPayment - Transa√ß√£o $transId associada");
+                    error_log("registerPayment - TransaÁ„o $transId associada");
                 }
                 
-                // 3. Atualizar status das transa√ß√µes
+                // 3. Atualizar status das transaÁıes
                 $placeholders = implode(',', array_fill(0, count($transactionIds), '?'));
                 $updateStmt = $db->prepare("UPDATE transacoes_cashback SET status = 'pagamento_pendente' WHERE id IN ($placeholders)");
                 
                 $updateResult = $updateStmt->execute($transactionIds);
                 if (!$updateResult) {
-                    throw new Exception('Erro ao atualizar status das transa√ß√µes');
+                    throw new Exception('Erro ao atualizar status das transaÁıes');
                 }
                 
-                // 4. Criar notifica√ß√£o para admin
+                // 4. Criar notificaÁ„o para admin
                 self::createNotification(
-                    1, // Admin padr√£o
+                    1, // Admin padr„o
                     'Novo pagamento registrado',
-                    'Nova solicita√ß√£o de pagamento de comiss√£o de R$ ' . number_format($totalCalculated, 2, ',', '.') . ' aguardando aprova√ß√£o.',
+                    'Nova solicitaÁ„o de pagamento de comiss„o de R$ ' . number_format($totalCalculated, 2, ',', '.') . ' aguardando aprovaÁ„o.',
                     'info'
                 );
                 
                 // 5. Log de sucesso
-                error_log("registerPayment - Pagamento registrado com sucesso: ID=$paymentId, Valor=$totalCalculated, Transa√ß√µes=" . implode(',', $transactionIds));
+                error_log("registerPayment - Pagamento registrado com sucesso: ID=$paymentId, Valor=$totalCalculated, TransaÁıes=" . implode(',', $transactionIds));
                 
-                // Commit da transa√ß√£o
+                // Commit da transaÁ„o
                 $db->commit();
                 error_log("registerPayment - Sucesso total!");
                 
                 return [
                     'status' => true,
-                    'message' => 'Pagamento registrado com sucesso! Aguardando aprova√ß√£o da administra√ß√£o.',
+                    'message' => 'Pagamento registrado com sucesso! Aguardando aprovaÁ„o da administraÁ„o.',
                     'data' => [
                         'payment_id' => $paymentId,
                         'valor_total' => $totalCalculated,
@@ -2306,7 +2243,7 @@ class TransactionController {
                 if ($db->inTransaction()) {
                     $db->rollBack();
                 }
-                error_log("registerPayment - Erro durante transa√ß√£o: " . $e->getMessage());
+                error_log("registerPayment - Erro durante transaÁ„o: " . $e->getMessage());
                 throw $e;
             }
             
@@ -2324,22 +2261,22 @@ class TransactionController {
 
     
     /**
-    * Aprova um pagamento de comiss√£o
+    * Aprova um pagamento de comiss„o
     * 
     * @param int $paymentId ID do pagamento
-    * @param string $observacao Observa√ß√£o opcional
-    * @return array Resultado da opera√ß√£o
+    * @param string $observacao ObservaÁ„o opcional
+    * @return array Resultado da operaÁ„o
     */
     public static function approvePayment($paymentId, $observacao = '') {
         try {
-            // Verificar se o usu√°rio est√° autenticado e √© administrador
+            // Verificar se o usu·rio est· autenticado e È administrador
             if (!AuthController::isAuthenticated() || !AuthController::isAdmin()) {
                 return ['status' => false, 'message' => 'Acesso restrito a administradores.'];
             }
             
             $db = Database::getConnection();
             
-            // Verificar se o pagamento existe e est√° pendente
+            // Verificar se o pagamento existe e est· pendente
             $paymentStmt = $db->prepare("
                 SELECT p.*, l.nome_fantasia as loja_nome
                 FROM pagamentos_comissao p
@@ -2350,10 +2287,10 @@ class TransactionController {
             $payment = $paymentStmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$payment) {
-                return ['status' => false, 'message' => 'Pagamento n√£o encontrado ou n√£o est√° pendente.'];
+                return ['status' => false, 'message' => 'Pagamento n„o encontrado ou n„o est· pendente.'];
             }
             
-            // Obter transa√ß√µes associadas ao pagamento ANTES de iniciar a transa√ß√£o
+            // Obter transaÁıes associadas ao pagamento ANTES de iniciar a transaÁ„o
             $transStmt = $db->prepare("
                 SELECT t.id, t.usuario_id, t.loja_id, t.valor_cliente
                 FROM pagamentos_transacoes pt
@@ -2364,10 +2301,10 @@ class TransactionController {
             $transactions = $transStmt->fetchAll(PDO::FETCH_ASSOC);
             
             if (count($transactions) == 0) {
-                return ['status' => false, 'message' => 'Nenhuma transa√ß√£o encontrada para este pagamento.'];
+                return ['status' => false, 'message' => 'Nenhuma transaÁ„o encontrada para este pagamento.'];
             }
             
-            // Iniciar transa√ß√£o principal
+            // Iniciar transaÁ„o principal
             $db->beginTransaction();
             
             try {
@@ -2383,7 +2320,7 @@ class TransactionController {
                     throw new Exception('Erro ao atualizar status do pagamento');
                 }
                 
-                // 2. Atualizar status das transa√ß√µes
+                // 2. Atualizar status das transaÁıes
                 $transactionIds = array_column($transactions, 'id');
                 $placeholders = implode(',', array_fill(0, count($transactionIds), '?'));
                 
@@ -2395,10 +2332,10 @@ class TransactionController {
                 $updateTransResult = $updateTransStmt->execute($transactionIds);
                 
                 if (!$updateTransResult) {
-                    throw new Exception('Erro ao atualizar status das transa√ß√µes');
+                    throw new Exception('Erro ao atualizar status das transaÁıes');
                 }
                 
-                // 3. Atualizar comiss√µes
+                // 3. Atualizar comissıes
                 $updateCommissionStmt = $db->prepare("
                     UPDATE transacoes_comissao 
                     SET status = 'aprovado' 
@@ -2407,14 +2344,14 @@ class TransactionController {
                 $updateCommissionResult = $updateCommissionStmt->execute($transactionIds);
                 
                 if (!$updateCommissionResult) {
-                    throw new Exception('Erro ao atualizar status das comiss√µes');
+                    throw new Exception('Erro ao atualizar status das comissıes');
                 }
                 
-                // Commit da transa√ß√£o principal ANTES de creditar saldos
+                // Commit da transaÁ„o principal ANTES de creditar saldos
                 $db->commit();
-                error_log("APROVA√á√ÉO: Transa√ß√£o principal commitada com sucesso");
+                error_log("APROVA«√O: TransaÁ„o principal commitada com sucesso");
                 
-                // 4. Creditar saldos FORA da transa√ß√£o principal para evitar conflitos
+                // 4. Creditar saldos FORA da transaÁ„o principal para evitar conflitos
                 require_once __DIR__ . '/../models/CashbackBalance.php';
                 require_once __DIR__ . '/AdminController.php';
                 $balanceModel = new CashbackBalance();
@@ -2423,7 +2360,7 @@ class TransactionController {
                 
                 foreach ($transactions as $transaction) {
                     if ($transaction['valor_cliente'] > 0) {
-                        $description = "Cashback da compra - Transa√ß√£o #{$transaction['id']} (Pagamento #{$paymentId} aprovado)";
+                        $description = "Cashback da compra - TransaÁ„o #{$transaction['id']} (Pagamento #{$paymentId} aprovado)";
                         
                         $creditResult = $balanceModel->addBalance(
                             $transaction['usuario_id'],
@@ -2436,14 +2373,14 @@ class TransactionController {
                         if ($creditResult) {
                             $saldosCreditados++;
                             $totalCashbackReservado += $transaction['valor_cliente']; // NOVO
-                            error_log("APROVA√á√ÉO: Saldo creditado com sucesso - Transa√ß√£o: {$transaction['id']}");
+                            error_log("APROVA«√O: Saldo creditado com sucesso - TransaÁ„o: {$transaction['id']}");
                         } else {
-                            error_log("APROVA√á√ÉO: ERRO ao creditar saldo - Transa√ß√£o: {$transaction['id']}");
+                            error_log("APROVA«√O: ERRO ao creditar saldo - TransaÁ„o: {$transaction['id']}");
                         }
                     }
                 }
                 
-                // NOVO: 5. Criar reserva de cashback ap√≥s creditar saldos dos clientes
+                // NOVO: 5. Criar reserva de cashback apÛs creditar saldos dos clientes
                 if ($totalCashbackReservado > 0) {
                     $reservaResult = self::createCashbackReserve(
                         $totalCashbackReservado, 
@@ -2452,15 +2389,15 @@ class TransactionController {
                     );
                     
                     if (!$reservaResult) {
-                        error_log("APROVA√á√ÉO: ERRO ao criar reserva de cashback para pagamento #{$paymentId}");
+                        error_log("APROVA«√O: ERRO ao criar reserva de cashback para pagamento #{$paymentId}");
                     } else {
-                        error_log("APROVA√á√ÉO: Reserva de cashback criada: R$ {$totalCashbackReservado}");
+                        error_log("APROVA«√O: Reserva de cashback criada: R$ {$totalCashbackReservado}");
                     }
                 }
                 
-                // Atualizar saldo do administrador (ap√≥s o commit principal)
+                // Atualizar saldo do administrador (apÛs o commit principal)
                 foreach ($transactions as $transaction) {
-                    // Obter valor da comiss√£o do admin para esta transa√ß√£o
+                    // Obter valor da comiss„o do admin para esta transaÁ„o
                     $adminComissionStmt = $db->prepare("
                         SELECT valor_comissao 
                         FROM transacoes_comissao 
@@ -2470,7 +2407,7 @@ class TransactionController {
                     $adminComission = $adminComissionStmt->fetch(PDO::FETCH_ASSOC);
                     
                     if ($adminComission && $adminComission['valor_comissao'] > 0) {
-                        $descricao = "Comiss√£o da transa√ß√£o #{$transaction['id']} - Pagamento #{$paymentId} aprovado";
+                        $descricao = "Comiss„o da transaÁ„o #{$transaction['id']} - Pagamento #{$paymentId} aprovado";
                         
                         $updateResult = AdminController::updateAdminBalance(
                             $adminComission['valor_comissao'],
@@ -2479,12 +2416,12 @@ class TransactionController {
                         );
                         
                         if (!$updateResult) {
-                            error_log("APROVA√á√ÉO: Falha ao atualizar saldo admin para transa√ß√£o #{$transaction['id']}");
+                            error_log("APROVA«√O: Falha ao atualizar saldo admin para transaÁ„o #{$transaction['id']}");
                         }
                     }
                 }
                 
-                // 5. Criar notifica√ß√µes (fora da transa√ß√£o)
+                // 5. Criar notificaÁıes (fora da transaÁ„o)
                 $clienteNotificados = [];
                 foreach ($transactions as $transaction) {
                     if (!in_array($transaction['usuario_id'], $clienteNotificados)) {
@@ -2504,13 +2441,13 @@ class TransactionController {
                             $clientTransStmt->execute($params);
                             $clientTrans = $clientTransStmt->fetch(PDO::FETCH_ASSOC);
                             
-                            // Criar notifica√ß√£o
+                            // Criar notificaÁ„o
                             if ($clientTrans['total_trans'] > 0) {
                                 self::createNotification(
                                     $transaction['usuario_id'],
-                                    'Cashback dispon√≠vel!',
+                                    'Cashback disponÌvel!',
                                     'Seu cashback de R$ ' . number_format($clientTrans['total_cashback'], 2, ',', '.') . 
-                                    ' da loja ' . $payment['loja_nome'] . ' est√° dispon√≠vel.',
+                                    ' da loja ' . $payment['loja_nome'] . ' est· disponÌvel.',
                                     'success'
                                 );
                                 
@@ -2529,7 +2466,7 @@ class TransactionController {
                     self::createNotification(
                         $storeUser['usuario_id'],
                         'Pagamento aprovado',
-                        'Seu pagamento de comiss√£o no valor de R$ ' . number_format($payment['valor_total'], 2, ',', '.') . ' foi aprovado.',
+                        'Seu pagamento de comiss„o no valor de R$ ' . number_format($payment['valor_total'], 2, ',', '.') . ' foi aprovado.',
                         'success'
                     );
                 }
@@ -2545,26 +2482,26 @@ class TransactionController {
                 ];
                 
             } catch (Exception $e) {
-                // Rollback apenas se a transa√ß√£o ainda estiver ativa
+                // Rollback apenas se a transaÁ„o ainda estiver ativa
                 if ($db->inTransaction()) {
                     $db->rollBack();
-                    error_log('APROVA√á√ÉO: Rollback executado devido ao erro: ' . $e->getMessage());
+                    error_log('APROVA«√O: Rollback executado devido ao erro: ' . $e->getMessage());
                 }
                 throw $e;
             }
             
         } catch (Exception $e) {
-            error_log('APROVA√á√ÉO: Erro geral ao aprovar pagamento: ' . $e->getMessage());
+            error_log('APROVA«√O: Erro geral ao aprovar pagamento: ' . $e->getMessage());
             return ['status' => false, 'message' => 'Erro ao aprovar pagamento: ' . $e->getMessage()];
         }
     }
     /**
-    * NOVO M√âTODO: Cria reserva de cashback
+    * NOVO M…TODO: Cria reserva de cashback
     * 
     * @param float $valor Valor a ser reservado
-    * @param int $transacaoId ID da transa√ß√£o relacionada
-    * @param string $descricao Descri√ß√£o da opera√ß√£o
-    * @return bool Resultado da opera√ß√£o
+    * @param int $transacaoId ID da transaÁ„o relacionada
+    * @param string $descricao DescriÁ„o da operaÁ„o
+    * @return bool Resultado da operaÁ„o
     */
     private static function createCashbackReserve($valor, $transacaoId = null, $descricao = '') {
         try {
@@ -2576,7 +2513,7 @@ class TransactionController {
             $reserva = $reservaStmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$reserva) {
-                // Criar registro inicial se n√£o existir
+                // Criar registro inicial se n„o existir
                 $createStmt = $db->prepare("
                     INSERT INTO admin_reserva_cashback (id, valor_total, valor_disponivel, valor_usado) 
                     VALUES (1, 0, 0, 0)
@@ -2589,10 +2526,10 @@ class TransactionController {
                 ];
             }
             
-            // Calcular novos valores (CR√âDITO = cashback disponibilizado para clientes)
+            // Calcular novos valores (CR…DITO = cashback disponibilizado para clientes)
             $novoTotal = $reserva['valor_total'] + $valor;
             $novoDisponivel = $reserva['valor_disponivel'] + $valor;
-            $novoUsado = $reserva['valor_usado']; // N√£o muda ainda
+            $novoUsado = $reserva['valor_usado']; // N„o muda ainda
             
             // Atualizar reserva
             $updateStmt = $db->prepare("
@@ -2602,7 +2539,7 @@ class TransactionController {
             ");
             $updateStmt->execute([$novoTotal, $novoDisponivel, $novoUsado]);
             
-            // Registrar movimenta√ß√£o
+            // Registrar movimentaÁ„o
             $movStmt = $db->prepare("
                 INSERT INTO admin_reserva_movimentacoes (transacao_id, valor, tipo, descricao) 
                 VALUES (?, ?, 'credito', ?)
@@ -2643,12 +2580,12 @@ class TransactionController {
             ");
             $updateStmt->execute([$valor, $valor]);
             
-            // Registrar movimenta√ß√£o
+            // Registrar movimentaÁ„o
             $movStmt = $db->prepare("
                 INSERT INTO admin_saldo_movimentacoes (transacao_id, valor, tipo, descricao) 
                 VALUES (?, ?, 'credito', ?)
             ");
-            $descricao = "Comiss√£o da transa√ß√£o #{$transacaoId} - Pagamento PIX #{$paymentId} aprovado automaticamente";
+            $descricao = "Comiss„o da transaÁ„o #{$transacaoId} - Pagamento PIX #{$paymentId} aprovado automaticamente";
             $movStmt->execute([$transacaoId, $valor, $descricao]);
             
             return true;
@@ -2662,7 +2599,7 @@ class TransactionController {
         try {
             $db = Database::getConnection();
             
-            // Iniciar transa√ß√£o
+            // Iniciar transaÁ„o
             $db->beginTransaction();
             
             // Buscar dados do pagamento
@@ -2677,10 +2614,10 @@ class TransactionController {
                 if ($db->inTransaction()) {
                     $db->rollBack();
                 }
-                return ['status' => false, 'message' => 'Pagamento n√£o encontrado ou j√° processado'];
+                return ['status' => false, 'message' => 'Pagamento n„o encontrado ou j· processado'];
             }
             
-            // Buscar transa√ß√µes relacionadas
+            // Buscar transaÁıes relacionadas
             $transactionsStmt = $db->prepare("
                 SELECT tc.*, cm.valor_usado 
                 FROM pagamentos_transacoes pt
@@ -2700,7 +2637,7 @@ class TransactionController {
                 if ($db->inTransaction()) {
                     $db->rollBack();
                 }
-                return ['status' => false, 'message' => 'Nenhuma transa√ß√£o encontrada para este pagamento'];
+                return ['status' => false, 'message' => 'Nenhuma transaÁ„o encontrada para este pagamento'];
             }
             
             // Atualizar status do pagamento
@@ -2716,9 +2653,9 @@ class TransactionController {
             $totalCashbackLiberado = 0;
             $transacoesAprovadas = 0;
             
-            // Processar cada transa√ß√£o
+            // Processar cada transaÁ„o
             foreach ($transactions as $transaction) {
-                // Atualizar status da transa√ß√£o para 'aprovado'
+                // Atualizar status da transaÁ„o para 'aprovado'
                 $updateTransactionStmt = $db->prepare("
                     UPDATE transacoes_cashback 
                     SET status = 'aprovado' 
@@ -2730,7 +2667,7 @@ class TransactionController {
                 $cashbackValue = $transaction['valor_cliente'];
                 $totalCashbackLiberado += $cashbackValue;
                 
-                // Verificar se o saldo j√° existe
+                // Verificar se o saldo j· existe
                 $saldoCheckStmt = $db->prepare("
                     SELECT id FROM cashback_saldos 
                     WHERE usuario_id = ? AND loja_id = ?
@@ -2767,7 +2704,7 @@ class TransactionController {
                     ]);
                 }
                 
-                // Registrar movimenta√ß√£o de cashback
+                // Registrar movimentaÁ„o de cashback
                 $insertMovStmt = $db->prepare("
                     INSERT INTO cashback_movimentacoes 
                     (usuario_id, loja_id, tipo_operacao, valor, saldo_anterior, saldo_atual, 
@@ -2792,15 +2729,15 @@ class TransactionController {
                 ]);
                 
                 // Atualizar saldo do admin
-                self::updateAdminBalance($cashbackValue, 'credito', "Comiss√£o recebida - Transa√ß√£o {$transaction['id']}");
+                self::updateAdminBalance($cashbackValue, 'credito', "Comiss„o recebida - TransaÁ„o {$transaction['id']}");
                 
                 $transacoesAprovadas++;
                 
-                // Enviar notifica√ß√£o para o cliente
+                // Enviar notificaÁ„o para o cliente
                 self::sendCashbackNotification($transaction['usuario_id'], $cashbackValue, $payment['loja_id']);
             }
             
-            // Commit da transa√ß√£o
+            // Commit da transaÁ„o
             $db->commit();
             
             return [
@@ -2823,14 +2760,14 @@ class TransactionController {
     }
 
     /**
-     * Enviar notifica√ß√£o de cashback liberado para o cliente
-     * Vers√£o integrada que inclui notifica√ß√£o autom√°tica via WhatsApp
+     * Enviar notificaÁ„o de cashback liberado para o cliente
+     * Vers„o integrada que inclui notificaÁ„o autom·tica via WhatsApp
      */
     private static function sendCashbackNotification($userId, $cashbackValue, $lojaId) {
         try {
             $db = Database::getConnection();
             
-            // Buscar informa√ß√µes completas da loja e do cliente em uma consulta otimizada
+            // Buscar informaÁıes completas da loja e do cliente em uma consulta otimizada
             $stmt = $db->prepare("
                 SELECT 
                     l.nome_fantasia as loja_nome,
@@ -2845,7 +2782,7 @@ class TransactionController {
             
             $nomeLoja = $notificationData ? $notificationData['loja_nome'] : 'Loja Parceira';
             
-            // FUNCIONALIDADE EXISTENTE: Criar notifica√ß√£o interna (preservada integralmente)
+            // FUNCIONALIDADE EXISTENTE: Criar notificaÁ„o interna (preservada integralmente)
             $notifStmt = $db->prepare("
                 INSERT INTO notificacoes (usuario_id, titulo, mensagem, tipo) 
                 VALUES (?, ?, ?, 'success')
@@ -2854,10 +2791,10 @@ class TransactionController {
                 $userId,
                 'Cashback Liberado!',
                 "Seu cashback de R$ " . number_format($cashbackValue, 2, ',', '.') . 
-                " da loja {$nomeLoja} foi liberado e est√° dispon√≠vel para uso!"
+                " da loja {$nomeLoja} foi liberado e est· disponÌvel para uso!"
             ]);
             
-            // NOVA FUNCIONALIDADE: Notifica√ß√£o autom√°tica via WhatsApp
+            // NOVA FUNCIONALIDADE: NotificaÁ„o autom·tica via WhatsApp
             if (defined('WHATSAPP_ENABLED') && WHATSAPP_ENABLED && 
                 $notificationData && !empty($notificationData['cliente_telefone'])) {
                 
@@ -2873,48 +2810,48 @@ class TransactionController {
                         'nome_loja' => $nomeLoja
                     ];
                     
-                    // Enviar notifica√ß√£o via WhatsApp usando template espec√≠fico
+                    // Enviar notificaÁ„o via WhatsApp usando template especÌfico
                     WhatsAppBot::sendCashbackReleasedNotification(
                         $notificationData['cliente_telefone'], 
                         $whatsappTransactionData
                     );
                     
-                    // O resultado ser√° automaticamente registrado em nosso sistema de logs
-                    // Voc√™ poder√° monitorar o sucesso na interface que acabamos de validar
+                    // O resultado ser· automaticamente registrado em nosso sistema de logs
+                    // VocÍ poder· monitorar o sucesso na interface que acabamos de validar
                     
                 } catch (Exception $whatsappException) {
-                    // Log espec√≠fico para erros de WhatsApp sem afetar o fluxo principal
+                    // Log especÌfico para erros de WhatsApp sem afetar o fluxo principal
                     error_log("WhatsApp Cashback Liberado - Erro: " . $whatsappException->getMessage());
                 }
             }
             
         } catch (Exception $e) {
             // Log de erro geral mantendo a funcionalidade do sistema intacta
-            error_log('Erro na notifica√ß√£o de cashback liberado: ' . $e->getMessage());
+            error_log('Erro na notificaÁ„o de cashback liberado: ' . $e->getMessage());
         }
     }
 
     /**
-     * Rejeita um pagamento de comiss√£o
+     * Rejeita um pagamento de comiss„o
      * 
      * @param int $paymentId ID do pagamento
-     * @param string $motivo Motivo da rejei√ß√£o
-     * @return array Resultado da opera√ß√£o
+     * @param string $motivo Motivo da rejeiÁ„o
+     * @return array Resultado da operaÁ„o
      */
     public static function rejectPayment($paymentId, $motivo) {
         try {
-            // Verificar se o usu√°rio est√° autenticado e √© administrador
+            // Verificar se o usu·rio est· autenticado e È administrador
             if (!AuthController::isAuthenticated() || !AuthController::isAdmin()) {
                 return ['status' => false, 'message' => 'Acesso restrito a administradores.'];
             }
             
             if (empty($motivo)) {
-                return ['status' => false, 'message' => '√â necess√°rio informar o motivo da rejei√ß√£o.'];
+                return ['status' => false, 'message' => '… necess·rio informar o motivo da rejeiÁ„o.'];
             }
             
             $db = Database::getConnection();
             
-            // Verificar se o pagamento existe e est√° pendente
+            // Verificar se o pagamento existe e est· pendente
             $paymentStmt = $db->prepare("
                 SELECT p.*, l.nome_fantasia as loja_nome
                 FROM pagamentos_comissao p
@@ -2926,10 +2863,10 @@ class TransactionController {
             $payment = $paymentStmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$payment) {
-                return ['status' => false, 'message' => 'Pagamento n√£o encontrado ou n√£o est√° pendente.'];
+                return ['status' => false, 'message' => 'Pagamento n„o encontrado ou n„o est· pendente.'];
             }
             
-            // Iniciar transa√ß√£o
+            // Iniciar transaÁ„o
             $db->beginTransaction();
             
             // Atualizar status do pagamento
@@ -2944,7 +2881,7 @@ class TransactionController {
             $updatePaymentStmt->bindParam(':payment_id', $paymentId);
             $updatePaymentStmt->execute();
             
-            // Obter transa√ß√µes associadas ao pagamento
+            // Obter transaÁıes associadas ao pagamento
             $transStmt = $db->prepare("
                 SELECT t.id, t.usuario_id, t.valor_total, t.valor_cliente
                 FROM pagamentos_transacoes pt
@@ -2955,7 +2892,7 @@ class TransactionController {
             $transStmt->execute();
             $transactions = $transStmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // Atualizar status das transa√ß√µes para pendente novamente
+            // Atualizar status das transaÁıes para pendente novamente
             if (count($transactions) > 0) {
                 $transactionIds = array_column($transactions, 'id');
                 $placeholders = implode(',', array_fill(0, count($transactionIds), '?'));
@@ -2985,12 +2922,12 @@ class TransactionController {
             $storeNotify = $storeNotifyStmt->fetch(PDO::FETCH_ASSOC);
             
             if ($storeNotify) {
-                // Notifica√ß√£o no sistema (se houver usu√°rio vinculado)
+                // NotificaÁ„o no sistema (se houver usu·rio vinculado)
                 if (!empty($storeNotify['usuario_id'])) {
                     self::createNotification(
                         $storeNotify['usuario_id'],
                         'Pagamento rejeitado',
-                        'Seu pagamento de comiss√£o no valor de R$ ' . number_format($payment['valor_total'], 2, ',', '.') . 
+                        'Seu pagamento de comiss„o no valor de R$ ' . number_format($payment['valor_total'], 2, ',', '.') . 
                         ' foi rejeitado. Motivo: ' . $motivo,
                         'error'
                     );
@@ -3000,13 +2937,13 @@ class TransactionController {
                 if (!empty($storeNotify['email'])) {
                     $subject = 'Pagamento Rejeitado - Klube Cash';
                     $message = "
-                        <h3>Ol√°, {$payment['loja_nome']}!</h3>
-                        <p>Infelizmente, seu pagamento de comiss√£o foi rejeitado.</p>
+                        <h3>Ol·, {$payment['loja_nome']}!</h3>
+                        <p>Infelizmente, seu pagamento de comiss„o foi rejeitado.</p>
                         <p><strong>Valor:</strong> R$ " . number_format($payment['valor_total'], 2, ',', '.') . "</p>
-                        <p><strong>M√©todo:</strong> {$payment['metodo_pagamento']}</p>
+                        <p><strong>MÈtodo:</strong> {$payment['metodo_pagamento']}</p>
                         <p><strong>Data:</strong> " . date('d/m/Y H:i:s') . "</p>
-                        <p><strong>Motivo da rejei√ß√£o:</strong> " . nl2br(htmlspecialchars($motivo)) . "</p>
-                        <p>Por favor, verifique o motivo da rejei√ß√£o e registre um novo pagamento.</p>
+                        <p><strong>Motivo da rejeiÁ„o:</strong> " . nl2br(htmlspecialchars($motivo)) . "</p>
+                        <p>Por favor, verifique o motivo da rejeiÁ„o e registre um novo pagamento.</p>
                         <p>Atenciosamente,<br>Equipe Klube Cash</p>
                     ";
                     
@@ -3014,7 +2951,7 @@ class TransactionController {
                 }
             }
             
-            // Confirmar transa√ß√£o
+            // Confirmar transaÁ„o
             $db->commit();
             
             return [
@@ -3027,7 +2964,7 @@ class TransactionController {
             ];
             
         } catch (PDOException $e) {
-            // Reverter transa√ß√£o em caso de erro
+            // Reverter transaÁ„o em caso de erro
             if (isset($db) && $db->inTransaction()) {
                 $db->rollBack();
             }
@@ -3038,23 +2975,23 @@ class TransactionController {
     }
     
     /**
-    * Obt√©m lista de transa√ß√µes pendentes para uma loja
+    * ObtÈm lista de transaÁıes pendentes para uma loja
     * 
     * @param int $storeId ID da loja
     * @param array $filters Filtros adicionais
-    * @param int $page P√°gina atual
-    * @return array Lista de transa√ß√µes pendentes
+    * @param int $page P·gina atual
+    * @return array Lista de transaÁıes pendentes
     */
     public static function getPendingTransactions($storeId, $filters = [], $page = 1) {
         try {
-            // Verificar se o usu√°rio est√° autenticado
+            // Verificar se o usu·rio est· autenticado
             if (!AuthController::isAuthenticated()) {
-                return ['status' => false, 'message' => 'Usu√°rio n√£o autenticado.'];
+                return ['status' => false, 'message' => 'Usu·rio n„o autenticado.'];
             }
             
             $db = Database::getConnection();
             
-            // Verificar permiss√µes - apenas a loja dona das transa√ß√µes ou admin podem acessar
+            // Verificar permissıes - apenas a loja dona das transaÁıes ou admin podem acessar
             if (AuthController::isStore()) {
                 $currentUserId = AuthController::getCurrentUserId();
                 $storeOwnerQuery = $db->prepare("SELECT usuario_id FROM lojas WHERE id = :loja_id");
@@ -3063,10 +3000,10 @@ class TransactionController {
                 $storeOwner = $storeOwnerQuery->fetch(PDO::FETCH_ASSOC);
                 
                 if (!$storeOwner || $storeOwner['usuario_id'] != $currentUserId) {
-                    return ['status' => false, 'message' => 'Acesso n√£o autorizado a esta loja.'];
+                    return ['status' => false, 'message' => 'Acesso n„o autorizado a esta loja.'];
                 }
             } elseif (!AuthController::isAdmin()) {
-                return ['status' => false, 'message' => 'Acesso n√£o autorizado.'];
+                return ['status' => false, 'message' => 'Acesso n„o autorizado.'];
             }
             
             // Verificar se a loja existe
@@ -3075,7 +3012,7 @@ class TransactionController {
             $storeStmt->execute();
             
             if ($storeStmt->rowCount() == 0) {
-                return ['status' => false, 'message' => 'Loja n√£o encontrada.'];
+                return ['status' => false, 'message' => 'Loja n„o encontrada.'];
             }
             
             // Construir consulta
@@ -3093,7 +3030,7 @@ class TransactionController {
             
             // Aplicar filtros
             if (!empty($filters)) {
-                // Filtro por per√≠odo
+                // Filtro por perÌodo
                 if (isset($filters['data_inicio']) && !empty($filters['data_inicio'])) {
                     $query .= " AND t.data_transacao >= :data_inicio";
                     $params[':data_inicio'] = $filters['data_inicio'] . ' 00:00:00';
@@ -3110,23 +3047,23 @@ class TransactionController {
                     $params[':cliente'] = '%' . $filters['cliente'] . '%';
                 }
                 
-                // Filtro por valor m√≠nimo
+                // Filtro por valor mÌnimo
                 if (isset($filters['valor_min']) && !empty($filters['valor_min'])) {
                     $query .= " AND t.valor_total >= :valor_min";
                     $params[':valor_min'] = $filters['valor_min'];
                 }
                 
-                // Filtro por valor m√°ximo
+                // Filtro por valor m·ximo
                 if (isset($filters['valor_max']) && !empty($filters['valor_max'])) {
                     $query .= " AND t.valor_total <= :valor_max";
                     $params[':valor_max'] = $filters['valor_max'];
                 }
             }
             
-            // Ordena√ß√£o
+            // OrdenaÁ„o
             $query .= " ORDER BY t.data_transacao DESC";
             
-            // Contagem total para pagina√ß√£o
+            // Contagem total para paginaÁ„o
             $countQuery = str_replace("t.*, u.nome as cliente_nome, u.email as cliente_email", "COUNT(*) as total", $query);
             $countStmt = $db->prepare($countQuery);
             
@@ -3137,7 +3074,7 @@ class TransactionController {
             $countStmt->execute();
             $totalCount = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
             
-            // Pagina√ß√£o
+            // PaginaÁ„o
             $perPage = defined('ITEMS_PER_PAGE') ? ITEMS_PER_PAGE : 10;
             $totalPages = ceil($totalCount / $perPage);
             $page = max(1, min($page, $totalPages));
@@ -3190,27 +3127,27 @@ class TransactionController {
             ];
             
         } catch (PDOException $e) {
-            error_log('Erro ao obter transa√ß√µes pendentes: ' . $e->getMessage());
-            return ['status' => false, 'message' => 'Erro ao obter transa√ß√µes pendentes. Tente novamente.'];
+            error_log('Erro ao obter transaÁıes pendentes: ' . $e->getMessage());
+            return ['status' => false, 'message' => 'Erro ao obter transaÁıes pendentes. Tente novamente.'];
         }
     }
     
     /**
-    * Obt√©m detalhes de um pagamento
+    * ObtÈm detalhes de um pagamento
     * 
     * @param int $paymentId ID do pagamento
     * @return array Detalhes do pagamento
     */
     public static function getPaymentDetails($paymentId) {
         try {
-            // Verificar se o usu√°rio est√° autenticado
+            // Verificar se o usu·rio est· autenticado
             if (!AuthController::isAuthenticated()) {
-                return ['status' => false, 'message' => 'Usu√°rio n√£o autenticado.'];
+                return ['status' => false, 'message' => 'Usu·rio n„o autenticado.'];
             }
             
             $db = Database::getConnection();
             
-            // Obter dados do pagamento com mais informa√ß√µes
+            // Obter dados do pagamento com mais informaÁıes
             $paymentStmt = $db->prepare("
                 SELECT p.*, l.nome_fantasia as loja_nome, l.email as loja_email,
                     (SELECT COUNT(*) FROM pagamentos_transacoes pt WHERE pt.pagamento_id = p.id) as total_transacoes
@@ -3223,28 +3160,28 @@ class TransactionController {
             $payment = $paymentStmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$payment) {
-                return ['status' => false, 'message' => 'Pagamento n√£o encontrado.'];
+                return ['status' => false, 'message' => 'Pagamento n„o encontrado.'];
             }
             
-            // Verificar permiss√µes - admin ou a pr√≥pria loja
+            // Verificar permissıes - admin ou a prÛpria loja
             $currentUserId = AuthController::getCurrentUserId();
             if (!AuthController::isAdmin()) {
                 if (AuthController::isStore()) {
-                    // Verificar se √© a loja dona do pagamento
+                    // Verificar se È a loja dona do pagamento
                     $storeCheckStmt = $db->prepare("SELECT usuario_id FROM lojas WHERE id = :loja_id");
                     $storeCheckStmt->bindParam(':loja_id', $payment['loja_id']);
                     $storeCheckStmt->execute();
                     $storeCheck = $storeCheckStmt->fetch(PDO::FETCH_ASSOC);
                     
                     if (!$storeCheck || $storeCheck['usuario_id'] != $currentUserId) {
-                        return ['status' => false, 'message' => 'Acesso n√£o autorizado.'];
+                        return ['status' => false, 'message' => 'Acesso n„o autorizado.'];
                     }
                 } else {
-                    return ['status' => false, 'message' => 'Acesso n√£o autorizado.'];
+                    return ['status' => false, 'message' => 'Acesso n„o autorizado.'];
                 }
             }
             
-            // Obter transa√ß√µes associadas com mais detalhes
+            // Obter transaÁıes associadas com mais detalhes
             $transStmt = $db->prepare("
                 SELECT t.*, u.nome as cliente_nome, u.email as cliente_email
                 FROM pagamentos_transacoes pt
@@ -3288,19 +3225,19 @@ class TransactionController {
         }
     }
     /**
-     * Cria uma notifica√ß√£o para um usu√°rio
+     * Cria uma notificaÁ„o para um usu·rio
      * 
-     * @param int $userId ID do usu√°rio
-     * @param string $titulo T√≠tulo da notifica√ß√£o
-     * @param string $mensagem Mensagem da notifica√ß√£o
-     * @param string $tipo Tipo da notifica√ß√£o (info, success, warning, error)
-     * @return bool Verdadeiro se a notifica√ß√£o foi criada
+     * @param int $userId ID do usu·rio
+     * @param string $titulo TÌtulo da notificaÁ„o
+     * @param string $mensagem Mensagem da notificaÁ„o
+     * @param string $tipo Tipo da notificaÁ„o (info, success, warning, error)
+     * @return bool Verdadeiro se a notificaÁ„o foi criada
      */
     private static function createNotification($userId, $titulo, $mensagem, $tipo = 'info') {
         try {
             $db = Database::getConnection();
             
-            // Verificar se a tabela existe, criar se n√£o existir
+            // Verificar se a tabela existe, criar se n„o existir
             $tableCheckStmt = $db->prepare("SHOW TABLES LIKE 'notificacoes'");
             $tableCheckStmt->execute();
             
@@ -3334,29 +3271,29 @@ class TransactionController {
             return $stmt->execute();
             
         } catch (PDOException $e) {
-            error_log('Erro ao criar notifica√ß√£o: ' . $e->getMessage());
+            error_log('Erro ao criar notificaÁ„o: ' . $e->getMessage());
             return false;
         }
     }
     
     /**
-    * Obt√©m hist√≥rico de pagamentos de uma loja
+    * ObtÈm histÛrico de pagamentos de uma loja
     * 
     * @param int $storeId ID da loja
     * @param array $filters Filtros adicionais
-    * @param int $page P√°gina atual
-    * @return array Hist√≥rico de pagamentos
+    * @param int $page P·gina atual
+    * @return array HistÛrico de pagamentos
     */
     public static function getPaymentHistory($storeId, $filters = [], $page = 1) {
         try {
-            // Verificar se o usu√°rio est√° autenticado
+            // Verificar se o usu·rio est· autenticado
             if (!AuthController::isAuthenticated()) {
-                return ['status' => false, 'message' => 'Usu√°rio n√£o autenticado.'];
+                return ['status' => false, 'message' => 'Usu·rio n„o autenticado.'];
             }
             
             $db = Database::getConnection();
             
-            // Verificar permiss√µes - apenas a loja dona dos pagamentos ou admin podem acessar
+            // Verificar permissıes - apenas a loja dona dos pagamentos ou admin podem acessar
             if (AuthController::isStore()) {
                 $currentUserId = AuthController::getCurrentUserId();
                 $storeOwnerQuery = $db->prepare("SELECT usuario_id FROM lojas WHERE id = :loja_id");
@@ -3365,10 +3302,10 @@ class TransactionController {
                 $storeOwner = $storeOwnerQuery->fetch(PDO::FETCH_ASSOC);
                 
                 if (!$storeOwner || $storeOwner['usuario_id'] != $currentUserId) {
-                    return ['status' => false, 'message' => 'Acesso n√£o autorizado a esta loja.'];
+                    return ['status' => false, 'message' => 'Acesso n„o autorizado a esta loja.'];
                 }
             } elseif (!AuthController::isAdmin()) {
-                return ['status' => false, 'message' => 'Acesso n√£o autorizado.'];
+                return ['status' => false, 'message' => 'Acesso n„o autorizado.'];
             }
             
             // Verificar se a loja existe
@@ -3377,7 +3314,7 @@ class TransactionController {
             $storeStmt->execute();
             
             if ($storeStmt->rowCount() == 0) {
-                return ['status' => false, 'message' => 'Loja n√£o encontrada.'];
+                return ['status' => false, 'message' => 'Loja n„o encontrada.'];
             }
             
             // Construir consulta
@@ -3400,7 +3337,7 @@ class TransactionController {
                     $params[':status'] = $filters['status'];
                 }
                 
-                // Filtro por per√≠odo
+                // Filtro por perÌodo
                 if (isset($filters['data_inicio']) && !empty($filters['data_inicio'])) {
                     $query .= " AND p.data_registro >= :data_inicio";
                     $params[':data_inicio'] = $filters['data_inicio'] . ' 00:00:00';
@@ -3411,17 +3348,17 @@ class TransactionController {
                     $params[':data_fim'] = $filters['data_fim'] . ' 23:59:59';
                 }
                 
-                // Filtro por m√©todo de pagamento
+                // Filtro por mÈtodo de pagamento
                 if (isset($filters['metodo_pagamento']) && !empty($filters['metodo_pagamento'])) {
                     $query .= " AND p.metodo_pagamento = :metodo_pagamento";
                     $params[':metodo_pagamento'] = $filters['metodo_pagamento'];
                 }
             }
             
-            // Ordena√ß√£o
+            // OrdenaÁ„o
             $query .= " ORDER BY p.data_registro DESC";
             
-            // Contagem total para pagina√ß√£o
+            // Contagem total para paginaÁ„o
             $countQuery = str_replace("p.*, (SELECT COUNT(*) FROM pagamentos_transacoes WHERE pagamento_id = p.id) as qtd_transacoes", "COUNT(*) as total", $query);
             $countStmt = $db->prepare($countQuery);
             
@@ -3432,7 +3369,7 @@ class TransactionController {
             $countStmt->execute();
             $totalCount = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
             
-            // Pagina√ß√£o
+            // PaginaÁ„o
             $perPage = defined('ITEMS_PER_PAGE') ? ITEMS_PER_PAGE : 10;
             $totalPages = ceil($totalCount / $perPage);
             $page = max(1, min($page, $totalPages));
@@ -3496,13 +3433,13 @@ class TransactionController {
             ];
             
         } catch (PDOException $e) {
-            error_log('Erro ao obter hist√≥rico de pagamentos: ' . $e->getMessage());
-            return ['status' => false, 'message' => 'Erro ao obter hist√≥rico de pagamentos. Tente novamente.'];
+            error_log('Erro ao obter histÛrico de pagamentos: ' . $e->getMessage());
+            return ['status' => false, 'message' => 'Erro ao obter histÛrico de pagamentos. Tente novamente.'];
         }
     }
 
     /**
-     * M√©todo auxiliar para extrair informa√ß√µes de tempo dos resultados de notifica√ß√£o
+     * MÈtodo auxiliar para extrair informaÁıes de tempo dos resultados de notificaÁ„o
      */
     private function getTimeInfo($allResults) {
         if (!is_array($allResults)) {
@@ -3520,19 +3457,19 @@ class TransactionController {
     }
 }
 
-// Processar requisi√ß√µes diretas de acesso ao controlador
+// Processar requisiÁıes diretas de acesso ao controlador
 if (basename($_SERVER['PHP_SELF']) === 'TransactionController.php') {
-     // Verificar se √© requisi√ß√£o AJAX
+     // Verificar se È requisiÁ„o AJAX
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
 
-    // Verificar se o usu√°rio est√° autenticado
+    // Verificar se o usu·rio est· autenticado
     if (!AuthController::isAuthenticated()) {
         if ($isAjax) {
-            echo json_encode(['status' => false, 'message' => 'Sess√£o expirada. Fa√ßa login novamente.']);
+            echo json_encode(['status' => false, 'message' => 'Sess„o expirada. FaÁa login novamente.']);
             exit;
         } else {
-            header('Location: ' . LOGIN_URL . '?error=' . urlencode('Voc√™ precisa fazer login para acessar esta p√°gina.'));
+            header('Location: ' . LOGIN_URL . '?error=' . urlencode('VocÍ precisa fazer login para acessar esta p·gina.'));
             exit;
         }
     }
@@ -3553,7 +3490,7 @@ if (basename($_SERVER['PHP_SELF']) === 'TransactionController.php') {
         case 'transaction_details':
             $transactionId = isset($_POST['transaction_id']) ? intval($_POST['transaction_id']) : 0;
             if ($transactionId <= 0) {
-                echo json_encode(['status' => false, 'message' => 'ID da transa√ß√£o inv√°lido']);
+                echo json_encode(['status' => false, 'message' => 'ID da transaÁ„o inv·lido']);
                 return;
             }
             
@@ -3571,7 +3508,7 @@ if (basename($_SERVER['PHP_SELF']) === 'TransactionController.php') {
         case 'payment_details_with_balance':
             $paymentId = intval($_POST['payment_id'] ?? 0);
             if ($paymentId <= 0) {
-                echo json_encode(['status' => false, 'message' => 'ID do pagamento inv√°lido']);
+                echo json_encode(['status' => false, 'message' => 'ID do pagamento inv·lido']);
                 return;
             }
             
@@ -3595,7 +3532,7 @@ if (basename($_SERVER['PHP_SELF']) === 'TransactionController.php') {
             break;
             
         case 'register_payment':
-            // Debug da sess√£o
+            // Debug da sess„o
             error_log("Session data: " . print_r($_SESSION, true));
             error_log("Auth check: " . (AuthController::isAuthenticated() ? 'true' : 'false'));
             error_log("Store check: " . (AuthController::isStore() ? 'true' : 'false'));
@@ -3650,11 +3587,11 @@ if (basename($_SERVER['PHP_SELF']) === 'TransactionController.php') {
             $filters = $_POST['filters'] ?? [];
             $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
             
-            // M√©todo simplificado para testar
+            // MÈtodo simplificado para testar
             try {
                 $db = Database::getConnection();
                 
-                // Query melhorada que inclui informa√ß√µes de loja MVP
+                // Query melhorada que inclui informaÁıes de loja MVP
                 $stmt = $db->prepare("
                     SELECT t.*, u.nome as cliente_nome, u.email as cliente_email, 
                            COALESCE(loja_user.mvp, 'nao') as loja_mvp
@@ -3669,16 +3606,16 @@ if (basename($_SERVER['PHP_SELF']) === 'TransactionController.php') {
                 $stmt->execute([$storeId]);
                 $transactions = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 
-                // CORRE√á√ÉO: Calcular total de pendentes excluindo MVP aprovadas
+                // CORRE«√O: Calcular total de pendentes excluindo MVP aprovadas
                 $totalPendentes = 0;
                 foreach ($transactions as $transaction) {
-                    // Se √© uma transa√ß√£o pendente E n√£o √© uma loja MVP (que seria aprovada automaticamente)
+                    // Se È uma transaÁ„o pendente E n„o È uma loja MVP (que seria aprovada automaticamente)
                     if ($transaction['status'] == 'pendente') {
-                        // Para lojas MVP, as transa√ß√µes deveriam estar aprovadas, 
-                        // ent√£o se est√£o pendentes, algo deu errado e devem aparecer
+                        // Para lojas MVP, as transaÁıes deveriam estar aprovadas, 
+                        // ent„o se est„o pendentes, algo deu errado e devem aparecer
                         $totalPendentes++;
                     }
-                    // Transa√ß√µes MVP aprovadas n√£o contam como pendentes (comportamento correto)
+                    // TransaÁıes MVP aprovadas n„o contam como pendentes (comportamento correto)
                 }
                 
                 $totals = [
@@ -3706,7 +3643,7 @@ if (basename($_SERVER['PHP_SELF']) === 'TransactionController.php') {
             break;
             
         default:
-            // Acesso inv√°lido ao controlador
+            // Acesso inv·lido ao controlador
             if (AuthController::isAdmin()) {
                 header('Location: ' . ADMIN_DASHBOARD_URL);
             } elseif (AuthController::isStore()) {

@@ -73,10 +73,6 @@ Funcao registerTransaction($data)
 - Cashback MVP: Se aplicavel, credita cashback instantaneo apos o commit usando CashbackBalance.
 - Retorno: Fornece resumo contendo id da transacao, valores calculados, flag MVP e status final, ou reporta erro com rollback.
 
-xxx Funcao getClientTransactionsPWA($clientId, $filtros = [], $limit = 20, $offset = 0)
-- Proposito: Fornecer para a PWA a listagem de transacoes de um cliente com informacoes da loja.
-- Consultas: Seleciona campos principais da transacao, saldo_usado, status, tipo e dados da loja associada.
-- Filtros opcionais: Data inicial/final, status, loja, tipo (cashback ou uso de saldo).
 - Paginacao: Ordena por data decrescente e aplica LIMIT/OFFSET informados.
 - Retorno: Array de transacoes ou array vazio quando ocorre excecao, apos registro de log.
 
