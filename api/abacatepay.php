@@ -196,13 +196,41 @@ try {
     }
 
     // =====================================================
+    // GET: Verificar se pagamento foi confirmado (polling)
+    // =====================================================
+    elseif ($method === 'GET' && $action === 'check_payment') {
+        $invoiceId = $_GET['invoice_id'] ?? null;
+
+        if (!$invoiceId) {
+            jsonResponse(['success' => false, 'message' => 'invoice_id obrigatório'], 400);
+        }
+
+        // Buscar status atual da fatura
+        $sqlCheck = "SELECT id, status, paid_at FROM faturas WHERE id = ?";
+        $stmtCheck = $db->prepare($sqlCheck);
+        $stmtCheck->execute([$invoiceId]);
+        $fatura = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+
+        if (!$fatura) {
+            jsonResponse(['success' => false, 'message' => 'Fatura não encontrada'], 404);
+        }
+
+        jsonResponse([
+            'success' => true,
+            'status' => $fatura['status'],
+            'paid_at' => $fatura['paid_at'],
+            'is_paid' => $fatura['status'] === 'paid'
+        ]);
+    }
+
+    // =====================================================
     // Ação inválida
     // =====================================================
     else {
         jsonResponse([
             'success' => false,
             'message' => 'Ação inválida ou método não permitido',
-            'available_actions' => ['create_invoice_pix', 'status']
+            'available_actions' => ['create_invoice_pix', 'status', 'check_payment']
         ], 400);
     }
 

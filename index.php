@@ -1055,6 +1055,51 @@ try {
             </div>
         </section>
 
+        <!-- Sobre -->
+        <section id="sobre" class="section bg-light">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-badge">Quem Somos</span>
+                    <h2 class="section-title">Sobre o Klube Cash</h2>
+                    <p class="section-description">
+                        Conheça nossa história e missão de transformar a forma como você economiza
+                    </p>
+                </div>
+
+                <div class="grid grid-3">
+                    <div class="card fade-in">
+                        <div class="card-icon">🎯</div>
+                        <h3>Nossa Missão</h3>
+                        <p>Democratizar o acesso ao cashback no Brasil, oferecendo uma plataforma intuitiva, segura e que realmente coloca dinheiro de volta no bolso dos nossos usuários.</p>
+                    </div>
+
+                    <div class="card fade-in">
+                        <div class="card-icon">👁️</div>
+                        <h3>Nossa Visão</h3>
+                        <p>Ser a maior e mais confiável plataforma de cashback do Brasil, reconhecida pela transparência, inovação e pelo compromisso com a satisfação dos nossos clientes.</p>
+                    </div>
+
+                    <div class="card fade-in">
+                        <div class="card-icon">💎</div>
+                        <h3>Nossos Valores</h3>
+                        <p>Transparência total, segurança em primeiro lugar, compromisso com o cliente, inovação constante e parcerias justas para todos.</p>
+                    </div>
+                </div>
+
+                <div style="margin-top: 60px; text-align: center; max-width: 800px; margin-left: auto; margin-right: auto;">
+                    <h3 style="font-size: 1.8rem; margin-bottom: 20px; color: #333;">Por Que Klube Cash?</h3>
+                    <p style="font-size: 1.1rem; color: #666; line-height: 1.8; margin-bottom: 15px;">
+                        Nascemos da vontade de criar algo diferente no mercado de cashback brasileiro. Cansados de sistemas complicados,
+                        taxas escondidas e benefícios que nunca se concretizam, decidimos criar uma plataforma onde o cliente é realmente valorizado.
+                    </p>
+                    <p style="font-size: 1.1rem; color: #666; line-height: 1.8;">
+                        Hoje, ajudamos milhares de brasileiros a economizar todos os dias, conectando consumidores a lojas parceiras
+                        de forma simples, rápida e 100% transparente. Seu dinheiro de volta, do jeito que deveria ser.
+                    </p>
+                </div>
+            </div>
+        </section>
+
         <!-- CTA -->
         <section class="cta">
             <div class="container">

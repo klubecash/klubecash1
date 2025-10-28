@@ -135,6 +135,28 @@ class SubscriptionController {
                 return ['success' => false, 'message' => 'Assinatura não encontrada'];
             }
 
+            // PROTEÇÃO CONTRA FATURAS DUPLICADAS
+            // Verificar se já existe fatura para este mês/ano
+            $sqlCheck = "SELECT id, numero, amount, status
+                        FROM faturas
+                        WHERE assinatura_id = ?
+                        AND YEAR(created_at) = YEAR(NOW())
+                        AND MONTH(created_at) = MONTH(NOW())
+                        AND status IN ('pending', 'paid')
+                        LIMIT 1";
+            $stmtCheck = $this->conn->prepare($sqlCheck);
+            $stmtCheck->execute([$assinaturaId]);
+            $existingInvoice = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+
+            if ($existingInvoice) {
+                return [
+                    'success' => false,
+                    'message' => 'Já existe fatura para este mês (' . $existingInvoice['numero'] . ')',
+                    'existing_invoice_id' => $existingInvoice['id'],
+                    'existing_invoice_number' => $existingInvoice['numero']
+                ];
+            }
+
             // Calcular valor
             $amount = $amountOverride ?? (
                 $assinatura['ciclo'] === 'yearly' ? $assinatura['preco_anual'] : $assinatura['preco_mensal']
@@ -306,11 +328,13 @@ class SubscriptionController {
 
     /**
      * Busca assinatura ativa de uma loja
+     * CORRIGIDO: Apenas status realmente ativos (trial e ativa)
+     * Exclui: inadimplente, cancelada, suspensa
      */
     public function getActiveSubscriptionByStore($lojaId) {
         $sql = "SELECT * FROM assinaturas
                 WHERE loja_id = ? AND tipo = 'loja'
-                AND status NOT IN ('cancelada')
+                AND status IN ('trial', 'ativa')
                 ORDER BY created_at DESC LIMIT 1";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([$lojaId]);
@@ -351,6 +375,140 @@ class SubscriptionController {
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([$id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Faz upgrade de plano com cálculo de valor proporcional
+     *
+     * @param int $assinaturaId ID da assinatura
+     * @param string $newPlanoSlug Slug do novo plano
+     * @param string|null $newCiclo Novo ciclo (se quiser mudar)
+     * @return array ['success' => bool, 'message' => string, 'fatura_id' => int|null]
+     */
+    public function upgradeSubscription($assinaturaId, $newPlanoSlug, $newCiclo = null) {
+        try {
+            // Buscar assinatura atual com plano
+            $sql = "SELECT a.*, p.id as plano_atual_id, p.preco_mensal as preco_atual_mensal,
+                           p.preco_anual as preco_atual_anual, p.nome as plano_atual_nome
+                    FROM assinaturas a
+                    JOIN planos p ON a.plano_id = p.id
+                    WHERE a.id = ?";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute([$assinaturaId]);
+            $assinatura = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$assinatura) {
+                return ['success' => false, 'message' => 'Assinatura não encontrada'];
+            }
+
+            // Buscar novo plano
+            $newPlano = $this->getPlanBySlug($newPlanoSlug);
+            if (!$newPlano) {
+                return ['success' => false, 'message' => 'Plano não encontrado'];
+            }
+
+            // Se não especificou novo ciclo, manter o atual
+            $ciclo = $newCiclo ?? $assinatura['ciclo'];
+
+            // Calcular preços
+            $precoAtual = $assinatura['ciclo'] === 'yearly'
+                ? $assinatura['preco_atual_anual']
+                : $assinatura['preco_atual_mensal'];
+
+            $precoNovo = $ciclo === 'yearly'
+                ? $newPlano['preco_anual']
+                : $newPlano['preco_mensal'];
+
+            // Calcular dias restantes no período atual
+            $hoje = new DateTime();
+            $fimPeriodo = new DateTime($assinatura['current_period_end']);
+            $diasRestantes = $hoje->diff($fimPeriodo)->days;
+
+            // Se já passou do período, não cobrar proporcional
+            if ($diasRestantes <= 0) {
+                $diasRestantes = 0;
+                $valorProporcional = 0;
+            } else {
+                // Calcular valor proporcional da diferença de preço
+                $diasTotaisPeriodo = $ciclo === 'yearly' ? 365 : 30;
+                $diferencaPreco = $precoNovo - $precoAtual;
+
+                // Apenas cobra proporcional se for upgrade (preço maior)
+                if ($diferencaPreco > 0) {
+                    $valorProporcional = ($diferencaPreco / $diasTotaisPeriodo) * $diasRestantes;
+                } else {
+                    // Downgrade - não gera crédito, apenas aplica no próximo período
+                    $valorProporcional = 0;
+                }
+            }
+
+            // Atualizar assinatura
+            $sql = "UPDATE assinaturas SET
+                    plano_id = ?,
+                    ciclo = ?,
+                    updated_at = NOW()
+                    WHERE id = ?";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute([$newPlano['id'], $ciclo, $assinaturaId]);
+
+            $faturaId = null;
+
+            // Se há valor proporcional a cobrar, gerar fatura
+            if ($valorProporcional > 0) {
+                $result = $this->generateInvoiceForSubscription(
+                    $assinaturaId,
+                    date('Y-m-d', strtotime('+3 days')), // Vence em 3 dias
+                    $valorProporcional
+                );
+
+                if ($result['success']) {
+                    $faturaId = $result['fatura_id'];
+                }
+            }
+
+            // Registrar histórico da mudança
+            $this->logSubscriptionChange(
+                $assinaturaId,
+                $assinatura['plano_atual_id'],
+                $newPlano['id'],
+                $assinatura['ciclo'],
+                $ciclo,
+                $valorProporcional > 0 ? 'upgrade' : 'downgrade',
+                $valorProporcional
+            );
+
+            return [
+                'success' => true,
+                'message' => 'Plano alterado com sucesso',
+                'valor_proporcional' => $valorProporcional,
+                'fatura_id' => $faturaId,
+                'dias_restantes' => $diasRestantes
+            ];
+
+        } catch (Exception $e) {
+            error_log("Erro ao fazer upgrade: " . $e->getMessage());
+            return ['success' => false, 'message' => 'Erro ao processar upgrade: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Registra mudança de plano no log (para auditoria)
+     */
+    private function logSubscriptionChange($assinaturaId, $planoAntigoId, $planoNovoId, $cicloAntigo, $cicloNovo, $tipoMudanca, $valorAjuste) {
+        try {
+            $sql = "INSERT INTO assinaturas_historico (
+                    assinatura_id, plano_antigo_id, plano_novo_id,
+                    ciclo_antigo, ciclo_novo, tipo_mudanca, valor_ajuste
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute([
+                $assinaturaId, $planoAntigoId, $planoNovoId,
+                $cicloAntigo, $cicloNovo, $tipoMudanca, $valorAjuste
+            ]);
+        } catch (Exception $e) {
+            // Se a tabela não existe, apenas logar (não falhar o upgrade)
+            error_log("Aviso: Não foi possível registrar histórico de mudança: " . $e->getMessage());
+        }
     }
 
     /**

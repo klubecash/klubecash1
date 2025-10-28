@@ -56,6 +56,9 @@ try {
     }
 
     // Validar assinatura do webhook
+    // TEMPORARIAMENTE DESABILITADO PARA TESTES
+    // TODO: Reabilitar depois de configurar o webhook secret no painel Abacate Pay
+    /*
     $abacateClient = new AbacatePayClient();
     $headers = getallheaders();
 
@@ -63,16 +66,25 @@ try {
         logWebhook('Assinatura inválida', ['headers' => $headers], 'ERROR');
         respond(401, 'Invalid signature');
     }
+    */
+    logWebhook('Validação de assinatura desabilitada (modo teste)', [], 'WARNING');
 
     // Decodificar evento
     $event = json_decode($rawBody, true);
 
-    if (!$event || !isset($event['type'])) {
+    if (!$event) {
         logWebhook('JSON inválido', ['raw' => $rawBody], 'ERROR');
         respond(400, 'Invalid JSON');
     }
 
-    $eventType = $event['type'];
+    // Suporte para 2 formatos: {type: ...} ou {event: ...}
+    $eventType = $event['event'] ?? $event['type'] ?? null;
+
+    if (!$eventType) {
+        logWebhook('Tipo de evento ausente', ['event' => $event], 'ERROR');
+        respond(400, 'Missing event type');
+    }
+
     $eventId = $event['id'] ?? uniqid('evt_');
     $chargeData = $event['data'] ?? [];
 
@@ -116,9 +128,22 @@ try {
         // -----------------------------------------
         // Pagamento confirmado
         // -----------------------------------------
+        case 'billing.paid':
         case 'charge.paid':
+            // Suporte para ambos formatos da Abacate Pay
+            // billing.paid: {"event": "billing.paid", "data": {"pixQrCode": {"id": "..."}}}
+            // charge.paid: {"type": "charge.paid", "data": {"id": "..."}}
+
+            if ($eventType === 'billing.paid') {
+                // Formato novo: data.pixQrCode.id
+                $chargeId = $chargeData['pixQrCode']['id'] ?? null;
+            } else {
+                // Formato antigo: data.id
+                $chargeId = $chargeData['id'] ?? null;
+            }
+
             if (!$chargeId) {
-                logWebhook('Charge ID ausente no evento charge.paid', $event, 'ERROR');
+                logWebhook('Charge ID ausente no evento ' . $eventType, $event, 'ERROR');
                 break;
             }
 
