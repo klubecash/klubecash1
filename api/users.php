@@ -52,7 +52,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// ✅ BLOCO DE DEBUG: Tenta carregar os arquivos e captura erros fatais
+// ✅ BLOCO DE INCLUDES SEGUROS: Carrega apenas o que é essencial e não trava.
 try {
     require_once __DIR__ . '/../config/database.php';
     error_log("KlubeCash Debug - database.php CARREGADO.");
@@ -63,22 +63,17 @@ try {
     require_once __DIR__ . '/../controllers/AuthController.php';
     error_log("KlubeCash Debug - AuthController.php CARREGADO.");
     
-    error_log("KlubeCash Debug - Carregando AdminController...");
-    require_once __DIR__ . '/../controllers/AdminController.php'; 
-    error_log("KlubeCash Debug - AdminController CARREGADO.");
-
     require_once __DIR__ . '/../controllers/ClientController.php';
     error_log("KlubeCash Debug - ClientController.php CARREGADO.");
 
     require_once __DIR__ . '/../utils/Security.php';
     error_log("KlubeCash Debug - Security.php CARREGADO.");
     
-    error_log("KlubeCash Debug - Carregando Validator...");
-    require_once __DIR__ . '/../utils/Validator.php';
-    error_log("KlubeCash Debug - Validator CARREGADO.");
+    // AdminController e Validator (que estavam causando o crash) são removidos daqui.
+    // Eles serão carregados apenas dentro das funções que os utilizam.
 
 } catch (Throwable $t) {
-    // Se qualquer include falhar (Erro Fatal, Parse Error), ele será pego aqui.
+    // Se qualquer include essencial falhar
     error_log("KlubeCash Debug - ERRO FATAL AO INCLUIR ARQUIVO: " . $t->getMessage() . " no arquivo " . $t->getFile() . " na linha " . $t->getLine());
     
     if (!headers_sent()) {
@@ -160,7 +155,7 @@ $tokenData = validateToken();
 $userId = $tokenData['id'];
 $userType = $tokenData['tipo'] ?? null;
 
-// Rotas específicas do React
+// Rotas específicas do React (Não precisam de AdminController)
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'get_details') {
     $result = ClientController::getProfileData($userId); 
     echo json_encode($result);
@@ -173,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_details') {
     exit;
 }
 
-// Rotas Genéricas (agora também usam a validação unificada)
+// Rotas Genéricas (Admin) - Carregam os controllers problemáticos apenas quando chamadas
 $method = $_SERVER['REQUEST_METHOD'];
 
 switch ($method) {
@@ -198,6 +193,10 @@ switch ($method) {
 // --- Funções Handler Refatoradas ---
 
 function handleGetRequest($userData) { 
+    // ✅ Inclusão condicional: Carrega os controllers de Admin apenas aqui
+    require_once __DIR__ . '/../controllers/AdminController.php';
+    require_once __DIR__ . '/../utils/Validator.php';
+
     if (($userData['tipo'] ?? null) !== USER_TYPE_ADMIN) {
          http_response_code(403);
          echo json_encode(['status' => false, 'message' => 'Acesso não autorizado para esta operação GET.']);
@@ -221,10 +220,15 @@ function handleGetRequest($userData) {
 
 function handlePostRequest($userData) { 
     $isPublicRegistration = isset($_GET['public']) && $_GET['public'] === 'true';
-    if (!$isPublicRegistration && ($userData['tipo'] ?? null) !== USER_TYPE_ADMIN) {
-        http_response_code(403);
-        echo json_encode(['status' => false, 'message' => 'Apenas administradores podem criar usuários via API']);
-        exit;
+    if (!$isPublicRegistration) {
+        // ✅ Inclusão condicional
+        require_once __DIR__ . '/../controllers/AdminController.php'; 
+        require_once __DIR__ . '/../utils/Validator.php';
+        if (($userData['tipo'] ?? null) !== USER_TYPE_ADMIN) {
+            http_response_code(403);
+            echo json_encode(['status' => false, 'message' => 'Apenas administradores podem criar usuários via API']);
+            exit;
+        }
     }
     
     $data = json_decode(file_get_contents('php://input'), true);
@@ -241,6 +245,10 @@ function handlePostRequest($userData) {
 }
 
 function handlePutRequest($userData) { 
+    // ✅ Inclusão condicional
+    require_once __DIR__ . '/../controllers/AdminController.php';
+    require_once __DIR__ . '/../utils/Validator.php';
+
     $data = json_decode(file_get_contents('php://input'), true);
     if (!$data || !isset($data['id'])) {
         http_response_code(400);
@@ -282,6 +290,10 @@ function handlePutRequest($userData) {
 }
 
 function handleDeleteRequest($userData) { 
+    // ✅ Inclusão condicional
+    require_once __DIR__ . '/../controllers/AdminController.php';
+    require_once __DIR__ . '/../utils/Validator.php';
+
     if (($userData['tipo'] ?? null) !== USER_TYPE_ADMIN) {
         http_response_code(403);
         echo json_encode(['status' => false, 'message' => 'Apenas administradores podem desativar usuários']);
