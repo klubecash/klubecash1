@@ -344,10 +344,6 @@ ob_end_flush();
                 padding: 2rem 1.5rem;
             }
 
-            .welcome-message {
-                font-size: 1.75rem;
-            }
-
             .wallet-cards {
                 grid-template-columns: 1fr;
                 gap: 1.5rem;
@@ -355,6 +351,14 @@ ob_end_flush();
 
             .wallet-card {
                 padding: 2rem 1.5rem;
+            }
+
+            .wallet-header,
+            .wallet-footer,
+            .wallet-description,
+            .wallet-features,
+            .wallet-icon {
+                display: none;
             }
         }
 
