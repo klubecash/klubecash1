@@ -149,6 +149,10 @@ if ($action === 'recover') {
     recoverPassword();
     exit;
 }
+if ($action === 'logout') {
+    logoutUser();
+    exit;
+}
 
 // Para todas as outras ações, a autenticação é necessária PRIMEIRO.
 $tokenData = validateToken(); 
@@ -287,6 +291,38 @@ function handlePutRequest($userData) {
         $result = ClientController::updateProfile($targetUserId, $updateData); 
     }
     echo json_encode($result);
+}
+function logoutUser() {
+    // Inicia a sessão se ainda não estiver ativa
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    // Limpa variáveis de sessão
+    $_SESSION = [];
+
+    // Remove o cookie JWT
+    if (isset($_COOKIE['jwt_token'])) {
+        setcookie('jwt_token', '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'domain' => '.klubecash.com',
+            'secure' => true,
+            'httponly' => true,
+            'samesite' => 'None',
+        ]);
+    }
+
+    // Destroi a sessão PHP
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+    }
+
+    session_destroy();
+
+    // Resposta JSON
+    echo json_encode(['status' => true, 'message' => 'Logout efetuado com sucesso.']);
 }
 
 function handleDeleteRequest($userData) { 

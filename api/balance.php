@@ -13,7 +13,7 @@ if (!is_dir($log_dir)) {
     @mkdir($log_dir, 0750, true); 
 }
 
-// O restante do seu código começa aqui...
+
 ob_start(); 
 header('Content-Type: application/json; charset=UTF-8');
 // Configurações iniciais
@@ -117,6 +117,13 @@ function handleGetRequest($userId) {
     $action = $_GET['action'] ?? '';
     
     switch ($action) {
+
+        case 'sest_balance_details':
+        $result = ClientController::getSenatClientBalanceDetails($userId);
+        echo json_encode($result);
+        break;
+
+
         case 'balance_details':
             $result = ClientController::getClientBalanceDetails($userId);
             echo json_encode($result);
