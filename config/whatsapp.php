@@ -10,9 +10,9 @@ if ($whatsappEnabled === false) {
 }
 
 define('WHATSAPP_ENABLED', true);
-define('WHATSAPP_BASE_URL', rtrim(getenv('WHATSAPP_BASE_URL') ?: 'http://klubezap.klubecash.com:8080', '/'));
-define('WHATSAPP_SESSION_NAME', getenv('WHATSAPP_SESSION') ?: 'mySession');
-define('WHATSAPP_API_TOKEN', getenv('WHATSAPP_TOKEN') ?: '$2b$10$irMbsdbXWXCSvjYgD3hC4.y5Gy83dTYoi6vMem948NUjxn5Neoj_G');
+define('WHATSAPP_BASE_URL', rtrim(getenv('WHATSAPP_BASE_URL') ?: 'http://191.7.9.179:21465', '/'));
+define('WHATSAPP_SESSION_NAME', getenv('WHATSAPP_SESSION') ?: 'NERDWHATS_AMERICA');
+define('WHATSAPP_API_TOKEN', getenv('WHATSAPP_TOKEN') ?: '$2b$10$shgeryglQ2U_18jhOI6Q0e5yQZ8H3pVi.dKxkLBrCgEjaoG0XpXMO');
 define('WHATSAPP_HTTP_TIMEOUT', (int)(getenv('WHATSAPP_HTTP_TIMEOUT') ?: 20));
 define('WHATSAPP_CONNECT_RETRIES', (int)(getenv('WHATSAPP_CONNECT_RETRIES') ?: 1));
 define('WHATSAPP_ACK_TIMEOUT', (int)(getenv('WHATSAPP_ACK_TIMEOUT') ?: 10));
