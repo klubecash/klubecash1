@@ -1721,6 +1721,76 @@ class ClientController {
             return ['status' => false, 'message' => 'Erro ao gerar relatório. Tente novamente.'];
         }
     }
+/**
+ * Verifica se o usuário pertence ao SENAT
+ *
+ * @param int $userId
+ * @return bool
+ */
+private static function isSenatUser($userId) {
+    try {
+        $db = Database::getConnection();
+
+        // Aqui usamos o mesmo padrão de consulta do validateClient
+        $stmt = $db->prepare("
+            SELECT id FROM usuarios
+            WHERE id = :user_id AND senat = 1
+        ");
+        $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->rowCount() > 0;
+    } catch (PDOException $e) {
+        error_log('Erro ao verificar se o usuário é SENAT: ' . $e->getMessage());
+        return false;
+    }
+}
+/**
+ * Obtém o saldo completo do cliente SENAT com detalhes por loja
+ *
+ * @param int $userId
+ * @return array
+ */
+public static function getSenatClientBalanceDetails($userId) {
+    try {
+        // Verifica se o usuário é SENAT (Esta função deve existir na sua classe)
+        if (!self::isSenatUser($userId)) {
+            return ['status' => false, 'message' => 'Usuário não pertence ao SENAT.'];
+        }
+
+        // Confirma se o usuário é válido (Esta função deve existir na sua classe)
+        if (!self::validateClient($userId)) {
+            return ['status' => false, 'message' => 'Cliente não encontrado ou inativo.'];
+        }
+
+        require_once __DIR__ . '/../models/CashbackBalance.php';
+        $balanceModel = new CashbackBalance();
+
+        // ✅ CORREÇÃO: Chamar os novos métodos de Model (que criaremos abaixo)
+        $balances = $balanceModel->getSenatStoreBalances($userId);
+        $totalBalance = $balanceModel->getTotalSenatBalance($userId);
+
+        // Enriquecer com estatísticas (Esta parte está correta)
+        // (Assumindo que getBalanceStatistics existe no seu Model)
+        foreach ($balances as &$balance) {
+            $stats = $balanceModel->getBalanceStatistics($userId, $balance['loja_id']);
+            $balance['estatisticas'] = $stats;
+        }
+
+        return [
+            'status' => true,
+            'data' => [
+                'saldo_total' => $totalBalance,
+                'saldos_por_loja' => $balances,
+                'total_lojas' => count($balances),
+                'senat' => true
+            ]
+        ];
+    } catch (Exception $e) {
+        error_log('Erro ao obter detalhes do saldo SENAT: ' . $e->getMessage());
+        return ['status' => false, 'message' => 'Erro ao carregar saldo SENAT.'];
+    }
+}
     /**
     * Obtém o saldo completo do cliente com detalhes por loja
     * 
