@@ -137,13 +137,14 @@ class CashbackBalance {
      * @param int $userId ID do usuário
      * @return array Saldos detalhados por loja SENAT
      */
-    public function getSenatStoreBalances($userId) {
+public function getSenatStoreBalances($userId) {
         try {
-            error_log("=== BUSCA SALDOS SENAT (TABELA CASHBACK_SALDOS) ===");
+            error_log("=== BUSCA SALDOS SENAT (CORRIGIDO) ===");
             
-            // !! AJUSTE AQUI !!
-            // Ajuste 'l.is_senat = 1' para a coluna correta que identifica
-            // uma loja Senat (ex: l.tipo = 'senat')
+            // CORREÇÃO: Adiciona JOIN na tabela 'usuarios' (com alias 'u_loja')
+            // para verificar se a loja é Senat.
+            // **IMPORTANTE**: Confirme se 'l.id = u_loja.loja_vinculada_id' é a forma correta
+            // de ligar a tabela 'lojas' à tabela 'usuarios' (tipo loja)
             $sqlTabela = "
                 SELECT 
                     cs.loja_id,
@@ -154,9 +155,11 @@ class CashbackBalance {
                     cs.saldo_disponivel
                 FROM cashback_saldos cs
                 JOIN lojas l ON cs.loja_id = l.id
-                WHERE cs.usuario_id = :user_id
+                JOIN usuarios u_loja ON l.id = u_loja.loja_vinculada_id 
+                WHERE cs.usuario_id = :user_id       -- Filtra pelo CLIENTE logado
                   AND cs.saldo_disponivel > 0
-                  AND l.is_senat = 1  -- <-- FILTRO SENAT
+                  AND u_loja.tipo = 'loja'         -- Garante que o usuário vinculado é uma loja
+                  AND u_loja.senat = 'sim'         -- Garante que a LOJA é Senat
                 ORDER BY cs.saldo_disponivel DESC
             ";
             
@@ -172,9 +175,8 @@ class CashbackBalance {
             }
 
             // FALLBACK: Buscar nas transações (também com filtro SENAT)
-            error_log("FALLBACK SENAT: Buscando nas transações...");
+            error_log("FALLBACK SENAT (CORRIGIDO): Buscando nas transações...");
             
-            // !! AJUSTE AQUI TAMBÉM !!
             $sqlTransacoes = "
                 SELECT 
                     t.loja_id,
@@ -185,8 +187,10 @@ class CashbackBalance {
                     SUM(CASE WHEN t.status = 'aprovado' THEN t.valor_cliente ELSE 0 END) as saldo_disponivel
                 FROM transacoes_cashback t
                 INNER JOIN lojas l ON t.loja_id = l.id
-                WHERE t.usuario_id = :user_id
-                  AND l.is_senat = 1  -- <-- FILTRO SENAT
+                INNER JOIN usuarios u_loja ON l.id = u_loja.loja_vinculada_id
+                WHERE t.usuario_id = :user_id      -- Filtra pelo CLIENTE logado
+                  AND u_loja.tipo = 'loja'       -- Garante que o usuário vinculado é uma loja
+                  AND u_loja.senat = 'sim'       -- Garante que a LOJA é Senat
                 GROUP BY t.loja_id, l.nome_fantasia, l.logo, l.categoria, l.porcentagem_cashback
                 HAVING saldo_disponivel > 0
                 ORDER BY saldo_disponivel DESC
@@ -203,7 +207,8 @@ class CashbackBalance {
             
         } catch (PDOException $e) {
             error_log('ERRO ao obter saldos SENAT: ' . $e->getMessage());
-            return [];
+            // Lança a exceção para o Controller tratar (retornar 500 ou mensagem de erro)
+            throw new Exception('Erro de banco de dados ao buscar saldos Senat: ' . $e->getMessage());
         }
     }
 
@@ -216,30 +221,31 @@ class CashbackBalance {
      * @param int $userId ID do usuário
      * @return float Saldo total consolidado em lojas SENAT
      */
-    public function getTotalSenatBalance($userId) {
-        try {
-            // !! AJUSTE AQUI !!
-            // Ajuste 'l.is_senat = 1' para a coluna correta
-            $sql = "
-                SELECT SUM(cs.saldo_disponivel) as total
-                FROM cashback_saldos cs
-                JOIN lojas l ON cs.loja_id = l.id
-                WHERE cs.usuario_id = :user_id
-                  AND l.is_senat = 1  -- <-- FILTRO SENAT
-            ";
-            
-            $stmt = $this->db->prepare($sql);
-            $stmt->bindParam(':user_id', $userId);
-            $stmt->execute();
-            
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            return $result ? floatval($result['total']) : 0.00;
-            
-        } catch (PDOException $e) {
-            error_log('Erro ao obter saldo total SENAT: ' . $e->getMessage());
-            return 0.00;
-        }
+public function getTotalSenatBalance($userId) {
+    try {
+        // CORREÇÃO: Adiciona o JOIN e os WHEREs para filtrar lojas Senat
+        $sql = "
+            SELECT SUM(cs.saldo_disponivel) as total
+            FROM cashback_saldos cs
+            JOIN lojas l ON cs.loja_id = l.id
+            JOIN usuarios u_loja ON l.id = u_loja.loja_vinculada_id
+            WHERE cs.usuario_id = :user_id     -- Filtra pelo CLIENTE logado
+              AND u_loja.tipo = 'loja'       -- Garante que o usuário vinculado é uma loja
+              AND u_loja.senat = 'sim'       -- Garante que a LOJA é Senat
+        ";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindParam(':user_id', $userId);
+        $stmt->execute();
+        
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ? floatval($result['total']) : 0.00;
+        
+    } catch (PDOException $e) {
+        error_log('Erro ao obter saldo total SENAT: ' . $e->getMessage());
+        throw new Exception('Erro de banco de dados ao buscar saldo total Senat: ' . $e->getMessage());
     }
+}
     /**
      * Obtém o saldo total consolidado de um usuário (soma de todas as lojas)
      * 
