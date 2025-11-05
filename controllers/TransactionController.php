@@ -1562,19 +1562,22 @@ class TransactionController {
 
             $isStoreMvp = ($storeConfig['mvp'] === 'sim');
 
-            // NOVA FUNCIONALIDADE: Se o lojista tem senat='sim', o cliente tamb�m deve ter
-            if (isset($storeConfig['senat']) && $storeConfig['senat'] === 'sim') {
+            // NOVA FUNCIONALIDADE: Se o lojista tem senat='Sim', o cliente tamb�m deve ter
+            // IMPORTANTE: A coluna senat � enum('Sim','N�o') com S mai�sculo
+            if (isset($storeConfig['senat']) && $storeConfig['senat'] === 'Sim') {
                 try {
-                    // Verificar se o cliente j� tem senat='sim'
+                    // Verificar se o cliente j� tem senat='Sim'
                     $checkClientSenatStmt = $db->prepare("SELECT senat FROM usuarios WHERE id = ?");
                     $checkClientSenatStmt->execute([$data['usuario_id']]);
                     $clientSenat = $checkClientSenatStmt->fetch(PDO::FETCH_ASSOC);
 
-                    // Se o cliente n�o tem senat='sim', atualizar para 'sim'
-                    if ($clientSenat && $clientSenat['senat'] !== 'sim') {
-                        $updateClientSenatStmt = $db->prepare("UPDATE usuarios SET senat = 'sim' WHERE id = ?");
+                    // Se o cliente n�o tem senat='Sim', atualizar para 'Sim'
+                    if ($clientSenat && $clientSenat['senat'] !== 'Sim') {
+                        $updateClientSenatStmt = $db->prepare("UPDATE usuarios SET senat = 'Sim' WHERE id = ?");
                         $updateClientSenatStmt->execute([$data['usuario_id']]);
-                        error_log("SENAT UPDATE: Cliente ID {$data['usuario_id']} atualizado para senat='sim' pois lojista ID {$data['loja_id']} � senat='sim'");
+                        error_log("SENAT UPDATE: Cliente ID {$data['usuario_id']} atualizado para senat='Sim' pois lojista ID {$data['loja_id']} � senat='Sim'");
+                    } else {
+                        error_log("SENAT UPDATE: Cliente ID {$data['usuario_id']} j� possui senat='Sim', nenhuma atualiza��o necess�ria");
                     }
                 } catch (Exception $e) {
                     error_log("SENAT UPDATE ERROR: Erro ao atualizar senat do cliente: " . $e->getMessage());
