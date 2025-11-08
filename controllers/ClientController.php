@@ -1732,9 +1732,10 @@ private static function isSenatUser($userId) {
         $db = Database::getConnection();
 
         // Aqui usamos o mesmo padrão de consulta do validateClient
+        // LOWER() para comparação case-insensitive
         $stmt = $db->prepare("
             SELECT id FROM usuarios
-            WHERE id = :user_id AND senat = 1
+            WHERE id = :user_id AND LOWER(senat) = 'sim'
         ");
         $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
         $stmt->execute();

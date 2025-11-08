@@ -280,15 +280,27 @@ class WhatsAppBot
             throw new InvalidArgumentException('Telefone invalido para envio via WhatsApp.');
         }
 
+        // Telefone fixo (10 dígitos): adiciona 9
         if (strlen($digits) === 10) {
             $digits = preg_replace('/^(\d{2})(\d{4})(\d{4})$/', '$19$2$3', $digits);
         }
 
+        // Adiciona código do país se necessário
         if (strlen($digits) === 11 && strpos($digits, '55') !== 0) {
             $digits = '55' . $digits;
         }
 
-        return $digits;
+        // CORREÇÃO BAILEYS: Remove o 9 extra do celular
+        // Formato correto: 55 + DDD (2) + 8 dígitos (sem o 9 inicial)
+        // Exemplo: 5538991045205 vira 553891045205
+        if (strlen($digits) === 13 && substr($digits, 4, 1) === '9') {
+            // 55 (país) + 38 (DDD) + 9 (extra) + 91045205 (número)
+            // Remove o 9 da posição 4
+            $digits = substr($digits, 0, 4) . substr($digits, 5);
+        }
+
+        // Adiciona sufixo WhatsApp
+        return $digits . '@s.whatsapp.net';
     }
 
     private static function extractAck(?array $response): ?array

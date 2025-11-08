@@ -146,7 +146,7 @@ public function getSenatStoreBalances($userId) {
             // **IMPORTANTE**: Confirme se 'l.id = u_loja.loja_vinculada_id' é a forma correta
             // de ligar a tabela 'lojas' à tabela 'usuarios' (tipo loja)
             $sqlTabela = "
-                SELECT 
+                SELECT
                     cs.loja_id,
                     l.nome_fantasia,
                     l.logo,
@@ -155,11 +155,11 @@ public function getSenatStoreBalances($userId) {
                     cs.saldo_disponivel
                 FROM cashback_saldos cs
                 JOIN lojas l ON cs.loja_id = l.id
-                JOIN usuarios u_loja ON l.id = u_loja.loja_vinculada_id 
+                JOIN usuarios u_loja ON l.usuario_id = u_loja.id
                 WHERE cs.usuario_id = :user_id       -- Filtra pelo CLIENTE logado
                   AND cs.saldo_disponivel > 0
-                  AND u_loja.tipo = 'loja'         -- Garante que o usuário vinculado é uma loja
-                  AND u_loja.senat = 'sim'         -- Garante que a LOJA é Senat
+                  AND u_loja.tipo = 'loja'         -- Garante que o usuário é do tipo loja
+                  AND LOWER(u_loja.senat) = 'sim'  -- Garante que a LOJA é Senat (case-insensitive)
                 ORDER BY cs.saldo_disponivel DESC
             ";
             
@@ -178,7 +178,7 @@ public function getSenatStoreBalances($userId) {
             error_log("FALLBACK SENAT (CORRIGIDO): Buscando nas transações...");
             
             $sqlTransacoes = "
-                SELECT 
+                SELECT
                     t.loja_id,
                     l.nome_fantasia,
                     l.logo,
@@ -187,10 +187,10 @@ public function getSenatStoreBalances($userId) {
                     SUM(CASE WHEN t.status = 'aprovado' THEN t.valor_cliente ELSE 0 END) as saldo_disponivel
                 FROM transacoes_cashback t
                 INNER JOIN lojas l ON t.loja_id = l.id
-                INNER JOIN usuarios u_loja ON l.id = u_loja.loja_vinculada_id
+                INNER JOIN usuarios u_loja ON l.usuario_id = u_loja.id
                 WHERE t.usuario_id = :user_id      -- Filtra pelo CLIENTE logado
-                  AND u_loja.tipo = 'loja'       -- Garante que o usuário vinculado é uma loja
-                  AND u_loja.senat = 'sim'       -- Garante que a LOJA é Senat
+                  AND u_loja.tipo = 'loja'       -- Garante que o usuário é do tipo loja
+                  AND LOWER(u_loja.senat) = 'sim' -- Garante que a LOJA é Senat (case-insensitive)
                 GROUP BY t.loja_id, l.nome_fantasia, l.logo, l.categoria, l.porcentagem_cashback
                 HAVING saldo_disponivel > 0
                 ORDER BY saldo_disponivel DESC
@@ -228,19 +228,19 @@ public function getTotalSenatBalance($userId) {
             SELECT SUM(cs.saldo_disponivel) as total
             FROM cashback_saldos cs
             JOIN lojas l ON cs.loja_id = l.id
-            JOIN usuarios u_loja ON l.id = u_loja.loja_vinculada_id
+            JOIN usuarios u_loja ON l.usuario_id = u_loja.id
             WHERE cs.usuario_id = :user_id     -- Filtra pelo CLIENTE logado
-              AND u_loja.tipo = 'loja'       -- Garante que o usuário vinculado é uma loja
-              AND u_loja.senat = 'sim'       -- Garante que a LOJA é Senat
+              AND u_loja.tipo = 'loja'       -- Garante que o usuário é do tipo loja
+              AND LOWER(u_loja.senat) = 'sim' -- Garante que a LOJA é Senat (case-insensitive)
         ";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->bindParam(':user_id', $userId);
         $stmt->execute();
-        
+
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return $result ? floatval($result['total']) : 0.00;
-        
+
     } catch (PDOException $e) {
         error_log('Erro ao obter saldo total SENAT: ' . $e->getMessage());
         throw new Exception('Erro de banco de dados ao buscar saldo total Senat: ' . $e->getMessage());

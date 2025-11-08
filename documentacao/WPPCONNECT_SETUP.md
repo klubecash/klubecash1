@@ -23,7 +23,7 @@ API REST do WhatsApp rodando em servidor Ubuntu local (notebook), acessível pel
 | **URL Interna** | `http://localhost:21465` |
 | **URL Externa** | `http://191.7.9.179:21465` |
 | **Sessão** | `NERDWHATS_AMERICA` |
-| **Token** | `$2b$10$shgeryglQ2U_18jhOI6Q0e5yQZ8H3pVi.dKxkLBrCgEjaoG0XpXMO` |
+| **Token** | `$2b$10$Bw104fXekPux3m86cHu7BOqkAtp_5IUlT7mpRPKKWTLZzAAzOIVzu` |
 | **Servidor** | Ubuntu - Notebook Acer Aspire A315-58 |
 | **IP Local** | `192.168.100.4` |
 | **IP Público** | `191.7.9.179` |
@@ -116,7 +116,7 @@ WantedBy=multi-user.target
 define('WHATSAPP_ENABLED', true);
 define('WHATSAPP_BASE_URL', 'http://191.7.9.179:21465');
 define('WHATSAPP_SESSION_NAME', 'NERDWHATS_AMERICA');
-define('WHATSAPP_API_TOKEN', '$2b$10$shgeryglQ2U_18jhOI6Q0e5yQZ8H3pVi.dKxkLBrCgEjaoG0XpXMO');
+define('WHATSAPP_API_TOKEN',      '$2b$10$Bw104fXekPux3m86cHu7BOqkAtp_5IUlT7mpRPKKWTLZzAAzOIVzu');
 define('WHATSAPP_HTTP_TIMEOUT', 20);
 ?>
 ```
@@ -214,7 +214,7 @@ curl http://191.7.9.179:21465
 
 # 7. Testar API com token
 curl -X GET 'http://localhost:21465/api/NERDWHATS_AMERICA/check-connection-session' \
-  -H 'Authorization: Bearer $2b$10$shgeryglQ2U_18jhOI6Q0e5yQZ8H3pVi.dKxkLBrCgEjaoG0XpXMO'
+  -H 'Authorization: Bearer $2b$10$Bw104fXekPux3m86cHu7BOqkAtp_5IUlT7mpRPKKWTLZzAAzOIVzu'
 ```
 
 ### **Problemas Comuns e Soluções**
@@ -254,14 +254,14 @@ sudo systemctl start wppconnect.service
 
 # 4. Gerar novo QR Code
 curl -X POST 'http://localhost:21465/api/NERDWHATS_AMERICA/start-session' \
-  -H 'Authorization: Bearer $2b$10$shgeryglQ2U_18jhOI6Q0e5yQZ8H3pVi.dKxkLBrCgEjaoG0XpXMO' \
+  -H 'Authorization: Bearer $2b$10$Bw104fXekPux3m86cHu7BOqkAtp_5IUlT7mpRPKKWTLZzAAzOIVzu' \
   -H 'Content-Type: application/json' \
   -d '{}'
 
 # 5. Aguardar e obter QR Code
 sleep 10
 curl -X GET 'http://localhost:21465/api/NERDWHATS_AMERICA/qrcode-session' \
-  -H 'Authorization: Bearer $2b$10$shgeryglQ2U_18jhOI6Q0e5yQZ8H3pVi.dKxkLBrCgEjaoG0XpXMO' \
+  -H 'Authorization: Bearer $2b$10$Bw104fXekPux3m86cHu7BOqkAtp_5IUlT7mpRPKKWTLZzAAzOIVzu' \
   --output ~/qrcode.png
 
 # 6. Abrir e escanear
@@ -343,7 +343,7 @@ sudo systemctl disable wppconnect.service
 
 ```bash
 # Token para facilitar
-TOKEN="$2b$10$shgeryglQ2U_18jhOI6Q0e5yQZ8H3pVi.dKxkLBrCgEjaoG0XpXMO"
+TOKEN="$2b$10$Bw104fXekPux3m86cHu7BOqkAtp_5IUlT7mpRPKKWTLZzAAzOIVzu"
 
 # Verificar conexão
 curl -X GET "http://localhost:21465/api/NERDWHATS_AMERICA/check-connection-session" \
