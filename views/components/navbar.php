@@ -20,12 +20,14 @@ if (session_status() === PHP_SESSION_NONE) {
 $isLoggedIn = isset($_SESSION['user_id']);
 $userName = $isLoggedIn ? $_SESSION['user_name'] ?? 'Usuário' : '';
 $userType = $isLoggedIn ? $_SESSION['user_type'] ?? '' : '';
+$userSenat = $isLoggedIn ? $_SESSION['user_senat'] ?? 'Não' : 'Não';
 
 // Identificar tipo de usuário - mantendo classificação original
 $isAdmin = $userType === 'admin';
 $isClient = $userType === 'cliente';
 $isStore = $userType === 'loja';
 $isFuncionario = $userType === 'funcionario';
+$hasSenat = $userSenat === 'Sim';
 ?>
 
 <style>
@@ -645,6 +647,16 @@ $isFuncionario = $userType === 'funcionario';
                             <span>Meu Extrato</span>
                         </a>
                     </li>
+                    <?php if ($hasSenat): ?>
+                    <li class="navbar-menu-item">
+                        <a href="<?php echo SITE_URL; ?>/views/auth/wallet-select.php" class="navbar-menu-link">
+                            <svg class="navbar-menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                            </svg>
+                            <span>Trocar Carteira</span>
+                        </a>
+                    </li>
+                    <?php endif; ?>
                     <li class="navbar-menu-item">
                         <a href="<?php echo SITE_URL; ?>/views/client/partner-stores.php" class="navbar-menu-link">
                             <svg class="navbar-menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">

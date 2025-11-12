@@ -13,7 +13,14 @@
       "Bash(del:*)",
       "Bash(grep:*)",
       "Bash(ssh kaua-matheus-da-silva-lopes@191.7.9.179 \"cd ~ && rm -rf baileys-whatsapp && mkdir baileys-whatsapp && cd baileys-whatsapp && npm init -y\")",
-      "Bash(scp install_baileys.sh kaua-matheus-da-silva-lopes@191.7.9.179:~/)"
+      "Bash(scp install_baileys.sh kaua-matheus-da-silva-lopes@191.7.9.179:~/)",
+      "Bash(npx create-next-app@latest KlubecashNova --typescript --tailwind --app --src-dir --import-alias \"@/*\" --no-git)",
+      "Bash(npx create-next-app:*)",
+      "Bash(npx create-next-app@latest klubecash-nova --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm)",
+      "Bash(npm install:*)",
+      "Bash(npx tailwindcss:*)",
+      "Bash(npm run dev:*)",
+      "Bash(timeout 10 bash:*)"
     ],
     "deny": [],
     "ask": []
