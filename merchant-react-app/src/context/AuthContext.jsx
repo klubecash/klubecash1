@@ -3,6 +3,18 @@ import { authService } from '../services/authService';
 
 const AuthContext = createContext();
 
+// MODO DESENVOLVIMENTO - Usuário fake
+const DEV_MODE = process.env.REACT_APP_DEV_MODE === 'true';
+const MOCK_USER = {
+  id: 1,
+  nome: 'Lojista Teste',
+  email: 'lojista@teste.com',
+  tipo: 'loja',
+  telefone: '11999999999',
+  store_id: 1,
+  store_name: 'Loja Teste'
+};
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -23,6 +35,15 @@ export const AuthProvider = ({ children }) => {
   const checkAuth = async () => {
     try {
       setLoading(true);
+
+      // MODO DESENVOLVIMENTO - Usa usuário fake
+      if (DEV_MODE) {
+        console.log('🔧 MODO DESENVOLVIMENTO: Usando usuário fake');
+        setUser(MOCK_USER);
+        setError(null);
+        setLoading(false);
+        return;
+      }
 
       // Verificar se tem token
       const token = localStorage.getItem('jwt_token');
@@ -46,7 +67,11 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.error('Erro ao verificar autenticação:', err);
       setError(err.message || 'Erro ao verificar autenticação');
-      authService.logout();
+
+      // Em modo dev, não faz logout em caso de erro
+      if (!DEV_MODE) {
+        authService.logout();
+      }
     } finally {
       setLoading(false);
     }
@@ -54,7 +79,9 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     setUser(null);
-    authService.logout();
+    if (!DEV_MODE) {
+      authService.logout();
+    }
   };
 
   const value = {
@@ -63,6 +90,7 @@ export const AuthProvider = ({ children }) => {
     error,
     logout,
     refreshUser: checkAuth,
+    isDev: DEV_MODE,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
