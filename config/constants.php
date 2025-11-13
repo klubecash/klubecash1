@@ -296,12 +296,21 @@ define('OPENPIX_APP_ID', 'Q2xpZW50X0lkXzIzOTVjYmMzLWYyOGItNGJmYi04MWE3LWNkZWIzYz
 define('OPENPIX_WEBHOOK_AUTH', 'klube_cash_webhook_2025'); // Chave de autorização do webhook
 define('OPENPIX_WEBHOOK_URL', SITE_URL . '/webhook/openpix');
 
-// === ABACATE PAY CONFIGURAÇÕES (ASSINATURAS) ===
+// === ABACATE PAY CONFIGURAÇÕES (ASSINATURAS - PIX) ===
 define('ABACATE_API_BASE', 'https://api.abacatepay.com');
 define('ABACATE_API_KEY', 'abc_prod_HQDz0bBuxAEPA6WCqZ5cJP4r'); // DEFINIR: Sua chave de API do Abacate Pay
 define('ABACATE_WEBHOOK_SECRET', 'klubecash2025'); // DEFINIR: Segredo do webhook (gerar no painel)
 define('ABACATE_WEBHOOK_URL', SITE_URL . '/api/abacatepay-webhook');
 define('ABACATE_TIMEOUT', 30); // Timeout em segundos
+
+// === STRIPE CONFIGURAÇÕES (ASSINATURAS - CARTÃO DE CRÉDITO) ===
+define('STRIPE_API_BASE', 'https://api.stripe.com');
+define('STRIPE_SECRET_KEY', 'sk_test_COLOCAR_SUA_CHAVE_SECRETA_AQUI'); // DEFINIR: Chave secreta do Stripe (sk_test_... ou sk_live_...)
+define('STRIPE_PUBLISHABLE_KEY', 'pk_test_COLOCAR_SUA_CHAVE_PUBLICA_AQUI'); // DEFINIR: Chave pública do Stripe (pk_test_... ou pk_live_...)
+define('STRIPE_WEBHOOK_SECRET', 'whsec_COLOCAR_SEU_WEBHOOK_SECRET_AQUI'); // DEFINIR: Secret do webhook (gerar no painel)
+define('STRIPE_WEBHOOK_URL', SITE_URL . '/api/stripe-webhook');
+define('STRIPE_TIMEOUT', 30); // Timeout em segundos
+define('STRIPE_VALIDATE_WEBHOOK', true); // IMPORTANTE: true em produção, false apenas para testes
 
 // URLs de Assinaturas
 define('ADMIN_SUBSCRIPTIONS_URL', SITE_URL . '/admin/assinaturas');

@@ -18,16 +18,16 @@ API REST do WhatsApp rodando em servidor Ubuntu local (notebook), acessível pel
 
 ### **Dados de Acesso**
 
-| Item | Valor |
-|------|-------|
-| **URL Interna** | `http://localhost:21465` |
-| **URL Externa** | `http://191.7.9.179:21465` |
-| **Sessão** | `NERDWHATS_AMERICA` |
-| **Token** | `$2b$10$Bw104fXekPux3m86cHu7BOqkAtp_5IUlT7mpRPKKWTLZzAAzOIVzu` |
-| **Servidor** | Ubuntu - Notebook Acer Aspire A315-58 |
-| **IP Local** | `192.168.100.4` |
-| **IP Público** | `191.7.9.179` |
-| **Porta** | `21465` |
+| Item            | Valor                                                          |
+| --------------- | -------------------------------------------------------------- |
+| **URL Interna** | `http://localhost:21465`                                       |
+| **URL Externa** | `http://191.7.9.179:21465`                                     |
+| **Sessão**      | `NERDWHATS_AMERICA`                                            |
+| **Token**       | `$2b$10$Bw104fXekPux3m86cHu7BOqkAtp_5IUlT7mpRPKKWTLZzAAzOIVzu` |
+| **Servidor**    | Ubuntu - Notebook Acer Aspire A315-58                          |
+| **IP Local**    | `192.168.100.4`                                                |
+| **IP Público**  | `191.7.9.179`                                                  |
+| **Porta**       | `21465`                                                        |
 
 ---
 

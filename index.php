@@ -127,23 +127,46 @@ $isLoggedIn = isset($_SESSION['user_id']);
 $userType = $isLoggedIn ? ($_SESSION['user_type'] ?? '') : '';
 $userName = $isLoggedIn ? ($_SESSION['user_name'] ?? '') : '';
 
-// Determinação da URL do dashboard (mantida igual)
+// Determinação da URL do dashboard
 $dashboardURL = '';
+$isSenatClient = false;
+
 if ($isLoggedIn) {
-    switch ($userType) {
-        case 'admin':
-            $dashboardURL = ADMIN_DASHBOARD_URL;
-            break;
-        case 'cliente':
-            $dashboardURL = CLIENT_DASHBOARD_URL;
-            break;
-        case 'loja':
-            $dashboardURL = STORE_DASHBOARD_URL;
-            break;
-        case 'funcionario':
-            // Por enquanto, funcionários vão para o dashboard da loja
-            $dashboardURL = STORE_DASHBOARD_URL;
-            break;
+    // Verifica se o cliente é SENAT
+    if ($userType === 'cliente') {
+        try {
+            $db = Database::getConnection();
+            $stmt = $db->prepare("SELECT senat FROM usuarios WHERE id = ? AND tipo = 'cliente'");
+            $stmt->execute([$_SESSION['user_id']]);
+            $userData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($userData && $userData['senat'] === 'sim') {
+                $isSenatClient = true;
+                // Cliente SENAT vai para seleção de carteiras
+                $dashboardURL = '/views/auth/wallet-select.php';
+            }
+        } catch (PDOException $e) {
+            error_log("Erro ao verificar cliente SENAT: " . $e->getMessage());
+        }
+    }
+
+    // Define URL do dashboard baseado no tipo de usuário
+    if (!$isSenatClient) {
+        switch ($userType) {
+            case 'admin':
+                $dashboardURL = ADMIN_DASHBOARD_URL;
+                break;
+            case 'cliente':
+                $dashboardURL = CLIENT_DASHBOARD_URL;
+                break;
+            case 'loja':
+                $dashboardURL = STORE_DASHBOARD_URL;
+                break;
+            case 'funcionario':
+                // Por enquanto, funcionários vão para o dashboard da loja
+                $dashboardURL = STORE_DASHBOARD_URL;
+                break;
+        }
     }
 }
 
