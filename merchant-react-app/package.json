@@ -1,0 +1,56 @@
+{
+  "name": "klubecash-merchant-app",
+  "version": "1.0.0",
+  "description": "Klube Cash - Sistema de Gerenciamento para Lojistas",
+  "private": true,
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.10.0",
+    "@reduxjs/toolkit": "^1.9.5",
+    "react-redux": "^8.0.5",
+    "axios": "^1.4.0",
+    "react-hook-form": "^7.43.9",
+    "zod": "^3.21.4",
+    "@hookform/resolvers": "^3.1.0",
+    "chart.js": "^4.3.0",
+    "react-chartjs-2": "^5.2.0",
+    "date-fns": "^2.30.0",
+    "qrcode.react": "^3.1.0",
+    "@heroicons/react": "^2.0.17",
+    "clsx": "^1.2.1",
+    "react-scripts": "5.0.1"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.3.2",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.23",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^5.16.5",
+    "@testing-library/user-event": "^14.4.3"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
