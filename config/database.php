@@ -1,71 +1,206 @@
 <?php
+
 date_default_timezone_set('America/Sao_Paulo');
 
-//config/database.php
 /**
- * Configuração de conexão com o banco de dados
+ * config/database.php
  * Klube Cash - Sistema de Cashback
+ *
+ * Banco de dados:
+ * Aiven MySQL 8.4
  */
 
-// Parâmetros de conexão com o banco de dados
-define('DB_HOST', 'srv406.hstgr.io'); // ou '45.89.204.5'
-define('DB_NAME', 'u383946504_klubecash');
-define('DB_USER', 'u383946504_klubecash');
-define('DB_PASS', 'Aaku_2004@'); // Substitua pela senha real
+// ======================================================
+// CONFIGURAÇÕES DO BANCO AIVEN
+// ======================================================
+
+define('DB_HOST', 'mysql-2829cd07-klubecash.e.aivencloud.com');
+define('DB_PORT', 24053);
+define('DB_NAME', 'defaultdb');
+define('DB_USER', 'avnadmin');
+
+// COLOQUE AQUI A NOVA SENHA DO AIVEN
+define('DB_PASS', 'COLOQUE_SUA_NOVA_SENHA_AQUI');
+
+// Certificado SSL do Aiven.
+// Baixe o arquivo CA Certificate no painel do Aiven
+// e salve como "ca.pem" dentro da pasta config.
+define('DB_SSL_CA', __DIR__ . '/ca.pem');
+
 
 /**
- * Classe Database - Gerencia a conexão com o banco de dados
+ * Classe Database
+ * Gerencia a conexão PDO com o MySQL do Aiven.
  */
-class Database {
+class Database
+{
     private static $connection = null;
-    
+
     /**
-     * Obtém uma conexão com o banco de dados
-     * 
-     * @return PDO Objeto de conexão PDO
+     * Retorna a conexão com o banco de dados.
+     *
+     * @return PDO
      */
-    public static function getConnection() {
-        // Se já existe uma conexão, retorna ela
+    public static function getConnection()
+    {
+        // Se a conexão já existe, reutiliza.
         if (self::$connection !== null) {
             return self::$connection;
         }
-        
-        try {
-            // Cria uma nova conexão PDO
-            $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4";
-            $options = [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-            ];
-            
-            self::$connection = new PDO($dsn, DB_USER, DB_PASS, $options);
-            self::createEmailQueueTableIfNotExists(self::$connection);
-            return self::$connection;
-        } catch (PDOException $e) {
-            // Registra o erro e retorna uma mensagem amigável
-            error_log("Erro de conexão: " . $e->getMessage());
-            die("Não foi possível conectar ao banco de dados. Por favor, tente novamente mais tarde.");
-        }
-    }
 
-    private static function createEmailQueueTableIfNotExists($db) {
         try {
-            $stmt = $db->query("SHOW TABLES LIKE 'email_queue'");
-            if ($stmt->rowCount() == 0) {
-                $createTable = "CREATE TABLE `email_queue` (\n                    `id` int(11) NOT NULL AUTO_INCREMENT,\n                    `to_email` varchar(255) NOT NULL,\n                    `to_name` varchar(255) DEFAULT NULL,\n                    `subject` varchar(255) NOT NULL,\n                    `message` text NOT NULL,\n                    `status` enum('pending','sending','sent','failed') NOT NULL DEFAULT 'pending',\n                    `attempts` int(11) NOT NULL DEFAULT 0,\n                    `last_attempt` timestamp NULL DEFAULT NULL,\n                    `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,\n                    PRIMARY KEY (`id`)\n                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-                $db->exec($createTable);
+
+            // Verifica se o certificado SSL existe.
+            if (!file_exists(DB_SSL_CA)) {
+                throw new Exception(
+                    'Certificado SSL do banco não encontrado em: ' . DB_SSL_CA
+                );
             }
+
+            // DSN de conexão com o MySQL Aiven
+            $dsn = sprintf(
+                'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
+                DB_HOST,
+                DB_PORT,
+                DB_NAME
+            );
+
+            $options = [
+
+                // Exibe erros como exceções
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+
+                // Retorna consultas como arrays associativos
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+
+                // Usa prepared statements reais
+                PDO::ATTR_EMULATE_PREPARES => false,
+
+                // SSL obrigatório
+                PDO::MYSQL_ATTR_SSL_CA => DB_SSL_CA,
+            ];
+
+            // Cria conexão
+            self::$connection = new PDO(
+                $dsn,
+                DB_USER,
+                DB_PASS,
+                $options
+            );
+
+            // Configura timezone da sessão MySQL
+            self::$connection->exec(
+                "SET time_zone = '-03:00'"
+            );
+
+            // Cria tabela email_queue se necessário
+            self::createEmailQueueTableIfNotExists(
+                self::$connection
+            );
+
+            return self::$connection;
+
         } catch (PDOException $e) {
-            error_log('Erro ao criar tabela de fila de email: ' . $e->getMessage());
+
+            error_log(
+                'Erro de conexão com banco de dados: ' .
+                $e->getMessage()
+            );
+
+            die(
+                'Não foi possível conectar ao banco de dados. ' .
+                'Por favor, tente novamente mais tarde.'
+            );
+
+        } catch (Exception $e) {
+
+            error_log(
+                'Erro de configuração do banco de dados: ' .
+                $e->getMessage()
+            );
+
+            die(
+                'Erro na configuração do banco de dados. ' .
+                'Verifique o certificado SSL.'
+            );
         }
     }
 
-    
+
     /**
-     * Fecha a conexão com o banco de dados
+     * Cria a tabela de fila de emails caso ela ainda não exista.
+     *
+     * @param PDO $db
+     * @return void
      */
-    public static function closeConnection() {
+    private static function createEmailQueueTableIfNotExists($db)
+    {
+        try {
+
+            $sql = "
+                CREATE TABLE IF NOT EXISTS `email_queue` (
+                    `id` INT NOT NULL AUTO_INCREMENT,
+
+                    `to_email` VARCHAR(255) NOT NULL,
+
+                    `to_name` VARCHAR(255) DEFAULT NULL,
+
+                    `subject` VARCHAR(255) NOT NULL,
+
+                    `message` TEXT NOT NULL,
+
+                    `status`
+                        ENUM(
+                            'pending',
+                            'sending',
+                            'sent',
+                            'failed'
+                        )
+                        NOT NULL
+                        DEFAULT 'pending',
+
+                    `attempts`
+                        INT NOT NULL
+                        DEFAULT 0,
+
+                    `last_attempt`
+                        TIMESTAMP NULL
+                        DEFAULT NULL,
+
+                    `created_at`
+                        TIMESTAMP NULL
+                        DEFAULT CURRENT_TIMESTAMP,
+
+                    PRIMARY KEY (`id`),
+
+                    INDEX `idx_email_queue_status` (`status`),
+
+                    INDEX `idx_email_queue_created_at` (`created_at`)
+
+                ) ENGINE=InnoDB
+                  DEFAULT CHARSET=utf8mb4
+                  COLLATE=utf8mb4_unicode_ci
+            ";
+
+            $db->exec($sql);
+
+        } catch (PDOException $e) {
+
+            error_log(
+                'Erro ao criar tabela email_queue: ' .
+                $e->getMessage()
+            );
+        }
+    }
+
+
+    /**
+     * Fecha a conexão.
+     *
+     * @return void
+     */
+    public static function closeConnection()
+    {
         self::$connection = null;
     }
 }
