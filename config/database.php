@@ -19,8 +19,8 @@ define('DB_PORT', 24053);
 define('DB_NAME', 'defaultdb');
 define('DB_USER', 'avnadmin');
 
-// A senha deve ser configurada no ambiente do servidor, nunca no Git.
-define('DB_PASS', getenv('DB_PASS') ?: '');
+// COLOQUE AQUI A NOVA SENHA DO AIVEN
+define('DB_PASS', 'AVNS_nvBhTKUD7z2w0cx79rA');
 
 // Certificado SSL do Aiven.
 // Baixe o arquivo CA Certificate no painel do Aiven
@@ -49,10 +49,6 @@ class Database
         }
 
         try {
-
-            if (DB_PASS === '') {
-                throw new Exception('A variável de ambiente DB_PASS não está configurada.');
-            }
 
             // Verifica se o certificado SSL existe.
             if (!file_exists(DB_SSL_CA)) {
