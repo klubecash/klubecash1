@@ -4,7 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "check:php": "bash scripts/quality/php-lint.sh",
+    "check:routes": "php scripts/quality/check-routes.php",
+    "docs:routes": "php scripts/quality/generate-route-inventory.php",
+    "check:secrets": "php scripts/quality/check-secrets.php",
+    "test:smoke": "bash scripts/quality/smoke-test.sh",
+    "test": "npm run check:php && npm run check:routes"
   },
   "repository": {
     "type": "git",

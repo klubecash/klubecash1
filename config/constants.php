@@ -4,7 +4,7 @@
  * Configurações otimizadas para Mercado Pago com qualidade máxima
  */
 if (!defined('ROOT_PATH')) {
-    define('ROOT_PATH', '/home/u383946504/domains/klubecash.com/public_html/'); // SEU CAMINHO ABSOLUTO
+    define('ROOT_PATH', dirname(__DIR__) . '/');
 }
 
 
@@ -29,15 +29,19 @@ define('MSG_VISITOR_INVALID_DATA', 'Dados inválidos para criar cliente visitant
 // === INFORMAÇÕES DO SISTEMA ===
 define('SYSTEM_NAME', 'Klube Cash');
 define('SYSTEM_VERSION', '2.1.0');
-define('SITE_URL', 'https://klubecash.com');
+$configuredSiteUrl = getenv('SITE_URL');
+if (!$configuredSiteUrl && getenv('VERCEL_URL')) {
+    $configuredSiteUrl = 'https://' . getenv('VERCEL_URL');
+}
+define('SITE_URL', rtrim($configuredSiteUrl ?: 'https://www.klubecash.com', '/'));
 define('ADMIN_EMAIL', 'contato@klubecash.com');
 // === SMTP CONFIGURAÇÕES ===
-define('SMTP_HOST_HOSTINGER', 'smtp.hostinger.com');
-define('SMTP_PORT_HOSTINGER', 465);
-define('SMTP_USER_HOSTINGER', 'klubecash@klubecash.com');
-define('SMTP_PASS_HOSTINGER', 'Aaku_2004@');
-define('SMTP_FROM_HOSTINGER', 'klubecash@klubecash.com');
-define('SMTP_NAME_HOSTINGER', 'Klube Cash');
+define('SMTP_HOST_HOSTINGER', getenv('SMTP_HOST') ?: '');
+define('SMTP_PORT_HOSTINGER', (int) (getenv('SMTP_PORT') ?: 587));
+define('SMTP_USER_HOSTINGER', getenv('SMTP_USERNAME') ?: '');
+define('SMTP_PASS_HOSTINGER', getenv('SMTP_PASSWORD') ?: '');
+define('SMTP_FROM_HOSTINGER', getenv('SMTP_FROM_EMAIL') ?: '');
+define('SMTP_NAME_HOSTINGER', getenv('SMTP_FROM_NAME') ?: 'Klube Cash');
 // === CORES DO TEMA ===
 define('PRIMARY_COLOR', '#FF7A00');
 define('SECONDARY_COLOR', '#1A1A1A');
@@ -77,7 +81,7 @@ define('USER_TYPE_EMPLOYEE', 'funcionario');
 
 
 // === AUTENTICAÇÃO (ADIÇÃO) ===
-define('JWT_SECRET', 'klube_cash_secret_key_2025_secure');
+define('JWT_SECRET', getenv('JWT_SECRET') ?: '');
 define('SESSION_LIFETIME', 3600); // 1 hora
 define('TOKEN_EXPIRATION', 7200); // 2 horas para recuperação de senha
 
@@ -158,10 +162,10 @@ define('MSG_CPF_REQUIRED', 'CPF é obrigatório para completar seu perfil');
 define('MSG_CPF_INVALID', 'CPF informado é inválido');
 define('MSG_CPF_EXISTS', 'Este CPF já está cadastrado no sistema');
 // === MERCADO PAGO CONFIGURAÇÕES OTIMIZADAS ===
-define('MP_PUBLIC_KEY', 'APP_USR-60bd9502-2ea5-46c8-80b5-765f10277949'); // Chave pública de Produção
-define('MP_ACCESS_TOKEN', 'APP_USR-8622491157025652-060223-01208b007f3c9b708958e846841e0a63-2320640278'); // Access token de produção
+define('MP_PUBLIC_KEY', getenv('MP_PUBLIC_KEY') ?: '');
+define('MP_ACCESS_TOKEN', getenv('MP_ACCESS_TOKEN') ?: '');
 define('MP_WEBHOOK_URL', SITE_URL . '/api/mercadopago-webhook');
-define('MP_WEBHOOK_SECRET', '21c03ffb0010adca8e57a0b9fcf30855191d44008baa16b757d9104ed5bfce5b'); // Secret do webhook
+define('MP_WEBHOOK_SECRET', getenv('MP_WEBHOOK_SECRET') ?: '');
 
 // === CONFIGURAÇÕES AVANÇADAS MERCADO PAGO ===
 define('MP_ENVIRONMENT', 'production'); // production ou sandbox
@@ -250,8 +254,8 @@ define('JS_URL', SITE_URL . '/assets/js');
 define('IMG_URL', SITE_URL . '/assets/images');
 
 // === GOOGLE OAUTH ===
-define('GOOGLE_CLIENT_ID', '662122339659-cj38e31a45cghrmnt4qq9slkroqh24n4s.apps.googleusercontent.com');
-define('GOOGLE_CLIENT_SECRET', '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');
+define('GOOGLE_CLIENT_ID', getenv('GOOGLE_CLIENT_ID') ?: '');
+define('GOOGLE_CLIENT_SECRET', getenv('GOOGLE_CLIENT_SECRET') ?: '');
 define('GOOGLE_REDIRECT_URI', 'https://klubecash.com/auth/google/callback');
 
 define('GOOGLE_AUTH_URL', 'https://accounts.google.com/o/oauth2/auth');
@@ -267,7 +271,7 @@ define('GOOGLE_CALLBACK_ENDPOINT', SITE_URL . '/auth/google/callback');
 define('PUBLIC_EMAIL_SEND_URL', SITE_URL . '/enviar-email');
 define('PUBLIC_EMAIL_SEND_ALT_URL', SITE_URL . '/email');
 define('PUBLIC_EMAIL_SEND_ALT2_URL', SITE_URL . '/send-email');
-define('EMAIL_ACCESS_PASSWORD', 'klube2024@!'); // Senha de acesso
+define('EMAIL_ACCESS_PASSWORD', getenv('EMAIL_ACCESS_PASSWORD') ?: '');
 
 
 
@@ -282,32 +286,32 @@ define('EMAIL_MAX_RETRIES', 3);
 
 // === CONFIGURAÇÕES DE EMAIL ===
 if (!defined('SMTP_HOST')) {
-    define('SMTP_HOST', 'smtp.hostinger.com');
-    define('SMTP_PORT', 587); // MUDANÇA: 465 → 587
-    define('SMTP_USERNAME', 'klubecash@klubecash.com');
-    define('SMTP_PASSWORD', 'Aaku_2004@');
-    define('SMTP_FROM_EMAIL', 'klubecash@klubecash.com');
-    define('SMTP_FROM_NAME', 'Klube Cash');
-    define('SMTP_ENCRYPTION', 'tls'); // MUDANÇA: 'ssl' → 'tls'
+    define('SMTP_HOST', getenv('SMTP_HOST') ?: '');
+    define('SMTP_PORT', (int) (getenv('SMTP_PORT') ?: 587));
+    define('SMTP_USERNAME', getenv('SMTP_USERNAME') ?: '');
+    define('SMTP_PASSWORD', getenv('SMTP_PASSWORD') ?: '');
+    define('SMTP_FROM_EMAIL', getenv('SMTP_FROM_EMAIL') ?: '');
+    define('SMTP_FROM_NAME', getenv('SMTP_FROM_NAME') ?: 'Klube Cash');
+    define('SMTP_ENCRYPTION', getenv('SMTP_ENCRYPTION') ?: 'tls');
 }
 // === OPENPIX CONFIGURAÇÕES (NOVA) ===
 define('OPENPIX_API_URL', 'https://api.openpix.com.br');
-define('OPENPIX_APP_ID', 'Q2xpZW50X0lkXzIzOTVjYmMzLWYyOGItNGJmYi04MWE3LWNkZWIzYzJkYTI4ZTpDbGllbnRfU2VjcmV0X3JYOFRxM016ZWdoNUY5YnVnempJeHl1VlBsRkg2QkNubm0yRFFzUWxQU1E9'); // Substitua pelo seu App ID real
-define('OPENPIX_WEBHOOK_AUTH', 'klube_cash_webhook_2025'); // Chave de autorização do webhook
+define('OPENPIX_APP_ID', getenv('OPENPIX_APP_ID') ?: '');
+define('OPENPIX_WEBHOOK_AUTH', getenv('OPENPIX_WEBHOOK_AUTH') ?: '');
 define('OPENPIX_WEBHOOK_URL', SITE_URL . '/webhook/openpix');
 
 // === ABACATE PAY CONFIGURAÇÕES (ASSINATURAS - PIX) ===
 define('ABACATE_API_BASE', 'https://api.abacatepay.com');
-define('ABACATE_API_KEY', 'abc_prod_HQDz0bBuxAEPA6WCqZ5cJP4r'); // DEFINIR: Sua chave de API do Abacate Pay
-define('ABACATE_WEBHOOK_SECRET', 'klubecash2025'); // DEFINIR: Segredo do webhook (gerar no painel)
+define('ABACATE_API_KEY', getenv('ABACATE_API_KEY') ?: '');
+define('ABACATE_WEBHOOK_SECRET', getenv('ABACATE_WEBHOOK_SECRET') ?: '');
 define('ABACATE_WEBHOOK_URL', SITE_URL . '/api/abacatepay-webhook');
 define('ABACATE_TIMEOUT', 30); // Timeout em segundos
 
 // === STRIPE CONFIGURAÇÕES (ASSINATURAS - CARTÃO DE CRÉDITO) ===
 define('STRIPE_API_BASE', 'https://api.stripe.com');
-define('STRIPE_SECRET_KEY', 'sk_test_COLOCAR_SUA_CHAVE_SECRETA_AQUI'); // DEFINIR: Chave secreta do Stripe (sk_test_... ou sk_live_...)
-define('STRIPE_PUBLISHABLE_KEY', 'pk_test_COLOCAR_SUA_CHAVE_PUBLICA_AQUI'); // DEFINIR: Chave pública do Stripe (pk_test_... ou pk_live_...)
-define('STRIPE_WEBHOOK_SECRET', 'whsec_COLOCAR_SEU_WEBHOOK_SECRET_AQUI'); // DEFINIR: Secret do webhook (gerar no painel)
+define('STRIPE_SECRET_KEY', getenv('STRIPE_SECRET_KEY') ?: '');
+define('STRIPE_PUBLISHABLE_KEY', getenv('STRIPE_PUBLISHABLE_KEY') ?: '');
+define('STRIPE_WEBHOOK_SECRET', getenv('STRIPE_WEBHOOK_SECRET') ?: '');
 define('STRIPE_WEBHOOK_URL', SITE_URL . '/api/stripe-webhook');
 define('STRIPE_TIMEOUT', 30); // Timeout em segundos
 define('STRIPE_VALIDATE_WEBHOOK', true); // IMPORTANTE: true em produção, false apenas para testes
@@ -327,16 +331,7 @@ if (!defined('ENVIRONMENT')) {
 // === EXPORTAÇÕES ===
 define('EXPORTS_DIR', ROOT_DIR . '/exports');
 
-// === CONFIGURAÇÕES DE SESSÃO SEGURA ===
-if (session_status() === PHP_SESSION_NONE) {
-    ini_set('session.cookie_lifetime', 0);
-    ini_set('session.use_only_cookies', 1);
-    ini_set('session.cookie_httponly', 1);
-    ini_set('session.cookie_secure', 1); // HTTPS obrigatório
-    ini_set('session.cookie_samesite', 'Strict');
-    ini_set('session.use_strict_mode', 1);
-    session_start();
-}
+// A sessão é inicializada exclusivamente por bootstrap/app.php.
 
 // === EMAIL MARKETING ===
 define('ADMIN_EMAIL_MARKETING_URL', SITE_URL . '/admin/email-marketing');
@@ -474,4 +469,3 @@ if (!defined('PASSWORD_MIN_LENGTH')) {
     define('PASSWORD_MIN_LENGTH', 8);
 }
 ?>
-

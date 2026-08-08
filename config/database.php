@@ -20,7 +20,8 @@ define('DB_NAME', 'defaultdb');
 define('DB_USER', 'avnadmin');
 
 // COLOQUE AQUI A NOVA SENHA DO AIVEN
-define('DB_PASS', 'AVNS_nvBhTKUD7z2w0cx79rA');
+$password = getenv('DB_PASS');
+define('DB_PASS', $password === false ? '' : $password);
 
 // Certificado SSL do Aiven.
 // Baixe o arquivo CA Certificate no painel do Aiven
@@ -46,6 +47,10 @@ class Database
         // Se a conexão já existe, reutiliza.
         if (self::$connection !== null) {
             return self::$connection;
+        }
+
+        if (DB_PASS === '') {
+            throw new RuntimeException('Variável de ambiente DB_PASS não configurada.');
         }
 
         try {

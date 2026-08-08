@@ -3677,6 +3677,3 @@ if (basename($_SERVER['PHP_SELF']) === 'TransactionController.php') {
             exit;
     }
 }
-
-?>
-

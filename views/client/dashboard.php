@@ -1,5 +1,6 @@
 <?php
 // views/client/dashboard.php
+require_once '../../config/constants.php';
 session_start();
 
 // Verificações de segurança (mantendo a lógica original)
@@ -9,7 +10,6 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type']) || $_SESSION[
 }
 
 require_once '../../config/database.php';
-require_once '../../config/constants.php';
 require_once '../../controllers/ClientController.php';
 
 $userId = $_SESSION['user_id'];

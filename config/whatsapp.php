@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Configura��es de integra��o com WhatsApp via WPPConnect.
  * Ajuste os valores conforme o ambiente local ou produ��o.
@@ -22,8 +22,3 @@ define('WHATSAPP_MEDIA_DIR', getenv('WHATSAPP_MEDIA_DIR') ?: dirname(__DIR__) . 
 define('WHATSAPP_TEMPLATE_LANGUAGE', getenv('WHATSAPP_TEMPLATE_LANGUAGE') ?: 'pt_BR');
 
 define('WHATSAPP_DEFAULT_FALLBACK_MESSAGE', 'N�o foi poss�vel completar o envio pelo WhatsApp. Tente novamente mais tarde.');
-?>
-
-
-
-
