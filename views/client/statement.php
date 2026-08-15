@@ -1512,7 +1512,7 @@ try {
             params.append('action', 'export_statement');
             
             // Redirecionar para a exportação
-            window.open(`<?php echo SITE_URL; ?>/controllers/ClientController.php?${params.toString()}`, '_blank');
+            window.open(`/cliente/ajax/controller?${params.toString()}`, '_blank');
         }
         
         // CORREÇÃO: Função para exibir detalhes da transação
@@ -1526,7 +1526,7 @@ try {
             formData.append('action', 'transaction');
             formData.append('transaction_id', transacaoId);
             
-            fetch('<?php echo SITE_URL; ?>/controllers/ClientController.php', {
+            fetch('/cliente/ajax/controller', {
                 method: 'POST',
                 body: formData
             })

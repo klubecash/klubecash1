@@ -17,7 +17,7 @@ require_once __DIR__ . '/../controllers/StoreController.php';
 session_start();
 
 // CORREÇÃO PRINCIPAL: Trocar isLoggedIn() por isAuthenticated()
-if (!AuthController::isAuthenticated() || !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== USER_TYPE_STORE) {
+if (!AuthController::isAuthenticated() || !AuthController::canManageEmployees()) {
     http_response_code(401);
     echo json_encode(['status' => false, 'message' => 'Acesso não autorizado']);
     exit;
@@ -130,6 +130,12 @@ function handlePutRequest() {
 }
 
 function handleDeleteRequest() {
+    if (!AuthController::isStore()) {
+        http_response_code(403);
+        echo json_encode(['status' => false, 'message' => 'Apenas o lojista pode desativar funcionários.']);
+        return;
+    }
+
     $employeeId = isset($_GET['id']) ? intval($_GET['id']) : null;
     
     if (!$employeeId) {
@@ -142,19 +148,6 @@ function handleDeleteRequest() {
 }
 
 function getStoreId() {
-    try {
-        $db = Database::getConnection();
-        $userId = $_SESSION['user_id'];
-        
-        $stmt = $db->prepare("SELECT id FROM lojas WHERE usuario_id = ?");
-        $stmt->execute([$userId]);
-        
-        $store = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $store ? $store['id'] : null;
-        
-    } catch (PDOException $e) {
-        error_log('Erro ao obter ID da loja: ' . $e->getMessage());
-        return null;
-    }
+    return AuthController::getStoreId();
 }
 ?>

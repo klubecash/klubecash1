@@ -12,7 +12,7 @@
       "dest": "/assets/$1",
       "headers": {
         "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "public, max-age=31536000, immutable"
+        "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400"
       }
     },
     {

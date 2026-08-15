@@ -76,6 +76,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (chartContainer) {
         const chartLabels = JSON.parse(chartContainer.dataset.labels || '[]');
         const chartData = JSON.parse(chartContainer.dataset.data || '[]');
+        const chartStyles = getComputedStyle(document.documentElement);
+        const chartTextColor = chartStyles.getPropertyValue('--store-text-muted').trim() || '#5E6470';
+        const chartGridColor = chartStyles.getPropertyValue('--store-border').trim() || 'rgba(24, 26, 32, 0.11)';
         
         // Configuração do gráfico de vendas mensais
         const salesCtx = chartContainer.getContext('2d');
@@ -94,10 +97,21 @@ document.addEventListener('DOMContentLoaded', function() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: chartTextColor }
+                    }
+                },
                 scales: {
+                    x: {
+                        ticks: { color: chartTextColor },
+                        grid: { color: chartGridColor }
+                    },
                     y: {
                         beginAtZero: true,
+                        grid: { color: chartGridColor },
                         ticks: {
+                            color: chartTextColor,
                             callback: function(value) {
                                 return 'R$ ' + value.toLocaleString('pt-BR');
                             }

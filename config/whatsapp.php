@@ -1,24 +1,70 @@
 <?php
 /**
- * Configura��es de integra��o com WhatsApp via WPPConnect.
- * Ajuste os valores conforme o ambiente local ou produ��o.
+ * Configuracao da integracao com WhatsApp via WPPConnect.
+ *
+ * A integracao fica desativada por padrao. Quando habilitada, a URL HTTPS e
+ * o token devem vir exclusivamente de variaveis de ambiente.
  */
 
-$whatsappEnabled = getenv('WHATSAPP_ENABLED');
-if ($whatsappEnabled === false) {
-    $whatsappEnabled = true; // habilitado por padr�o quando o arquivo � inclu�do
+$whatsappEnabledValue = getenv('WHATSAPP_ENABLED');
+$whatsappRequested = false;
+
+if ($whatsappEnabledValue !== false && trim((string) $whatsappEnabledValue) !== '') {
+    $parsedEnabled = filter_var(
+        $whatsappEnabledValue,
+        FILTER_VALIDATE_BOOLEAN,
+        FILTER_NULL_ON_FAILURE
+    );
+
+    if ($parsedEnabled === null) {
+        error_log('WHATSAPP_ENABLED invalido; integracao mantida desativada.');
+    } else {
+        $whatsappRequested = $parsedEnabled;
+    }
 }
 
-define('WHATSAPP_ENABLED', true);
-define('WHATSAPP_BASE_URL', rtrim(getenv('WHATSAPP_BASE_URL') ?: 'http://191.7.9.179:21465', '/'));
-define('WHATSAPP_SESSION_NAME', getenv('WHATSAPP_SESSION') ?: 'NERDWHATS_AMERICA');
-define('WHATSAPP_API_TOKEN', getenv('WHATSAPP_TOKEN') ?: '$2b$10$shgeryglQ2U_18jhOI6Q0e5yQZ8H3pVi.dKxkLBrCgEjaoG0XpXMO');
-define('WHATSAPP_HTTP_TIMEOUT', (int)(getenv('WHATSAPP_HTTP_TIMEOUT') ?: 20));
-define('WHATSAPP_CONNECT_RETRIES', (int)(getenv('WHATSAPP_CONNECT_RETRIES') ?: 1));
-define('WHATSAPP_ACK_TIMEOUT', (int)(getenv('WHATSAPP_ACK_TIMEOUT') ?: 10));
-define('WHATSAPP_LOG_PATH', getenv('WHATSAPP_LOG_PATH') ?: dirname(__DIR__) . '/logs/whatsapp.log');
+$whatsappBaseUrl = rtrim(trim((string) (getenv('WHATSAPP_BASE_URL') ?: '')), '/');
+$whatsappApiToken = trim((string) (getenv('WHATSAPP_TOKEN') ?: ''));
+$whatsappUrlParts = $whatsappBaseUrl !== '' ? parse_url($whatsappBaseUrl) : false;
+$whatsappHasSecureUrl = is_array($whatsappUrlParts)
+    && strtolower((string) ($whatsappUrlParts['scheme'] ?? '')) === 'https'
+    && !empty($whatsappUrlParts['host']);
+$whatsappEnabled = $whatsappRequested
+    && $whatsappHasSecureUrl
+    && $whatsappApiToken !== '';
 
-define('WHATSAPP_MEDIA_DIR', getenv('WHATSAPP_MEDIA_DIR') ?: dirname(__DIR__) . '/uploads/whatsapp');
+if ($whatsappRequested && !$whatsappEnabled) {
+    error_log(
+        'Integracao WhatsApp desativada: configure WHATSAPP_BASE_URL com HTTPS e WHATSAPP_TOKEN.'
+    );
+}
+
+$whatsappSessionName = trim((string) (getenv('WHATSAPP_SESSION') ?: 'default'));
+$whatsappLogPath = trim((string) (getenv('WHATSAPP_LOG_PATH') ?: ''));
+if (in_array(strtolower($whatsappLogPath), ['stderr', 'php://stderr'], true)) {
+    $whatsappLogPath = '';
+}
+
+$whatsappTempRoot = rtrim(sys_get_temp_dir(), '/\\')
+    . DIRECTORY_SEPARATOR
+    . 'klubecash';
+$whatsappMediaDir = trim((string) (getenv('WHATSAPP_MEDIA_DIR') ?: ''));
+if ($whatsappMediaDir === '') {
+    $whatsappMediaDir = $whatsappTempRoot . DIRECTORY_SEPARATOR . 'whatsapp';
+}
+
+define('WHATSAPP_ENABLED', $whatsappEnabled);
+define('WHATSAPP_BASE_URL', $whatsappHasSecureUrl ? $whatsappBaseUrl : '');
+define('WHATSAPP_SESSION_NAME', $whatsappSessionName !== '' ? $whatsappSessionName : 'default');
+define('WHATSAPP_API_TOKEN', $whatsappApiToken);
+define('WHATSAPP_HTTP_TIMEOUT', max(1, (int) (getenv('WHATSAPP_HTTP_TIMEOUT') ?: 20)));
+define('WHATSAPP_CONNECT_RETRIES', max(1, (int) (getenv('WHATSAPP_CONNECT_RETRIES') ?: 1)));
+define('WHATSAPP_ACK_TIMEOUT', max(1, (int) (getenv('WHATSAPP_ACK_TIMEOUT') ?: 10)));
+define('WHATSAPP_LOG_PATH', $whatsappLogPath);
+define('WHATSAPP_MEDIA_DIR', $whatsappMediaDir);
 define('WHATSAPP_TEMPLATE_LANGUAGE', getenv('WHATSAPP_TEMPLATE_LANGUAGE') ?: 'pt_BR');
 
-define('WHATSAPP_DEFAULT_FALLBACK_MESSAGE', 'N�o foi poss�vel completar o envio pelo WhatsApp. Tente novamente mais tarde.');
+define(
+    'WHATSAPP_DEFAULT_FALLBACK_MESSAGE',
+    'Nao foi possivel completar o envio pelo WhatsApp. Tente novamente mais tarde.'
+);

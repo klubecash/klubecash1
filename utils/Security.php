@@ -7,16 +7,15 @@ ini_set('log_errors', 1); // Habilita o log de erros em arquivo
 ini_set('error_reporting', E_ALL); // Loga todos os tipos de erros
 ini_set('display_errors', 0); // Desabilita a exibição de erros na tela
 
-// Define o caminho para o arquivo de log DENTRO de public_html
-// Certifique-se de que a pasta /public_html/logs/ exista e tenha permissão de escrita (ex: 750)
-$log_file_path = dirname(__DIR__, 2) . '/public_html/logs/php_debug.log'; 
-ini_set('error_log', $log_file_path);
-
-// Garante que a pasta exista (tenta criar se não existir)
-$log_dir = dirname($log_file_path);
-if (!is_dir($log_dir)) {
-    // Tenta criar o diretório com permissões seguras
-    if (!@mkdir($log_dir, 0750, true) && !is_dir($log_dir)) {
+// Functions da Vercel possuem filesystem somente leitura. Em produção os
+// eventos seguem para os Runtime Logs; localmente mantemos o arquivo existente.
+if (getenv('VERCEL') || getenv('AWS_LAMBDA_FUNCTION_NAME')) {
+    ini_set('error_log', 'php://stderr');
+} else {
+    $log_file_path = dirname(__DIR__) . '/logs/php_debug.log';
+    ini_set('error_log', $log_file_path);
+    $log_dir = dirname($log_file_path);
+    if (!is_dir($log_dir) && !@mkdir($log_dir, 0750, true) && !is_dir($log_dir)) {
         error_log("Falha ao criar diretório de log: " . $log_dir);
     }
 }
@@ -163,7 +162,7 @@ class Security {
      * @return bool Verdadeiro se o token for válido
      */
     public static function validateCSRFToken($token) {
-        if (!isset($_SESSION['csrf_token'])) {
+        if (!is_string($token) || !isset($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token'])) {
             return false;
         }
         return hash_equals($_SESSION['csrf_token'], $token);
@@ -176,6 +175,71 @@ class Security {
     public static function regenerateCSRFToken() {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         return $_SESSION['csrf_token'];
+    }
+
+    /**
+     * CSRF por double-submit cookie, adequado ao runtime serverless sem sessão compartilhada.
+     */
+    public static function getRecoveryCSRFToken() {
+        $cookieName = self::recoveryCSRFCookieName();
+        $token = $_COOKIE[$cookieName] ?? '';
+
+        if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/', $token)) {
+            $token = bin2hex(random_bytes(32));
+            self::setRecoveryCSRFCookie($cookieName, $token);
+        }
+
+        return $token;
+    }
+
+    public static function validateRecoveryCSRFToken($token) {
+        if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/', $token)) {
+            return false;
+        }
+
+        $cookieToken = $_COOKIE[self::recoveryCSRFCookieName()] ?? '';
+        return is_string($cookieToken)
+            && preg_match('/^[a-f0-9]{64}$/', $cookieToken)
+            && hash_equals($cookieToken, $token);
+    }
+
+    public static function rotateRecoveryCSRFToken() {
+        $token = bin2hex(random_bytes(32));
+        self::setRecoveryCSRFCookie(self::recoveryCSRFCookieName(), $token);
+        return $token;
+    }
+
+    private static function setRecoveryCSRFCookie($cookieName, $token) {
+        $secure = self::isHttpsRequest();
+        setcookie($cookieName, $token, [
+            'expires' => time() + (defined('TOKEN_EXPIRATION') ? TOKEN_EXPIRATION : 7200),
+            'path' => '/',
+            'secure' => $secure,
+            'httponly' => true,
+            'samesite' => 'Strict',
+        ]);
+
+        // Mantém o valor disponível durante a requisição atual.
+        $_COOKIE[$cookieName] = $token;
+    }
+
+    private static function recoveryCSRFCookieName() {
+        return self::isHttpsRequest()
+            ? '__Host-klubecash_recovery_csrf'
+            : 'klubecash_recovery_csrf';
+    }
+
+    private static function isHttpsRequest() {
+        $forwardedProto = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+        if ((!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off') || $forwardedProto === 'https') {
+            return true;
+        }
+
+        if (!empty($_SERVER['HTTP_HOST'])) {
+            return false;
+        }
+
+        return defined('SITE_URL') && parse_url(SITE_URL, PHP_URL_SCHEME) === 'https';
     }
     
     /**

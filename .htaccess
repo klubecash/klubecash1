@@ -4,6 +4,9 @@
 RewriteEngine On
 RewriteBase /
 
+# Arquivos internos e migrations nunca devem ser servidos diretamente.
+RewriteRule ^(?:config|database|logs|scripts/quality)(?:/|$) - [R=404,L,NC]
+
 # === PROTEÇÃO VENDOR COMPOSER (ADIÇÃO) ===
 # Bloquear acesso ao diretório vendor mas permitir includes internos
 <IfModule mod_rewrite.c>
@@ -178,7 +181,6 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
 # === REGRA PARA INDEX ===
 # Garantir que index.php funcione
-RewriteCond %{REQUEST_URI} !^/sest-senat/
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_URI} ^/$
@@ -651,13 +653,16 @@ ErrorDocument 403 /views/errors/403.php
 # === BLOQUEIO DE NAVEGAÇÃO ===
 Options -Indexes
 
-# === REGRAS FINAIS ===
-# Permitir acesso direto aos controladores para AJAX
-RewriteCond %{REQUEST_URI} !^/sest-senat/
-RewriteCond %{REQUEST_FILENAME} -f
-RewriteCond %{REQUEST_URI} /controllers/.*\.php$ [NC]
-RewriteRule ^(.*)$ - [L]
+# Bloqueia URLs publicas que tentam executar controllers diretamente. Rotas
+# canonicas reescritas internamente continuam validas, pois THE_REQUEST guarda
+# o caminho originalmente enviado pelo navegador.
+RewriteCond %{THE_REQUEST} \s/+controllers/ [NC]
+RewriteRule ^controllers/ - [F,L]
 
+# Arquivos enviados por usuarios nunca podem ser interpretados como PHP.
+RewriteRule ^uploads/.*\.(?:php[0-9]?|phtml|phar)(?:/|$) - [F,L,NC]
+
+# === REGRAS FINAIS ===
 # Permitir arquivos existentes
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_FILENAME}\.php -f

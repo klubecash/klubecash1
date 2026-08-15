@@ -15,6 +15,9 @@ require_once __DIR__ . '/../utils/Validator.php';
  */
 class AuthController {
 
+    private const PASSWORD_RECOVERY_GENERIC_MESSAGE = 'Se existir uma conta com este e-mail, enviaremos as instruções de recuperação.';
+    private const PASSWORD_RECOVERY_COOLDOWN = 60;
+
     public static function requireStoreAccess() {
         // CORREÇÃO: Bypass para funcionários
         if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'funcionario' && isset($_SESSION['store_id'])) {
@@ -31,27 +34,19 @@ class AuthController {
     /**
  * Método de login COM LOGS FORÇADOS para debug
  */
- public static function login($email, $senha, $remember = false, $origem = '') {
-    error_log("=== LOGIN INICIADO === Email: {$email} | Origem: {$origem}");
+ public static function login($email, $senha, $remember = false) {
+     error_log("=== LOGIN INICIADO === Email: {$email}");
 
     try {
-        session_set_cookie_params([
-            'lifetime' => 0,
-            'path'     => '/',
-            'domain'   => '.klubecash.com',
-            'secure'   => true,
-            'httponly' => true,
-            'samesite' => 'None'
-        ]);
-
- 
+        if (session_status() === PHP_SESSION_NONE) {
             session_start();
+        }
   
 
         $db = Database::getConnection();
 
         $stmt = $db->prepare("
-            SELECT id, nome, email, senha_hash, tipo, senat, status, loja_vinculada_id, subtipo_funcionario
+            SELECT id, nome, email, senha_hash, tipo, status, loja_vinculada_id, subtipo_funcionario
             FROM usuarios
             WHERE email = ? AND tipo IN ('cliente', 'admin', 'loja', 'funcionario')
         ");
@@ -64,23 +59,16 @@ class AuthController {
 
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // ✅ Verificação SEST-SENAT
-        if ($origem === 'sest-senat' && (!isset($user['senat']) || !in_array(strtolower($user['senat']), ['true', '1', 'sim']))) {
-            error_log("LOGIN: Primeiro login Sest-Senat para User ID: {$user['id']}. Atualizando campo 'senat'.");
-            try {
-                $updateStmt = $db->prepare("UPDATE usuarios SET senat = 'true' WHERE id = ?");
-                $updateStmt->execute([$user['id']]);
-                $user['senat'] = 'true';
-            } catch (Exception $e) {
-                error_log("LOGIN ERRO: Falha ao atualizar o campo 'senat' para o User ID: {$user['id']} - " . $e->getMessage());
-            }
-        }
-
         error_log("LOGIN: Usuário encontrado - ID: {$user['id']}, Tipo: {$user['tipo']}");
 
         if (!password_verify($senha, $user['senha_hash'])) {
             error_log("LOGIN ERRO: Senha incorreta para {$email}");
             return ['status' => false, 'message' => 'E-mail ou senha incorretos.'];
+        }
+
+        if (!session_regenerate_id(true)) {
+            error_log("LOGIN ERRO: Falha ao renovar a sessao para {$email}");
+            return ['status' => false, 'message' => 'Nao foi possivel iniciar uma sessao segura. Tente novamente.'];
         }
 
         if ($user['status'] !== 'ativo') {
@@ -95,11 +83,9 @@ class AuthController {
         $_SESSION['user_name'] = $user['nome'];
         $_SESSION['user_email'] = $user['email'];
         $_SESSION['user_type'] = $user['tipo'];
-        $_SESSION['user_senat'] = $user['senat'] ?? 'Não';
         $_SESSION['last_activity'] = time();
-        $_SESSION['needs_wallet_selection'] = ($user['tipo'] === 'cliente' && $user['senat'] === 'Sim');
 
-        error_log("LOGIN: Sessão básica definida - User ID: {$user['id']}, Senat: {$user['senat']}, Needs Wallet: " . ($_SESSION['needs_wallet_selection'] ? 'Yes' : 'No'));
+        error_log("LOGIN: Sessão básica definida - User ID: {$user['id']}");
 
         // Lógica para loja
         if ($user['tipo'] === 'loja') {
@@ -191,8 +177,7 @@ class AuthController {
                 'id' => intval($user['id']),
                 'nome' => $user['nome'],
                 'email' => $user['email'],
-                'tipo' => $user['tipo'],
-                'senat' => $user['senat']
+                'tipo' => $user['tipo']
             ],
             'token' => $token
         ];
@@ -331,9 +316,12 @@ public static function debugStoreAccess() {
             return false;
         }
         
-        // Sistema simplificado: lojistas e funcionários têm mesmo acesso
-        $userType = $_SESSION['user_type'];
-        return in_array($userType, [USER_TYPE_STORE, USER_TYPE_EMPLOYEE, 'loja', 'funcionario']);
+        if (self::isStore()) {
+            return true;
+        }
+
+        return self::isEmployee()
+            && ($_SESSION['employee_subtype'] ?? $_SESSION['subtipo_funcionario'] ?? null) === EMPLOYEE_TYPE_MANAGER;
     }
 
 
@@ -830,59 +818,111 @@ public static function debugStoreAccess() {
      * @return array Resultado da operação com status e mensagem
      */
     public static function recoverPassword($email) {
+        $db = null;
+
         try {
+            $email = strtolower(trim((string) $email));
+
             if (empty($email) || !Validator::validaEmail($email)) {
-                return ['status' => false, 'message' => 'Por favor, informe um email válido.'];
+                return ['status' => false, 'message' => 'Por favor, informe um e-mail válido.'];
             }
-            
+
+            // Evita reenvios acidentais na mesma sessão sem revelar se a conta existe.
+            if (self::isRecoveryRequestThrottled($email)) {
+                return ['status' => true, 'message' => self::PASSWORD_RECOVERY_GENERIC_MESSAGE];
+            }
+
             $db = Database::getConnection();
-            
-            // Verificar se o email existe
-            $stmt = $db->prepare("SELECT id, nome, status FROM usuarios WHERE email = :email");
-            $stmt->bindParam(':email', $email);
-            $stmt->execute();
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if (!$user) {
-                // Não informar ao usuário que o email não existe (segurança)
-                return ['status' => true, 'message' => 'Se o email estiver cadastrado, enviaremos instruções para recuperar sua senha.'];
-            }
-            
-            if ($user['status'] !== USER_ACTIVE) {
-                return ['status' => false, 'message' => 'Sua conta está ' . $user['status'] . '. Entre em contato com o suporte.'];
-            }
-            
-            // Gerar token único
-            $token = bin2hex(random_bytes(32));
-            $expiry = date('Y-m-d H:i:s', strtotime('+24 hours')); // 24 horas ao invés de 2
-            
+
             // Verificar se já existe tabela recuperacao_senha, se não, criar
             self::createRecoveryTableIfNotExists($db);
-            
-            // Primeiro excluir tokens antigos deste usuário
-            $deleteStmt = $db->prepare("DELETE FROM recuperacao_senha WHERE usuario_id = :user_id");
-            $deleteStmt->bindParam(':user_id', $user['id']);
-            $deleteStmt->execute();
-            
-            // Inserir novo token
-            $insertStmt = $db->prepare("INSERT INTO recuperacao_senha (usuario_id, token, data_expiracao) VALUES (:user_id, :token, :expiry)");
-            $insertStmt->bindParam(':user_id', $user['id']);
-            $insertStmt->bindParam(':token', $token);
-            $insertStmt->bindParam(':expiry', $expiry);
-            
-            if ($insertStmt->execute()) {
-                // Enviar email de recuperação
-                if (Email::sendPasswordRecovery($email, $user['nome'], $token)) {
-                    return ['status' => true, 'message' => 'Enviamos instruções para recuperar sua senha para o email informado.'];
-                } else {
-                    return ['status' => false, 'message' => 'Não foi possível enviar o email. Por favor, tente novamente mais tarde.'];
-                }
-            } else {
-                return ['status' => false, 'message' => 'Erro ao gerar token de recuperação. Por favor, tente novamente.'];
+
+            // A leitura bloqueada evita emitir o link para um endereço alterado em paralelo.
+            $db->beginTransaction();
+            $userStmt = $db->prepare("SELECT id, nome, email, status FROM usuarios WHERE email = :email FOR UPDATE");
+            $userStmt->execute([':email' => $email]);
+            $user = $userStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$user || $user['status'] !== USER_ACTIVE) {
+                $db->commit();
+                return ['status' => true, 'message' => self::PASSWORD_RECOVERY_GENERIC_MESSAGE];
             }
-        } catch (Exception $e) {
+
+            // Somente o hash fica no banco; o token original existe apenas no link enviado.
+            $token = bin2hex(random_bytes(32));
+            $tokenHash = self::hashRecoveryToken($token);
+            $expiry = date('Y-m-d H:i:s', time() + TOKEN_EXPIRATION);
+
+            $recentThreshold = date(
+                'Y-m-d H:i:s',
+                time() + TOKEN_EXPIRATION - self::PASSWORD_RECOVERY_COOLDOWN
+            );
+            $recentStmt = $db->prepare("
+                SELECT id
+                FROM recuperacao_senha
+                WHERE usuario_id = :user_id
+                AND token LIKE 'sha256:%'
+                AND usado = 0
+                AND data_expiracao > :threshold
+                LIMIT 1
+            ");
+            $recentStmt->execute([':user_id' => $user['id'], ':threshold' => $recentThreshold]);
+
+            if ($recentStmt->fetchColumn() !== false) {
+                $db->commit();
+                return ['status' => true, 'message' => self::PASSWORD_RECOVERY_GENERIC_MESSAGE];
+            }
+
+            // Mantém o link anterior válido até confirmar que o novo e-mail foi enviado.
+            $insertStmt = $db->prepare("INSERT INTO recuperacao_senha (usuario_id, token, data_expiracao) VALUES (:user_id, :token, :expiry)");
+            $insertStmt->execute([
+                ':user_id' => $user['id'],
+                ':token' => $tokenHash,
+                ':expiry' => $expiry,
+            ]);
+            $recoveryId = (int) $db->lastInsertId();
+            $db->commit();
+
+            if (!Email::sendPasswordRecovery($user['email'], $user['nome'], $token)) {
+                $cleanupStmt = $db->prepare("DELETE FROM recuperacao_senha WHERE id = :id AND usuario_id = :user_id");
+                $cleanupStmt->execute([':id' => $recoveryId, ':user_id' => $user['id']]);
+                error_log('Falha ao enviar e-mail de recuperação para o usuário ID ' . $user['id']);
+                return ['status' => true, 'message' => self::PASSWORD_RECOVERY_GENERIC_MESSAGE];
+            }
+
+            // Em solicitações concorrentes, apenas o token mais novo deve prevalecer.
+            $deleteOldStmt = $db->prepare("DELETE FROM recuperacao_senha WHERE usuario_id = :user_id AND id < :id");
+            $deleteOldStmt->execute([':user_id' => $user['id'], ':id' => $recoveryId]);
+
+            return ['status' => true, 'message' => self::PASSWORD_RECOVERY_GENERIC_MESSAGE];
+        } catch (\Throwable $e) {
+            if ($db instanceof PDO && $db->inTransaction()) {
+                $db->rollBack();
+            }
             error_log('Erro na recuperação de senha: ' . $e->getMessage());
             return ['status' => false, 'message' => 'Erro ao processar a solicitação. Tente novamente.'];
+        }
+    }
+
+    public static function canAccessStoreId(int $storeId): bool {
+        return $storeId > 0
+            && self::hasStoreAccess()
+            && (int) self::getStoreId() === $storeId;
+    }
+
+    /**
+     * Retorna os dados associados a um token válido sem expor o valor armazenado.
+     */
+    public static function getRecoveryTokenInfo($token) {
+        if (!self::isValidRecoveryTokenFormat($token)) {
+            return false;
+        }
+
+        try {
+            return self::fetchRecoveryToken(Database::getConnection(), $token, false);
+        } catch (\Throwable $e) {
+            error_log('Erro na validação do token de recuperação: ' . $e->getMessage());
+            return false;
         }
     }
     
@@ -894,8 +934,10 @@ public static function debugStoreAccess() {
      * @return array Resultado da operação com status e mensagem
      */
     public static function resetPassword($token, $newPassword) {
+        $db = null;
+
         try {
-            if (empty($token) || empty($newPassword)) {
+            if (!self::isValidRecoveryTokenFormat($token) || empty($newPassword)) {
                 return ['status' => false, 'message' => 'Dados inválidos para redefinição de senha.'];
             }
             
@@ -904,44 +946,137 @@ public static function debugStoreAccess() {
             }
             
             $db = Database::getConnection();
-            
-            // Verificar se o token é válido
-            $stmt = $db->prepare("
-                SELECT rs.*, u.nome, u.email 
-                FROM recuperacao_senha rs
-                JOIN usuarios u ON rs.usuario_id = u.id
-                WHERE rs.token = :token 
-                AND rs.usado = 0 
-                AND rs.data_expiracao > NOW()
-            ");
-            $stmt->bindParam(':token', $token);
-            $stmt->execute();
-            $tokenInfo = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if (!$tokenInfo) {
+
+            // Descobre o usuário sem lock e depois segue a ordem usuário -> token.
+            $tokenCandidate = self::fetchRecoveryToken($db, $token, false);
+            if (!$tokenCandidate) {
                 return ['status' => false, 'message' => 'Token inválido ou expirado. Por favor, solicite uma nova recuperação de senha.'];
             }
-            
+
+            $db->beginTransaction();
+
+            $lockUserStmt = $db->prepare("SELECT status FROM usuarios WHERE id = :user_id FOR UPDATE");
+            $lockUserStmt->execute([':user_id' => $tokenCandidate['usuario_id']]);
+            $lockedUser = $lockUserStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$lockedUser || $lockedUser['status'] !== USER_ACTIVE) {
+                $db->rollBack();
+                return ['status' => false, 'message' => 'Token inválido ou expirado. Por favor, solicite uma nova recuperação de senha.'];
+            }
+
+            // O bloqueio torna o consumo do token atômico contra requisições concorrentes.
+            $tokenInfo = self::fetchRecoveryToken($db, $token, true, (int) $tokenCandidate['usuario_id']);
+
+            if (!$tokenInfo || (int) $tokenInfo['usuario_id'] !== (int) $tokenCandidate['usuario_id']) {
+                $db->rollBack();
+                return ['status' => false, 'message' => 'Token inválido ou expirado. Por favor, solicite uma nova recuperação de senha.'];
+            }
+
             // Atualizar a senha do usuário
             $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
-            $updateStmt = $db->prepare("UPDATE usuarios SET senha_hash = :senha_hash WHERE id = :id");
-            $updateStmt->bindParam(':senha_hash', $passwordHash);
-            $updateStmt->bindParam(':id', $tokenInfo['usuario_id']);
-            
-            if ($updateStmt->execute()) {
-                // Marcar o token como usado
-                $usedStmt = $db->prepare("UPDATE recuperacao_senha SET usado = 1 WHERE id = :id");
-                $usedStmt->bindParam(':id', $tokenInfo['id']);
-                $usedStmt->execute();
-                
-                return ['status' => true, 'message' => 'Sua senha foi atualizada com sucesso! Você já pode fazer login.'];
-            } else {
-                return ['status' => false, 'message' => 'Erro ao atualizar a senha. Por favor, tente novamente.'];
+            if ($passwordHash === false) {
+                throw new RuntimeException('Não foi possível gerar o hash da nova senha.');
             }
-        } catch (PDOException $e) {
+
+            $updateStmt = $db->prepare("UPDATE usuarios SET senha_hash = :senha_hash WHERE id = :id");
+            $updateStmt->execute([':senha_hash' => $passwordHash, ':id' => $tokenInfo['usuario_id']]);
+
+            $usedStmt = $db->prepare("UPDATE recuperacao_senha SET usado = 1 WHERE id = :id AND usado = 0");
+            $usedStmt->execute([':id' => $tokenInfo['id']]);
+            if ($usedStmt->rowCount() !== 1) {
+                throw new RuntimeException('O token de recuperação já foi utilizado.');
+            }
+
+            $deleteOtherTokens = $db->prepare("DELETE FROM recuperacao_senha WHERE usuario_id = :user_id AND id <> :id");
+            $deleteOtherTokens->execute([':user_id' => $tokenInfo['usuario_id'], ':id' => $tokenInfo['id']]);
+
+            // Encerra sessões persistidas que possam ter sido comprometidas.
+            try {
+                $deleteSessions = $db->prepare("DELETE FROM sessoes WHERE usuario_id = :user_id");
+                $deleteSessions->execute([':user_id' => $tokenInfo['usuario_id']]);
+
+                $deleteAppSessions = $db->prepare("DELETE FROM app_sessions WHERE user_id = :user_id");
+                $deleteAppSessions->execute([':user_id' => $tokenInfo['usuario_id']]);
+            } catch (PDOException $sessionException) {
+                error_log('Não foi possível revogar sessões após redefinir a senha: ' . $sessionException->getMessage());
+            }
+
+            $db->commit();
+            return ['status' => true, 'message' => 'Sua senha foi atualizada com sucesso! Você já pode fazer login.'];
+        } catch (\Throwable $e) {
+            if ($db instanceof PDO && $db->inTransaction()) {
+                $db->rollBack();
+            }
             error_log('Erro na redefinição de senha: ' . $e->getMessage());
             return ['status' => false, 'message' => 'Erro ao processar a solicitação. Tente novamente.'];
         }
+    }
+
+    private static function fetchRecoveryToken($db, $token, $forUpdate, $userId = null) {
+        $tokenHash = self::hashRecoveryToken($token);
+        $sql = "
+            SELECT rs.id, rs.usuario_id, u.nome, u.email
+            FROM recuperacao_senha rs
+            JOIN usuarios u ON rs.usuario_id = u.id
+            WHERE (rs.token = ? OR rs.token = ?)
+            AND rs.usado = 0
+            AND rs.data_expiracao > NOW()
+            AND u.status = ?
+        ";
+
+        $params = [$tokenHash, $token, USER_ACTIVE];
+        if ($userId !== null) {
+            $sql .= ' AND rs.usuario_id = ?';
+            $params[] = $userId;
+        }
+
+        $sql .= ' ORDER BY CASE WHEN rs.token = ? THEN 0 ELSE 1 END LIMIT 1';
+        $params[] = $tokenHash;
+
+        if ($forUpdate) {
+            $sql .= ' FOR UPDATE';
+        }
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    private static function isValidRecoveryTokenFormat($token) {
+        return is_string($token) && strlen($token) === 64 && ctype_xdigit($token);
+    }
+
+    private static function hashRecoveryToken($token) {
+        // O prefixo diferencia hashes novos dos tokens legados armazenados em claro.
+        return 'sha256:' . hash('sha256', $token);
+    }
+
+    private static function isRecoveryRequestThrottled($email) {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return false;
+        }
+
+        $now = time();
+        $key = hash('sha256', $email);
+        $requests = $_SESSION['password_recovery_requests'] ?? [];
+
+        foreach ($requests as $requestKey => $requestedAt) {
+            if (!is_int($requestedAt) || $requestedAt < $now - TOKEN_EXPIRATION) {
+                unset($requests[$requestKey]);
+            }
+        }
+
+        $lastRequest = $requests[$key] ?? 0;
+        $requests[$key] = $now;
+
+        if (count($requests) > 50) {
+            asort($requests, SORT_NUMERIC);
+            $requests = array_slice($requests, -50, null, true);
+        }
+
+        $_SESSION['password_recovery_requests'] = $requests;
+
+        return is_int($lastRequest) && $lastRequest > $now - self::PASSWORD_RECOVERY_COOLDOWN;
     }
     
     /**
@@ -1020,6 +1155,8 @@ public static function debugStoreAccess() {
                     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     data_expiracao TIMESTAMP NOT NULL,
                     usado TINYINT(1) DEFAULT 0,
+                    UNIQUE KEY uq_recuperacao_senha_token (token),
+                    KEY idx_recuperacao_senha_expiracao (data_expiracao),
                     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
                 )";
                 
@@ -1147,19 +1284,18 @@ if (basename($_SERVER['PHP_SELF']) === 'AuthController.php') {
             
         case 'recover':
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                if (!Security::validateRecoveryCSRFToken($_POST['csrf_token'] ?? '')) {
+                    http_response_code(403);
+                    echo 'Solicitação inválida.';
+                    exit;
+                }
+
                 $email = $_POST['email'] ?? '';
-                
                 $result = AuthController::recoverPassword($email);
-                
+
                 if ($result['status']) {
-                    // Redirecionar com base no tipo de usuário
-                    if ($_SESSION['user_type'] == USER_TYPE_ADMIN) {
-                        header('Location: ' . ADMIN_DASHBOARD_URL);
-                    } else if ($_SESSION['user_type'] == USER_TYPE_STORE) {
-                        header('Location: ' . STORE_DASHBOARD_URL); 
-                    } else {
-                        header('Location: ' . CLIENT_DASHBOARD_URL);
-                    }
+                    Security::rotateRecoveryCSRFToken();
+                    header('Location: ' . RECOVER_PASSWORD_URL . '?enviado=1', true, 303);
                     exit;
                 }
             }
@@ -1167,6 +1303,12 @@ if (basename($_SERVER['PHP_SELF']) === 'AuthController.php') {
             
         case 'reset':
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                if (!Security::validateRecoveryCSRFToken($_POST['csrf_token'] ?? '')) {
+                    http_response_code(403);
+                    echo 'Solicitação inválida.';
+                    exit;
+                }
+
                 $token = $_POST['token'] ?? '';
                 $password = $_POST['password'] ?? '';
                 
@@ -1174,6 +1316,7 @@ if (basename($_SERVER['PHP_SELF']) === 'AuthController.php') {
                 
                 if ($result['status']) {
                     // Redirecionar com mensagem de sucesso
+                    Security::rotateRecoveryCSRFToken();
                     header('Location: ' . LOGIN_URL . '?success=' . urlencode($result['message']));
                     exit;
                 } else {

@@ -5,8 +5,12 @@
 | Métodos | Caminho | Nome | Handler | Middlewares |
 |---|---|---|---|---|
 | `GET, POST` | `/` | `home` | `index.php` | `nenhum` |
+| `GET, POST` | `/admin/ajax/auth` | `admin.ajax.auth` | `controllers/AuthController.php` | `admin` |
+| `GET, POST` | `/admin/ajax/store-balance-payments` | `admin.ajax.store-balance-payments` | `controllers/StoreBalancePaymentController.php` | `admin` |
+| `GET, POST` | `/admin/ajax/store-controller` | `admin.ajax.store-controller` | `controllers/StoreController.php` | `admin` |
 | `GET, POST` | `/admin/ajax/stores` | `admin.ajax.stores` | `controllers/AdminController.php` | `admin` |
 | `GET, POST` | `/admin/ajax/stores-direct` | `admin.ajax.stores-direct` | `controllers/AjaxStoreController.php` | `admin` |
+| `GET, POST` | `/admin/ajax/transaction-controller` | `admin.ajax.transaction-controller` | `controllers/TransactionController.php` | `admin` |
 | `GET, POST` | `/admin/ajax/transactions` | `admin.ajax.transactions` | `controllers/AdminController.php` | `admin` |
 | `GET, POST` | `/admin/ajax/users` | `admin.ajax.users` | `controllers/AdminController.php` | `admin` |
 | `GET, POST` | `/admin/assinaturas` | `admin.subscriptions` | `views/admin/subscriptions.php` | `admin` |
@@ -24,36 +28,39 @@
 | `GET, POST` | `/admin/transacao/{id:\d+}` | `admin.transaction` | `views/admin/transaction-details.php` | `admin` |
 | `GET, POST` | `/admin/transacoes` | `admin.transactions` | `views/admin/purchases.php` | `admin` |
 | `GET, POST` | `/admin/usuarios` | `admin.users` | `views/admin/users.php` | `admin` |
-| `GET, POST, OPTIONS` | `/api/abacatepay` | `api.abacatepay` | `api/abacatepay.php` | `api` |
+| `GET, POST, OPTIONS` | `/api/abacatepay` | `api.abacatepay` | `api/abacatepay.php` | `api, store` |
 | `POST` | `/api/abacatepay-webhook` | `api.abacatepay.webhook` | `api/abacatepay-webhook.php` | `api` |
 | `GET, POST, OPTIONS` | `/api/balance` | `api.balance` | `api/balance.php` | `api, auth` |
 | `GET, POST, PUT, DELETE, OPTIONS` | `/api/commissions` | `api.commissions` | `api/commissions.php` | `api, admin` |
 | `GET, POST, PUT, DELETE, OPTIONS` | `/api/employees` | `api.employees` | `api/employees.php` | `api, store` |
 | `GET, POST, OPTIONS` | `/api/funcionarios` | `api.funcionarios` | `api/funcionarios.php` | `api, store` |
 | `GET` | `/api/get-store-id` | `api.store-id` | `api/get-store-id.php` | `api, auth` |
-| `GET, POST` | `/api/get-user-by-token` | `api.user-token` | `api/get-user-by-token.php` | `api` |
 | `GET` | `/api/health` | `api.health` | `api/health.php` | `api` |
-| `GET, POST, OPTIONS` | `/api/mercadopago` | `api.mercadopago` | `api/mercadopago.php` | `api` |
+| `GET` | `/api/homepage-context` | `api.homepage-context` | `api/homepage-context.php` | `api` |
+| `GET, POST, OPTIONS` | `/api/mercadopago` | `api.mercadopago` | `api/mercadopago.php` | `api, store` |
 | `POST` | `/api/mercadopago-webhook` | `api.mercadopago.webhook` | `api/mercadopago-webhook.php` | `api` |
-| `POST, OPTIONS` | `/api/openpix` | `api.openpix` | `api/openpix.php` | `api` |
+| `POST, OPTIONS` | `/api/openpix` | `api.openpix` | `api/openpix.php` | `api, store` |
+| `GET` | `/api/payment-receipt` | `api.payment-receipt` | `api/payment-receipt.php` | `api, auth` |
 | `POST, OPTIONS` | `/api/payments` | `api.payments` | `api/payments.php` | `api, store` |
 | `GET` | `/api/search-stores` | `api.search-stores` | `api/search-stores.php` | `api, auth` |
 | `GET, POST, OPTIONS` | `/api/store-client-search` | `api.store-client-search` | `api/store-client-search.php` | `api, store` |
+| `POST` | `/api/store-details` | `api.store-details` | `api/store-details.php` | `api, auth, store` |
 | `POST, OPTIONS` | `/api/store-payment` | `api.store-payment` | `api/store-payment.php` | `api, store` |
-| `GET` | `/api/store_details` | `api.store-details` | `api/store_details.php` | `api` |
+| `POST` | `/api/store-transactions` | `api.store-transactions` | `api/store-transactions.php` | `api, auth, store` |
+| `GET` | `/api/store_details` | `api.store-details.legacy` | `api/store_details.php` | `api` |
 | `GET, POST, PUT, DELETE, OPTIONS` | `/api/stores` | `api.stores` | `api/stores.php` | `api, admin` |
-| `GET, POST, OPTIONS` | `/api/stripe` | `api.stripe` | `api/stripe.php` | `api` |
+| `GET, POST, OPTIONS` | `/api/stripe` | `api.stripe` | `api/stripe.php` | `api, store` |
 | `POST` | `/api/stripe-webhook` | `api.stripe.webhook` | `api/stripe-webhook.php` | `api` |
 | `GET, POST, PUT, DELETE, OPTIONS` | `/api/transactions` | `api.transactions` | `api/transactions.php` | `api, auth` |
 | `GET, POST, PUT, DELETE, OPTIONS` | `/api/users` | `api.users` | `api/users.php` | `api, admin` |
 | `GET, POST, PUT, DELETE, OPTIONS` | `/api/users/{id:\d+}` | `api.users.show` | `api/users.php` | `api, admin` |
-| `GET, POST` | `/api/validate-token` | `api.validate-token` | `api/validate-token.php` | `api` |
 | `GET` | `/blog` | `blog.index` | `views/blog/index.php` | `nenhum` |
 | `GET` | `/blog/{slug:[a-zA-Z0-9-]+}` | `blog.post` | `views/blog/post.php` | `nenhum` |
 | `GET, POST` | `/cadastro-loja` | `store.register` | `views/stores/register.php` | `nenhum` |
 | `GET, POST` | `/cashback-brasil` | `marketing.cashback-brasil` | `index.php` | `nenhum` |
 | `GET` | `/categoria/{slug:[a-zA-Z0-9-]+}` | `blog.category` | `views/blog/categoria.php` | `nenhum` |
 | `GET, POST` | `/cliente/actions` | `client.actions` | `controllers/client_actions.php` | `client` |
+| `GET, POST` | `/cliente/ajax/controller` | `client.ajax.controller` | `controllers/ClientController.php` | `client` |
 | `GET, POST` | `/cliente/dashboard` | `client.dashboard` | `views/client/dashboard.php` | `client` |
 | `GET, POST` | `/cliente/extrato` | `client.statement` | `views/client/statement.php` | `client` |
 | `GET, POST` | `/cliente/lojas-parceiras` | `client.stores` | `views/client/partner-stores.php` | `client` |
@@ -74,9 +81,9 @@
 | `GET, POST` | `/registro` | `auth.register` | `views/auth/register.php` | `guest` |
 | `GET` | `/robots.txt` | `robots` | `robots.php` | `nenhum` |
 | `GET, POST` | `/seja-parceiro` | `store.partner` | `views/stores/register.php` | `nenhum` |
-| `GET, POST` | `/selecionar-carteira` | `auth.wallet-select` | `views/auth/wallet-select.php` | `client` |
 | `GET, POST` | `/sistema-cashback` | `marketing.cashback` | `index.php` | `nenhum` |
 | `GET` | `/sitemap.xml` | `sitemap` | `sitemap.php` | `nenhum` |
+| `GET, POST` | `/store` | `store.home` | `views/stores/dashboard.php` | `store` |
 | `GET, POST` | `/store/dashboard` | `store.dashboard` | `views/stores/dashboard.php` | `store` |
 | `GET, POST` | `/store/fatura-pix` | `store.invoice-pix` | `views/stores/invoice-pix.php` | `store` |
 | `GET, POST` | `/store/funcionarios` | `store.employees` | `views/stores/employees.php` | `store` |
@@ -91,4 +98,4 @@
 | `GET, POST` | `/store/upload-lote` | `store.batch` | `views/stores/batch-upload.php` | `store` |
 | `GET, POST` | `/vantagens-cashback` | `marketing.benefits` | `views/marketing/vantagens.php` | `nenhum` |
 
-Total: **86 rotas declaradas**.
+Total: **93 rotas declaradas**.

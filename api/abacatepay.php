@@ -1,244 +1,326 @@
 <?php
-/**
- * API Abacate Pay - Gerenciamento de Pagamentos PIX para Assinaturas
- *
- * Endpoints:
- * - POST ?action=create_invoice_pix&invoice_id=X
- * - GET  ?action=status&charge_id=X
- */
 
-header('Content-Type: application/json');
+declare(strict_types=1);
+
+header('Content-Type: application/json; charset=UTF-8');
+header('Cache-Control: no-store');
+header('X-Content-Type-Options: nosniff');
+
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/constants.php';
+require_once __DIR__ . '/../controllers/AuthController.php';
 require_once __DIR__ . '/../utils/AbacatePayClient.php';
 
-// Iniciar sessão se necessário
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Função para resposta JSON
-function jsonResponse($data, $statusCode = 200) {
+/**
+ * @param array<string, mixed> $payload
+ */
+function abacateJsonResponse(array $payload, int $statusCode = 200): never
+{
     http_response_code($statusCode);
-    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
-// Verificar método HTTP
-$method = $_SERVER['REQUEST_METHOD'];
-$action = $_GET['action'] ?? '';
-
-try {
-    $db = (new Database())->getConnection();
-    $abacateClient = new AbacatePayClient();
-
-    // =====================================================
-    // POST: Criar PIX para uma fatura
-    // =====================================================
-    if ($method === 'POST' && $action === 'create_invoice_pix') {
-        // Verificar autenticação
-        if (!isset($_SESSION['user_id'])) {
-            jsonResponse(['success' => false, 'message' => 'Não autenticado'], 401);
-        }
-
-        $input = json_decode(file_get_contents('php://input'), true);
-        $invoiceId = $input['invoice_id'] ?? $_GET['invoice_id'] ?? null;
-
-        if (!$invoiceId) {
-            jsonResponse(['success' => false, 'message' => 'invoice_id obrigatório'], 400);
-        }
-
-        // Buscar fatura com dados completos
-        // CORREÇÃO: Usar nome_fantasia, razao_social, cnpj, telefone (colunas corretas)
-        $sql = "SELECT f.*, a.loja_id,
-                       l.nome_fantasia,
-                       l.razao_social,
-                       l.email,
-                       l.cnpj,
-                       l.telefone
-                FROM faturas f
-                JOIN assinaturas a ON f.assinatura_id = a.id
-                JOIN lojas l ON a.loja_id = l.id
-                WHERE f.id = ?";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([$invoiceId]);
-        $fatura = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$fatura) {
-            error_log("ABACATEPAY API - Fatura não encontrada: invoice_id={$invoiceId}");
-            jsonResponse(['success' => false, 'message' => 'Fatura não encontrada'], 404);
-        }
-
-        error_log("ABACATEPAY API - Fatura encontrada: ID={$fatura['id']}, Numero={$fatura['numero']}, Loja={$fatura['nome_fantasia']}");
-
-        // Verificar se já existe PIX gerado
-        if (!empty($fatura['gateway_charge_id']) && !empty($fatura['pix_qr_code'])) {
-            error_log("ABACATEPAY API - PIX já existe para invoice_id={$invoiceId}");
-            jsonResponse([
-                'success' => true,
-                'message' => 'PIX já gerado anteriormente',
-                'pix' => [
-                    'qr_code' => $fatura['pix_qr_code'],
-                    'copia_cola' => $fatura['pix_copia_cola'],
-                    'expires_at' => $fatura['pix_expires_at']
-                ]
-            ]);
-        }
-
-        // Preparar payload para Abacate Pay
-        $amountInCents = (int)($fatura['amount'] * 100); // Converter para centavos
-
-        // VALIDAR E SANITIZAR CNPJ/CPF ANTES DE ENVIAR
-        $cnpjOriginal = $fatura['cnpj'] ?? '';
-        $cnpjLimpo = preg_replace('/[^0-9]/', '', $cnpjOriginal);
-
-        // Se CNPJ inválido ou vazio, usar CPF de teste com dígito verificador VÁLIDO
-        if (empty($cnpjLimpo) || (strlen($cnpjLimpo) != 11 && strlen($cnpjLimpo) != 14)) {
-            error_log("ABACATEPAY API - CNPJ inválido: '{$cnpjOriginal}' (limpo: '{$cnpjLimpo}', tam: " . strlen($cnpjLimpo) . "), usando CPF teste");
-            $cnpjLimpo = '11144477735'; // CPF válido com dígito verificador correto: 111.444.777-35
-        } else {
-            error_log("ABACATEPAY API - CNPJ válido: '{$cnpjOriginal}' => '{$cnpjLimpo}'");
-        }
-
-        $payload = [
-            'amount' => $amountInCents,
-            'description' => "Assinatura Klube Cash - Fatura {$fatura['numero']}",
-            'reference_id' => $fatura['numero'],
-            'expires_at' => date('Y-m-d H:i:s', strtotime('+24 hours')),
-            'customer' => [
-                'name' => $fatura['nome_fantasia'] ?? $fatura['razao_social'],
-                'email' => $fatura['email'],
-                'phone' => $fatura['telefone'] ?? '',
-                'cpf_cnpj' => $cnpjLimpo  // CNPJ já sanitizado e validado
-            ]
-        ];
-
-        error_log("ABACATEPAY API - Payload preparado: " . json_encode($payload));
-
-        // Criar cobrança no Abacate Pay
-        $pixData = $abacateClient->createPixCharge($payload);
-
-        // Atualizar fatura com dados do PIX
-        $sqlUpdate = "UPDATE faturas SET
-                      gateway_charge_id = ?,
-                      pix_qr_code = ?,
-                      pix_copia_cola = ?,
-                      pix_expires_at = ?,
-                      updated_at = NOW()
-                      WHERE id = ?";
-        $stmtUpdate = $db->prepare($sqlUpdate);
-        $stmtUpdate->execute([
-            $pixData['gateway_charge_id'],
-            $pixData['qr_code_base64'],
-            $pixData['copia_cola'],
-            $pixData['expires_at'],
-            $invoiceId
-        ]);
-
-        jsonResponse([
-            'success' => true,
-            'message' => 'PIX gerado com sucesso',
-            'pix' => [
-                'qr_code' => $pixData['qr_code_base64'],
-                'copia_cola' => $pixData['copia_cola'],
-                'expires_at' => $pixData['expires_at'],
-                'amount' => $fatura['amount']
-            ]
-        ]);
-    }
-
-    // =====================================================
-    // GET: Consultar status de cobrança
-    // =====================================================
-    elseif ($method === 'GET' && $action === 'status') {
-        $chargeId = $_GET['charge_id'] ?? null;
-
-        if (!$chargeId) {
-            jsonResponse(['success' => false, 'message' => 'charge_id obrigatório'], 400);
-        }
-
-        // Consultar status no Abacate Pay
-        $statusData = $abacateClient->getChargeStatus($chargeId);
-
-        // Atualizar fatura se estiver paga
-        if ($statusData['status'] === 'paid' && $statusData['paid_at']) {
-            $sqlUpdate = "UPDATE faturas SET
-                          status = 'paid',
-                          paid_at = ?,
-                          updated_at = NOW()
-                          WHERE gateway_charge_id = ? AND status = 'pending'";
-            $stmtUpdate = $db->prepare($sqlUpdate);
-            $stmtUpdate->execute([$statusData['paid_at'], $chargeId]);
-
-            // Se atualizou alguma linha, processar avanço de período
-            if ($stmtUpdate->rowCount() > 0) {
-                require_once __DIR__ . '/../controllers/SubscriptionController.php';
-                $subscriptionController = new SubscriptionController($db);
-
-                // Buscar ID da fatura
-                $sqlFatura = "SELECT id FROM faturas WHERE gateway_charge_id = ?";
-                $stmtFatura = $db->prepare($sqlFatura);
-                $stmtFatura->execute([$chargeId]);
-                $faturaId = $stmtFatura->fetchColumn();
-
-                if ($faturaId) {
-                    $subscriptionController->advancePeriodOnPaid($faturaId);
-                }
-            }
-        }
-
-        jsonResponse([
-            'success' => true,
-            'status' => $statusData['status'],
-            'paid_at' => $statusData['paid_at'],
-            'data' => $statusData
-        ]);
-    }
-
-    // =====================================================
-    // GET: Verificar se pagamento foi confirmado (polling)
-    // =====================================================
-    elseif ($method === 'GET' && $action === 'check_payment') {
-        $invoiceId = $_GET['invoice_id'] ?? null;
-
-        if (!$invoiceId) {
-            jsonResponse(['success' => false, 'message' => 'invoice_id obrigatório'], 400);
-        }
-
-        // Buscar status atual da fatura
-        $sqlCheck = "SELECT id, status, paid_at FROM faturas WHERE id = ?";
-        $stmtCheck = $db->prepare($sqlCheck);
-        $stmtCheck->execute([$invoiceId]);
-        $fatura = $stmtCheck->fetch(PDO::FETCH_ASSOC);
-
-        if (!$fatura) {
-            jsonResponse(['success' => false, 'message' => 'Fatura não encontrada'], 404);
-        }
-
-        jsonResponse([
-            'success' => true,
-            'status' => $fatura['status'],
-            'paid_at' => $fatura['paid_at'],
-            'is_paid' => $fatura['status'] === 'paid'
-        ]);
-    }
-
-    // =====================================================
-    // Ação inválida
-    // =====================================================
-    else {
-        jsonResponse([
+function abacateRequireStoreId(): int
+{
+    if (!AuthController::hasStoreAccess()) {
+        abacateJsonResponse([
             'success' => false,
-            'message' => 'Ação inválida ou método não permitido',
-            'available_actions' => ['create_invoice_pix', 'status', 'check_payment']
+            'message' => 'Autenticação necessária.',
+        ], 401);
+    }
+
+    $storeId = (int) AuthController::getStoreId();
+    if ($storeId <= 0) {
+        abacateJsonResponse([
+            'success' => false,
+            'message' => 'A sessão não está associada a uma loja.',
+        ], 403);
+    }
+
+    return $storeId;
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function abacateJsonInput(): array
+{
+    $decoded = json_decode((string) file_get_contents('php://input'), true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+function abacateInvoiceId(mixed $value): int
+{
+    $invoiceId = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($invoiceId === false) {
+        abacateJsonResponse([
+            'success' => false,
+            'message' => 'invoice_id obrigatório.',
         ], 400);
     }
 
-} catch (Exception $e) {
-    error_log("Erro AbacatePay API: " . $e->getMessage());
-    jsonResponse([
-        'success' => false,
-        'message' => 'Erro ao processar requisição',
-        'error' => $e->getMessage()
-    ], 500);
+    return (int) $invoiceId;
 }
+
+function abacateCreateInvoicePix(int $storeId): never
+{
+    if (!defined('ABACATE_API_KEY') || trim((string) ABACATE_API_KEY) === '') {
+        abacateJsonResponse([
+            'success' => false,
+            'message' => 'Integração PIX indisponível no momento.',
+        ], 503);
+    }
+
+    $input = abacateJsonInput();
+    $invoiceId = abacateInvoiceId($input['invoice_id'] ?? $_GET['invoice_id'] ?? null);
+    $db = null;
+
+    try {
+        $db = Database::getConnection();
+        $db->beginTransaction();
+
+        $stmt = $db->prepare("
+            SELECT f.*, a.loja_id,
+                   l.nome_fantasia, l.razao_social, l.email, l.cnpj, l.telefone
+            FROM faturas f
+            INNER JOIN assinaturas a ON f.assinatura_id = a.id
+            INNER JOIN lojas l ON a.loja_id = l.id
+            WHERE f.id = ?
+              AND a.loja_id = ?
+            FOR UPDATE
+        ");
+        $stmt->execute([$invoiceId, $storeId]);
+        $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$invoice) {
+            $db->rollBack();
+            abacateJsonResponse([
+                'success' => false,
+                'message' => 'Fatura não encontrada.',
+            ], 404);
+        }
+
+        if (in_array((string) $invoice['status'], ['paid', 'canceled', 'refunded'], true)) {
+            $db->rollBack();
+            abacateJsonResponse([
+                'success' => false,
+                'message' => 'Esta fatura não pode receber um novo pagamento.',
+            ], 409);
+        }
+
+        if (!empty($invoice['gateway_charge_id']) && !empty($invoice['pix_qr_code'])) {
+            $db->commit();
+            abacateJsonResponse([
+                'success' => true,
+                'message' => 'PIX já gerado anteriormente.',
+                'pix' => [
+                    'qr_code' => $invoice['pix_qr_code'],
+                    'copia_cola' => $invoice['pix_copia_cola'],
+                    'expires_at' => $invoice['pix_expires_at'],
+                    'amount' => $invoice['amount'],
+                ],
+            ]);
+        }
+
+        $amountInCents = (int) round((float) $invoice['amount'] * 100);
+        if ($amountInCents <= 0) {
+            $db->rollBack();
+            abacateJsonResponse([
+                'success' => false,
+                'message' => 'A fatura possui valor inválido.',
+            ], 422);
+        }
+
+        $document = preg_replace('/[^0-9]/', '', (string) ($invoice['cnpj'] ?? ''));
+        $payload = [
+            'amount' => $amountInCents,
+            'description' => 'Assinatura Klube Cash - Fatura ' . $invoice['numero'],
+            'reference_id' => (string) $invoice['numero'],
+            'expires_at' => date('Y-m-d H:i:s', strtotime('+24 hours')),
+            'customer' => [
+                'name' => (string) ($invoice['nome_fantasia'] ?: $invoice['razao_social']),
+                'email' => (string) $invoice['email'],
+                'phone' => (string) ($invoice['telefone'] ?? ''),
+                'cpf_cnpj' => $document,
+            ],
+        ];
+
+        $pixData = (new AbacatePayClient())->createPixCharge($payload);
+        if (
+            empty($pixData['gateway_charge_id'])
+            || empty($pixData['qr_code_base64'])
+            || empty($pixData['copia_cola'])
+        ) {
+            throw new RuntimeException('Abacate Pay não retornou os dados completos do PIX.');
+        }
+
+        $updateStmt = $db->prepare("
+            UPDATE faturas f
+            INNER JOIN assinaturas a ON f.assinatura_id = a.id
+            SET f.gateway = 'abacate',
+                f.payment_method = 'pix',
+                f.gateway_charge_id = ?,
+                f.pix_qr_code = ?,
+                f.pix_copia_cola = ?,
+                f.pix_expires_at = ?,
+                f.updated_at = NOW()
+            WHERE f.id = ?
+              AND a.loja_id = ?
+        ");
+        $updateStmt->execute([
+            (string) $pixData['gateway_charge_id'],
+            (string) $pixData['qr_code_base64'],
+            (string) $pixData['copia_cola'],
+            (string) $pixData['expires_at'],
+            $invoiceId,
+            $storeId,
+        ]);
+
+        if ($updateStmt->rowCount() !== 1) {
+            throw new RuntimeException('A fatura foi alterada durante a geração do PIX.');
+        }
+
+        $db->commit();
+
+        abacateJsonResponse([
+            'success' => true,
+            'message' => 'PIX gerado com sucesso.',
+            'pix' => [
+                'qr_code' => (string) $pixData['qr_code_base64'],
+                'copia_cola' => (string) $pixData['copia_cola'],
+                'expires_at' => (string) $pixData['expires_at'],
+                'amount' => $invoice['amount'],
+            ],
+        ], 201);
+    } catch (Throwable $e) {
+        if ($db instanceof PDO && $db->inTransaction()) {
+            $db->rollBack();
+        }
+
+        error_log('AbacatePay create invoice PIX error: ' . $e->getMessage());
+        abacateJsonResponse([
+            'success' => false,
+            'message' => 'Não foi possível gerar o PIX. Tente novamente.',
+        ], 502);
+    }
+}
+
+function abacateStatus(int $storeId): never
+{
+    $chargeId = trim((string) ($_GET['charge_id'] ?? ''));
+    if ($chargeId === '' || strlen($chargeId) > 255) {
+        abacateJsonResponse([
+            'success' => false,
+            'message' => 'charge_id obrigatório.',
+        ], 400);
+    }
+
+    try {
+        $db = Database::getConnection();
+        $stmt = $db->prepare("
+            SELECT f.id, f.status, f.paid_at
+            FROM faturas f
+            INNER JOIN assinaturas a ON f.assinatura_id = a.id
+            WHERE f.gateway_charge_id = ?
+              AND a.loja_id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$chargeId, $storeId]);
+        $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$invoice) {
+            abacateJsonResponse([
+                'success' => false,
+                'message' => 'Fatura não encontrada.',
+            ], 404);
+        }
+
+        abacateJsonResponse([
+            'success' => true,
+            'status' => (string) $invoice['status'],
+            'paid_at' => $invoice['paid_at'],
+            'data' => [
+                'status' => (string) $invoice['status'],
+                'paid_at' => $invoice['paid_at'],
+            ],
+        ]);
+    } catch (Throwable $e) {
+        error_log('AbacatePay status error: ' . $e->getMessage());
+        abacateJsonResponse([
+            'success' => false,
+            'message' => 'Não foi possível consultar a cobrança.',
+        ], 500);
+    }
+}
+
+function abacateCheckPayment(int $storeId): never
+{
+    $invoiceId = abacateInvoiceId($_GET['invoice_id'] ?? null);
+
+    try {
+        $db = Database::getConnection();
+        $stmt = $db->prepare("
+            SELECT f.id, f.status, f.paid_at
+            FROM faturas f
+            INNER JOIN assinaturas a ON f.assinatura_id = a.id
+            WHERE f.id = ?
+              AND a.loja_id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$invoiceId, $storeId]);
+        $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$invoice) {
+            abacateJsonResponse([
+                'success' => false,
+                'message' => 'Fatura não encontrada.',
+            ], 404);
+        }
+
+        abacateJsonResponse([
+            'success' => true,
+            'status' => (string) $invoice['status'],
+            'paid_at' => $invoice['paid_at'],
+            'is_paid' => $invoice['status'] === 'paid',
+        ]);
+    } catch (Throwable $e) {
+        error_log('AbacatePay check payment error: ' . $e->getMessage());
+        abacateJsonResponse([
+            'success' => false,
+            'message' => 'Não foi possível consultar a fatura.',
+        ], 500);
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
+
+$storeId = abacateRequireStoreId();
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$action = (string) ($_GET['action'] ?? '');
+
+if ($method === 'POST' && $action === 'create_invoice_pix') {
+    abacateCreateInvoicePix($storeId);
+}
+
+if ($method === 'GET' && $action === 'status') {
+    abacateStatus($storeId);
+}
+
+if ($method === 'GET' && $action === 'check_payment') {
+    abacateCheckPayment($storeId);
+}
+
+abacateJsonResponse([
+    'success' => false,
+    'message' => $method === 'GET' || $method === 'POST'
+        ? 'Ação inválida.'
+        : 'Método não permitido.',
+], $method === 'GET' || $method === 'POST' ? 400 : 405);

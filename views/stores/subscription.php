@@ -10,7 +10,10 @@ require_once __DIR__ . '/../../utils/FeatureGate.php';
 
 session_start();
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'loja') {
+if (
+    !isset($_SESSION['user_id'], $_SESSION['store_id'])
+    || !in_array($_SESSION['user_type'] ?? '', ['loja', 'funcionario'], true)
+) {
     header('Location: ' . LOGIN_URL);
     exit;
 }
@@ -144,14 +147,7 @@ $activeMenu = 'meu-plano';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meu Plano - <?php echo SYSTEM_NAME; ?></title>
 
-    <?php
-    // Determinar qual CSS da sidebar carregar baseado no campo senat do usuário
-    $sidebarCssFile = 'sidebar-lojista.css';
-    if (isset($_SESSION['user_senat']) && ($_SESSION['user_senat'] === 'sim' || $_SESSION['user_senat'] === 'Sim')) {
-        $sidebarCssFile = 'sidebar-lojista_sest.css';
-    }
-    ?>
-    <link rel="stylesheet" href="/assets/css/<?php echo htmlspecialchars($sidebarCssFile); ?>">
+    <link rel="stylesheet" href="/assets/css/sidebar-lojista.css">
 
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -526,6 +522,7 @@ $activeMenu = 'meu-plano';
             .plans-grid { grid-template-columns: 1fr; }
         }
     </style>
+    <?php include __DIR__ . '/../components/store-app-head.php'; ?>
 </head>
 <body>
     <?php include '../../views/components/sidebar-lojista-responsiva.php'; ?>

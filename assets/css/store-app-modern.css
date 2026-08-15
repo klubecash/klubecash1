@@ -1,0 +1,1185 @@
+:root {
+    --store-brand: #FC6914;
+    --store-brand-soft: #FF8F4F;
+    --store-brand-dark: #C84700;
+    --store-brand-contrast: #261006;
+    --store-gradient: linear-gradient(135deg, #FC6914 0%, #FC6914 50%, #FF8F4F 100%);
+    --store-bg: #F4F6FA;
+    --store-surface: rgba(255, 255, 255, 0.92);
+    --store-surface-solid: #FFFFFF;
+    --store-surface-soft: #F9FAFC;
+    --store-surface-hover: #F1F3F7;
+    --store-text: #191A20;
+    --store-text-muted: #5E6470;
+    --store-text-faint: #767D89;
+    --store-border: rgba(24, 26, 32, 0.11);
+    --store-border-strong: rgba(24, 26, 32, 0.18);
+    --store-success: #078853;
+    --store-warning: #B55A00;
+    --store-danger: #C83245;
+    --store-info: #2563EB;
+    --store-sidebar-width: 282px;
+    --store-sidebar-compact: 88px;
+    --store-shadow-sm: 0 8px 24px rgba(32, 26, 22, 0.07);
+    --store-shadow: 0 22px 60px rgba(36, 28, 22, 0.11);
+    --store-radius-sm: 12px;
+    --store-radius: 18px;
+    --store-radius-lg: 26px;
+    --store-ease: 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+html[data-theme="dark"] {
+    --store-bg: #0C0D12;
+    --store-surface: rgba(25, 27, 35, 0.9);
+    --store-surface-solid: #181A22;
+    --store-surface-soft: #20222C;
+    --store-surface-hover: #292C37;
+    --store-text: #F6F7FA;
+    --store-text-muted: #B6BBC7;
+    --store-text-faint: #969EAD;
+    --store-border: rgba(255, 255, 255, 0.11);
+    --store-border-strong: rgba(255, 255, 255, 0.18);
+    --store-success: #55D89B;
+    --store-warning: #FFB45F;
+    --store-danger: #FF8290;
+    --store-info: #85ADFF;
+    --store-shadow-sm: 0 10px 28px rgba(0, 0, 0, 0.24);
+    --store-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+}
+
+@view-transition {
+    navigation: auto;
+}
+
+::view-transition-old(root) {
+    animation: store-page-out 150ms ease both;
+}
+
+::view-transition-new(root) {
+    animation: store-page-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+::view-transition-group(store-sidebar) {
+    animation-duration: 240ms;
+}
+
+::view-transition-old(store-content) {
+    animation: store-content-out 130ms ease both;
+}
+
+::view-transition-new(store-content) {
+    animation: store-content-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes store-page-out {
+    to { opacity: 0.72; transform: translateY(-4px); }
+}
+
+@keyframes store-page-in {
+    from { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes store-content-out {
+    to { opacity: 0; transform: translateY(-5px) scale(0.995); }
+}
+
+@keyframes store-content-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.995); }
+}
+
+html.store-app-root {
+    min-width: 320px;
+    background: var(--store-bg);
+    color-scheme: light;
+}
+
+html.store-app-root[data-theme="dark"] {
+    color-scheme: dark;
+}
+
+html.store-app-root body {
+    min-width: 320px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    color: var(--store-text);
+    background:
+        radial-gradient(circle at 92% 4%, rgba(252, 105, 20, 0.12), transparent 26rem),
+        radial-gradient(circle at 34% 96%, rgba(255, 143, 79, 0.08), transparent 30rem),
+        var(--store-bg);
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color var(--store-ease), color var(--store-ease);
+}
+
+html.store-app-root body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.45;
+    background-image:
+        linear-gradient(rgba(252, 105, 20, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(252, 105, 20, 0.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(to bottom, black, transparent 72%);
+}
+
+html.store-app-root *,
+html.store-app-root *::before,
+html.store-app-root *::after {
+    box-sizing: border-box;
+}
+
+html.store-app-root a,
+html.store-app-root button,
+html.store-app-root input,
+html.store-app-root select,
+html.store-app-root textarea {
+    font: inherit;
+}
+
+html.store-app-root a,
+html.store-app-root button {
+    -webkit-tap-highlight-color: transparent;
+}
+
+html.store-app-root :focus-visible {
+    outline: 3px solid rgba(252, 105, 20, 0.45);
+    outline-offset: 3px;
+}
+
+/* App progress */
+.store-app-progress {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 5000;
+    height: 3px;
+    pointer-events: none;
+    opacity: 0;
+    overflow: hidden;
+    background: rgba(252, 105, 20, 0.12);
+    transition: opacity 120ms ease;
+}
+
+.store-app-progress::after {
+    content: "";
+    display: block;
+    width: 38%;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--store-gradient);
+    box-shadow: 0 0 16px rgba(252, 105, 20, 0.6);
+    transform: translateX(-120%);
+}
+
+html[data-store-navigating="true"] .store-app-progress {
+    opacity: 1;
+}
+
+html[data-store-navigating="true"] .store-app-progress::after {
+    animation: store-progress 900ms ease-in-out infinite;
+}
+
+@keyframes store-progress {
+    to { transform: translateX(380%); }
+}
+
+/* Sidebar */
+html.store-app-root .sidebar-lojista-responsiva {
+    --largura-sidebar-expandida: var(--store-sidebar-width);
+    --largura-sidebar-colapsada: var(--store-sidebar-compact);
+    position: fixed;
+    inset: 14px auto 14px 14px;
+    width: var(--store-sidebar-width);
+    height: auto;
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: #FFF9F4;
+    background:
+        linear-gradient(180deg, rgba(24, 13, 8, 0.96), rgba(31, 17, 11, 0.985)),
+        var(--store-gradient);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--store-radius-lg);
+    box-shadow: 0 28px 80px rgba(52, 25, 8, 0.28);
+    transition: width var(--store-ease), transform var(--store-ease), box-shadow var(--store-ease);
+    view-transition-name: store-sidebar;
+}
+
+html.store-app-root .sidebar-lojista-responsiva::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 20% 0, rgba(255, 143, 79, 0.24), transparent 15rem),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.05), transparent 38%);
+}
+
+html.store-app-root .sidebar-lojista-responsiva.colapsada {
+    width: var(--store-sidebar-compact);
+}
+
+html.store-app-root .cabecalho-sidebar-lojista {
+    position: relative;
+    height: auto;
+    min-height: 82px;
+    padding: 18px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #FFF;
+    background: transparent;
+    border: 0;
+}
+
+html.store-app-root .container-logo-sidebar {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+html.store-app-root .logo-sidebar-lojista {
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.18));
+}
+
+html.store-app-root .texto-logo-sidebar {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+}
+
+html.store-app-root .acoes-sidebar-topo {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+html.store-app-root .botao-tema-sidebar,
+html.store-app-root .botao-colapsar-sidebar {
+    position: static;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    display: inline-grid;
+    place-items: center;
+    color: #FFF;
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    transition: transform var(--store-ease), background var(--store-ease), border-color var(--store-ease);
+}
+
+html.store-app-root .botao-tema-sidebar:hover,
+html.store-app-root .botao-colapsar-sidebar:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.24);
+}
+
+html.store-app-root .botao-tema-sidebar svg,
+html.store-app-root .botao-colapsar-sidebar svg {
+    width: 18px;
+    height: 18px;
+}
+
+html.store-app-root .icone-tema-sol,
+html.store-app-root[data-theme="dark"] .icone-tema-lua {
+    display: none;
+}
+
+html.store-app-root[data-theme="dark"] .icone-tema-sol {
+    display: block;
+}
+
+html.store-app-root .info-usuario-sidebar {
+    position: relative;
+    margin: 0 12px 10px;
+    padding: 13px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    color: #FFF;
+    background: rgba(255, 255, 255, 0.075);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+}
+
+html.store-app-root .avatar-usuario-lojista {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    display: grid;
+    place-items: center;
+    color: var(--store-brand-contrast);
+    font-size: 14px;
+    font-weight: 800;
+    background: var(--store-gradient);
+    border: 2px solid rgba(255, 255, 255, 0.16);
+    border-radius: 14px;
+    box-shadow: none;
+}
+
+html.store-app-root .nome-usuario-sidebar {
+    color: #FFF;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+html.store-app-root .tipo-usuario-sidebar {
+    padding: 0;
+    color: rgba(255, 255, 255, 0.66);
+    background: transparent;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+}
+
+html.store-app-root .navegacao-sidebar-lojista {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    padding: 5px 10px 12px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+html.store-app-root .secao-menu-sidebar {
+    margin: 0 0 20px;
+}
+
+html.store-app-root .secao-conta-sidebar {
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+html.store-app-root .titulo-secao-menu {
+    margin: 0;
+    padding: 8px 10px;
+    color: rgba(255, 255, 255, 0.46);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+}
+
+html.store-app-root .lista-menu-sidebar {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+html.store-app-root .item-menu-sidebar {
+    margin: 3px 0;
+    animation: none;
+}
+
+html.store-app-root .link-menu-sidebar {
+    min-height: 46px;
+    padding: 11px 12px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    color: rgba(255, 255, 255, 0.72);
+    text-decoration: none;
+    border: 1px solid transparent;
+    border-radius: 13px;
+    font-size: 13px;
+    font-weight: 650;
+    transform: none;
+    transition: color var(--store-ease), background var(--store-ease), border-color var(--store-ease), transform var(--store-ease);
+}
+
+html.store-app-root .link-menu-sidebar:hover {
+    color: #FFF;
+    background: rgba(255, 255, 255, 0.075);
+    border-color: rgba(255, 255, 255, 0.08);
+    transform: translateX(2px);
+}
+
+html.store-app-root .link-menu-sidebar.menu-ativo {
+    color: var(--store-brand-contrast);
+    background: var(--store-gradient);
+    border-color: rgba(255, 255, 255, 0.16);
+    box-shadow: 0 10px 26px rgba(252, 105, 20, 0.25);
+}
+
+html.store-app-root .link-menu-sidebar.menu-ativo:hover {
+    color: var(--store-brand-contrast);
+    background: var(--store-gradient);
+    transform: none;
+}
+
+html.store-app-root .icone-menu-sidebar {
+    width: 19px;
+    height: 19px;
+    margin: 0;
+    flex: 0 0 19px;
+}
+
+html.store-app-root .link-sair-sidebar {
+    color: #FFABB4 !important;
+}
+
+html.store-app-root .link-sair-sidebar:hover {
+    color: #FFD9DD !important;
+    background: rgba(255, 89, 108, 0.11) !important;
+}
+
+html.store-app-root .sidebar-lojista-responsiva.colapsada .texto-logo-sidebar,
+html.store-app-root .sidebar-lojista-responsiva.colapsada .dados-usuario-sidebar,
+html.store-app-root .sidebar-lojista-responsiva.colapsada .titulo-secao-menu,
+html.store-app-root .sidebar-lojista-responsiva.colapsada .texto-menu-sidebar,
+html.store-app-root .sidebar-lojista-responsiva.colapsada .botao-tema-sidebar {
+    width: 0;
+    padding: 0;
+    margin: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+html.store-app-root .sidebar-lojista-responsiva.colapsada .cabecalho-sidebar-lojista,
+html.store-app-root .sidebar-lojista-responsiva.colapsada .container-logo-sidebar,
+html.store-app-root .sidebar-lojista-responsiva.colapsada .link-menu-sidebar {
+    justify-content: center;
+}
+
+html.store-app-root .sidebar-lojista-responsiva.colapsada .info-usuario-sidebar {
+    padding: 9px;
+    justify-content: center;
+}
+
+html.store-app-root .sidebar-lojista-responsiva.colapsada .icone-menu-sidebar {
+    margin: 0;
+}
+
+html.store-app-root .sidebar-lojista-responsiva.colapsada .botao-colapsar-sidebar {
+    position: static;
+}
+
+html.store-app-root .sidebar-lojista-responsiva.colapsada .icone-colapsar {
+    transform: rotate(180deg);
+}
+
+/* Main application surfaces */
+html.store-app-root .main-content,
+html.store-app-root .conteudo-principal,
+html.store-app-root main {
+    width: auto;
+    max-width: none;
+    min-width: 0;
+    margin-left: calc(var(--store-sidebar-width) + 28px) !important;
+    padding: clamp(22px, 3vw, 42px) !important;
+    transition: margin-left var(--store-ease), opacity 150ms ease, transform 150ms ease;
+}
+
+html.store-app-root .main-content {
+    view-transition-name: store-content;
+}
+
+html.store-app-root .main-content.conteudo-principal-ajustado.sidebar-colapsada,
+html.store-app-root .conteudo-principal-ajustado.sidebar-colapsada {
+    margin-left: calc(var(--store-sidebar-compact) + 28px) !important;
+}
+
+html.store-app-root .dashboard-wrapper,
+html.store-app-root .page-wrapper,
+html.store-app-root .pix-container,
+html.store-app-root .payment-container {
+    width: min(100%, 1480px);
+    margin-inline: auto;
+}
+
+html.store-app-root .dashboard-header,
+html.store-app-root .page-header,
+html.store-app-root .pix-header {
+    position: relative;
+    margin: 0 0 24px;
+    padding: clamp(22px, 3vw, 34px);
+    color: var(--store-text);
+    background: var(--store-surface);
+    border: 1px solid var(--store-border);
+    border-radius: var(--store-radius-lg);
+    box-shadow: var(--store-shadow-sm);
+    overflow: hidden;
+    backdrop-filter: blur(18px);
+}
+
+html.store-app-root .dashboard-header::before,
+html.store-app-root .page-header::before,
+html.store-app-root .pix-header::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 5px;
+    background: var(--store-gradient);
+}
+
+html.store-app-root .dashboard-title,
+html.store-app-root .page-title,
+html.store-app-root .dashboard-header h1,
+html.store-app-root .page-header h1,
+html.store-app-root .pix-header h1 {
+    margin: 0;
+    color: var(--store-text);
+    font-size: clamp(1.55rem, 3vw, 2.35rem);
+    line-height: 1.08;
+    letter-spacing: -0.045em;
+}
+
+html.store-app-root .welcome-user,
+html.store-app-root .subtitle,
+html.store-app-root .page-subtitle,
+html.store-app-root .page-header p,
+html.store-app-root .dashboard-header p,
+html.store-app-root .pix-header p {
+    margin: 8px 0 0;
+    color: var(--store-text-muted);
+    line-height: 1.6;
+}
+
+html.store-app-root .card,
+html.store-app-root .stat-card,
+html.store-app-root .summary-card,
+html.store-app-root .filter-container,
+html.store-app-root .form-section,
+html.store-app-root .content-section,
+html.store-app-root .upload-section,
+html.store-app-root .steps-panel,
+html.store-app-root .employee-card,
+html.store-app-root .plan-card,
+html.store-app-root .invoice-summary {
+    color: var(--store-text);
+    background: var(--store-surface) !important;
+    border: 1px solid var(--store-border) !important;
+    border-radius: var(--store-radius) !important;
+    box-shadow: var(--store-shadow-sm) !important;
+    backdrop-filter: blur(16px);
+}
+
+html.store-app-root .summary-cards,
+html.store-app-root .stats-container,
+html.store-app-root .stats-grid,
+html.store-app-root .results-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+    gap: 16px;
+}
+
+html.store-app-root .summary-cards .card,
+html.store-app-root .stats-container .stat-card,
+html.store-app-root .stats-grid .stat-card,
+html.store-app-root .results-stat {
+    position: relative;
+    min-width: 0;
+    padding: 20px;
+    overflow: hidden;
+}
+
+html.store-app-root .summary-cards .card::after,
+html.store-app-root .stats-container .stat-card::after,
+html.store-app-root .stats-grid .stat-card::after {
+    content: "";
+    position: absolute;
+    width: 86px;
+    height: 86px;
+    right: -32px;
+    bottom: -36px;
+    border-radius: 50%;
+    background: rgba(252, 105, 20, 0.09);
+}
+
+html.store-app-root .card-value,
+html.store-app-root .stat-card-value,
+html.store-app-root .stat-content h3,
+html.store-app-root .results-stat-number,
+html.store-app-root .amount-value {
+    color: var(--store-text);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+}
+
+html.store-app-root .card-period,
+html.store-app-root .stat-card-title,
+html.store-app-root .stat-card-subtitle,
+html.store-app-root .stat-content p,
+html.store-app-root .results-stat-label {
+    color: var(--store-text-muted);
+}
+
+html.store-app-root .card-icon,
+html.store-app-root .stat-icon,
+html.store-app-root .header-icon {
+    color: var(--store-brand-contrast) !important;
+    background: var(--store-gradient) !important;
+    border-radius: 14px !important;
+}
+
+/* Controls */
+html.store-app-root .btn,
+html.store-app-root button[type="submit"],
+html.store-app-root input[type="submit"] {
+    min-height: 44px;
+    border-radius: 12px;
+    font-weight: 750;
+    transition: transform var(--store-ease), box-shadow var(--store-ease), background var(--store-ease), border-color var(--store-ease);
+}
+
+html.store-app-root .btn:hover,
+html.store-app-root button[type="submit"]:hover,
+html.store-app-root input[type="submit"]:hover {
+    transform: translateY(-1px);
+}
+
+html.store-app-root .btn-primary,
+html.store-app-root button[type="submit"]:not(.btn-secondary),
+html.store-app-root input[type="submit"] {
+    color: var(--store-brand-contrast) !important;
+    background: var(--store-gradient) !important;
+    border-color: transparent !important;
+    box-shadow: 0 10px 24px rgba(252, 105, 20, 0.2) !important;
+}
+
+html.store-app-root .btn-secondary,
+html.store-app-root .btn-outline {
+    color: var(--store-text) !important;
+    background: var(--store-surface-soft) !important;
+    border: 1px solid var(--store-border) !important;
+}
+
+html.store-app-root input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]),
+html.store-app-root select,
+html.store-app-root textarea,
+html.store-app-root .form-input,
+html.store-app-root .form-select {
+    min-height: 46px;
+    color: var(--store-text) !important;
+    background: var(--store-surface-solid) !important;
+    border: 1px solid var(--store-border-strong) !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+    transition: border-color var(--store-ease), box-shadow var(--store-ease), background var(--store-ease);
+}
+
+html.store-app-root input:not([type="checkbox"]):not([type="radio"]):focus,
+html.store-app-root select:focus,
+html.store-app-root textarea:focus,
+html.store-app-root .form-input:focus,
+html.store-app-root .form-select:focus {
+    border-color: var(--store-brand) !important;
+    box-shadow: 0 0 0 4px rgba(252, 105, 20, 0.12) !important;
+    outline: none;
+}
+
+html.store-app-root input::placeholder,
+html.store-app-root textarea::placeholder {
+    color: var(--store-text-faint) !important;
+    opacity: 1;
+}
+
+html.store-app-root label,
+html.store-app-root .form-label {
+    color: var(--store-text);
+    font-weight: 700;
+}
+
+/* Tables and tabs */
+html.store-app-root .table-responsive,
+html.store-app-root .table-container,
+html.store-app-root .transactions-table-container {
+    overflow: auto;
+    border: 1px solid var(--store-border);
+    border-radius: var(--store-radius);
+    background: var(--store-surface);
+    box-shadow: var(--store-shadow-sm);
+}
+
+html.store-app-root table,
+html.store-app-root .table {
+    width: 100%;
+    color: var(--store-text);
+    border-collapse: collapse;
+    background: transparent !important;
+}
+
+html.store-app-root th {
+    color: var(--store-text-muted) !important;
+    background: var(--store-surface-soft) !important;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.045em;
+    text-transform: uppercase;
+}
+
+html.store-app-root th,
+html.store-app-root td {
+    padding: 14px 16px !important;
+    border-color: var(--store-border) !important;
+}
+
+html.store-app-root tbody tr {
+    background: transparent !important;
+    transition: background var(--store-ease);
+}
+
+html.store-app-root tbody tr:hover {
+    background: var(--store-surface-hover) !important;
+}
+
+html.store-app-root .tabs-container {
+    width: fit-content;
+    max-width: 100%;
+    padding: 5px;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    background: var(--store-surface-soft);
+    border: 1px solid var(--store-border);
+    border-radius: 14px;
+}
+
+html.store-app-root .tab {
+    min-height: 40px;
+    padding: 8px 14px;
+    color: var(--store-text-muted);
+    white-space: nowrap;
+    background: transparent;
+    border: 0;
+    border-radius: 10px;
+}
+
+html.store-app-root .tab.active {
+    color: var(--store-brand-contrast) !important;
+    background: var(--store-gradient) !important;
+    box-shadow: 0 6px 16px rgba(252, 105, 20, 0.18);
+}
+
+/* Feedback */
+html.store-app-root .alert,
+html.store-app-root [class*="alert-"] {
+    border-radius: 14px !important;
+}
+
+html.store-app-root .alert.success,
+html.store-app-root .alert-success {
+    color: var(--store-success) !important;
+    background: rgba(7, 136, 83, 0.1) !important;
+    background: color-mix(in srgb, var(--store-success) 10%, var(--store-surface-solid)) !important;
+    border-color: rgba(7, 136, 83, 0.3) !important;
+    border-color: color-mix(in srgb, var(--store-success) 30%, transparent) !important;
+}
+
+html.store-app-root .alert.error,
+html.store-app-root .alert-error {
+    color: var(--store-danger) !important;
+    background: rgba(200, 50, 69, 0.1) !important;
+    background: color-mix(in srgb, var(--store-danger) 10%, var(--store-surface-solid)) !important;
+    border-color: rgba(200, 50, 69, 0.3) !important;
+    border-color: color-mix(in srgb, var(--store-danger) 30%, transparent) !important;
+}
+
+html.store-app-root .alert-warning {
+    color: var(--store-warning) !important;
+    background: rgba(181, 90, 0, 0.1) !important;
+    background: color-mix(in srgb, var(--store-warning) 10%, var(--store-surface-solid)) !important;
+    border-color: rgba(181, 90, 0, 0.3) !important;
+    border-color: color-mix(in srgb, var(--store-warning) 30%, transparent) !important;
+}
+
+html.store-app-root .modal,
+html.store-app-root [class*="modal-overlay"] {
+    backdrop-filter: blur(8px);
+}
+
+html.store-app-root .modal-content,
+html.store-app-root .modal-dialog,
+html.store-app-root [class*="modal-content"] {
+    color: var(--store-text) !important;
+    background: var(--store-surface-solid) !important;
+    border: 1px solid var(--store-border) !important;
+    border-radius: var(--store-radius-lg) !important;
+    box-shadow: var(--store-shadow) !important;
+}
+
+html.store-app-root .badge,
+html.store-app-root [class*="status-badge"] {
+    border-radius: 999px !important;
+    font-weight: 750;
+}
+
+html.store-app-root .pagination,
+html.store-app-root .pagination-container {
+    color: var(--store-text-muted);
+}
+
+html.store-app-root .pagination a,
+html.store-app-root .pagination button,
+html.store-app-root .page-link {
+    color: var(--store-text) !important;
+    background: var(--store-surface-solid) !important;
+    border-color: var(--store-border) !important;
+    border-radius: 10px !important;
+}
+
+html.store-app-root .pagination .active,
+html.store-app-root .page-item.active .page-link {
+    color: var(--store-brand-contrast) !important;
+    background: var(--store-gradient) !important;
+    border-color: transparent !important;
+}
+
+/* Shared page shell: normalizes the legacy screens without changing their PHP flows. */
+html.store-app-root :is(
+    .quick-actions,
+    .chart-container,
+    .recent-transactions,
+    .info-card,
+    .transactions-section,
+    .form-container,
+    .content-card,
+    .template-section,
+    .help-section,
+    .results-section,
+    .content-panel,
+    .info-panel,
+    .filters-section,
+    .invoices-section,
+    .pix-card,
+    .instructions-card,
+    .balance-section,
+    .client-search-container
+) {
+    color: var(--store-text) !important;
+    background: var(--store-surface) !important;
+    border: 1px solid var(--store-border) !important;
+    border-radius: var(--store-radius) !important;
+    box-shadow: var(--store-shadow-sm) !important;
+    backdrop-filter: blur(16px);
+}
+
+html.store-app-root :is(
+    .quick-actions,
+    .chart-container,
+    .recent-transactions,
+    .info-card,
+    .transactions-section,
+    .form-container,
+    .template-section,
+    .help-section,
+    .results-section,
+    .content-panel,
+    .info-panel,
+    .filters-section,
+    .invoices-section,
+    .pix-card,
+    .instructions-card
+) {
+    padding: clamp(18px, 2.4vw, 28px);
+}
+
+html.store-app-root :is(
+    .quick-actions,
+    .chart-container,
+    .recent-transactions,
+    .info-card,
+    .transactions-section,
+    .form-container,
+    .template-section,
+    .help-section,
+    .results-section,
+    .filters-section,
+    .invoices-section
+) + :is(
+    .quick-actions,
+    .chart-container,
+    .recent-transactions,
+    .info-card,
+    .transactions-section,
+    .form-container,
+    .template-section,
+    .help-section,
+    .results-section,
+    .filters-section,
+    .invoices-section
+) {
+    margin-top: 22px;
+}
+
+html.store-app-root :is(
+    .quick-actions,
+    .chart-container,
+    .recent-transactions,
+    .info-card,
+    .transactions-section,
+    .form-container,
+    .content-panel,
+    .info-panel,
+    .filters-section,
+    .invoices-section,
+    .pix-card,
+    .instructions-card
+) :is(h1, h2, h3, h4) {
+    color: var(--store-text) !important;
+}
+
+html.store-app-root :is(
+    .quick-actions,
+    .chart-container,
+    .recent-transactions,
+    .info-card,
+    .transactions-section,
+    .form-container,
+    .content-panel,
+    .info-panel,
+    .filters-section,
+    .invoices-section,
+    .pix-card,
+    .instructions-card
+) :is(p, .text-muted, .description) {
+    color: var(--store-text-muted) !important;
+}
+
+html.store-app-root .actions-grid .action-card {
+    color: var(--store-text) !important;
+    background: var(--store-surface-soft) !important;
+    border: 1px solid var(--store-border) !important;
+    border-radius: 16px !important;
+    box-shadow: none !important;
+    transition: transform var(--store-ease), border-color var(--store-ease), box-shadow var(--store-ease), background var(--store-ease);
+}
+
+html.store-app-root .actions-grid .action-card:hover {
+    transform: translateY(-3px);
+    background: var(--store-surface-hover) !important;
+    border-color: rgba(252, 105, 20, 0.4) !important;
+    box-shadow: 0 14px 30px rgba(252, 105, 20, 0.11) !important;
+}
+
+html.store-app-root .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+html.store-app-root .link-more {
+    color: var(--store-brand) !important;
+    font-weight: 750;
+    text-decoration: none;
+}
+
+html.store-app-root .empty-state {
+    color: var(--store-text-muted) !important;
+    background: var(--store-surface-soft) !important;
+}
+
+html.store-app-root .empty-state :is(h2, h3, h4) {
+    color: var(--store-text) !important;
+}
+
+html.store-app-root .link-menu-sidebar.carregando::after {
+    content: "";
+    width: 14px;
+    height: 14px;
+    margin-left: auto;
+    flex: 0 0 14px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 999px;
+    animation: store-spin 650ms linear infinite;
+}
+
+@keyframes store-spin {
+    to { transform: rotate(360deg); }
+}
+
+html[data-store-navigating="true"] .main-content {
+    opacity: 0.78;
+    transform: translateY(3px);
+    pointer-events: none;
+}
+
+html.store-app-root input:-webkit-autofill,
+html.store-app-root input:-webkit-autofill:hover,
+html.store-app-root input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--store-text);
+    box-shadow: 0 0 0 1000px var(--store-surface-solid) inset !important;
+    transition: background-color 9999s ease-out;
+}
+
+/* Mobile navigation */
+html.store-app-root .botao-toggle-mobile {
+    display: none;
+    position: fixed;
+    top: max(14px, env(safe-area-inset-top));
+    left: max(14px, env(safe-area-inset-left));
+    width: 48px;
+    height: 48px;
+    z-index: 1200;
+    place-items: center;
+    color: var(--store-brand-contrast);
+    background: var(--store-gradient);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 15px;
+    box-shadow: 0 12px 28px rgba(252, 105, 20, 0.28);
+}
+
+html.store-app-root .overlay-sidebar-mobile {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    display: none;
+    opacity: 0;
+    visibility: hidden;
+    background: rgba(7, 7, 10, 0.62);
+    backdrop-filter: blur(6px);
+    transition: opacity var(--store-ease), visibility var(--store-ease);
+}
+
+html.store-app-root .overlay-sidebar-mobile.ativo {
+    opacity: 1;
+    visibility: visible;
+}
+
+html.store-app-root .store-app-status {
+    position: fixed;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+@media (max-width: 960px) {
+    html.store-app-root .sidebar-lojista-responsiva,
+    html.store-app-root .sidebar-lojista-responsiva.colapsada {
+        inset: 10px auto 10px 10px;
+        width: min(318px, calc(100vw - 26px));
+        transform: translateX(calc(-100% - 24px));
+        border-radius: 22px;
+    }
+
+    html.store-app-root .sidebar-lojista-responsiva.aberta {
+        transform: translateX(0);
+    }
+
+    html.store-app-root .sidebar-lojista-responsiva.colapsada .texto-logo-sidebar,
+    html.store-app-root .sidebar-lojista-responsiva.colapsada .dados-usuario-sidebar,
+    html.store-app-root .sidebar-lojista-responsiva.colapsada .titulo-secao-menu,
+    html.store-app-root .sidebar-lojista-responsiva.colapsada .texto-menu-sidebar,
+    html.store-app-root .sidebar-lojista-responsiva.colapsada .botao-tema-sidebar {
+        width: auto;
+        padding: initial;
+        margin: initial;
+        opacity: 1;
+        overflow: visible;
+        pointer-events: auto;
+    }
+
+    html.store-app-root .sidebar-lojista-responsiva.colapsada .cabecalho-sidebar-lojista,
+    html.store-app-root .sidebar-lojista-responsiva.colapsada .container-logo-sidebar,
+    html.store-app-root .sidebar-lojista-responsiva.colapsada .link-menu-sidebar {
+        justify-content: flex-start;
+    }
+
+    html.store-app-root .sidebar-lojista-responsiva.colapsada .info-usuario-sidebar {
+        padding: 13px;
+        justify-content: flex-start;
+    }
+
+    html.store-app-root .botao-colapsar-sidebar {
+        display: none;
+    }
+
+    html.store-app-root .botao-toggle-mobile {
+        display: grid;
+    }
+
+    html.store-app-root .overlay-sidebar-mobile {
+        display: block;
+    }
+
+    html.store-app-root .main-content,
+    html.store-app-root .conteudo-principal,
+    html.store-app-root main,
+    html.store-app-root .main-content.conteudo-principal-ajustado,
+    html.store-app-root .main-content.conteudo-principal-ajustado.sidebar-colapsada,
+    html.store-app-root .conteudo-principal-ajustado.sidebar-colapsada {
+        margin-left: 0 !important;
+        padding: 78px clamp(14px, 4vw, 28px) 30px !important;
+    }
+
+    html.store-app-root body.sidebar-mobile-aberta {
+        overflow: hidden;
+    }
+}
+
+@media (max-width: 620px) {
+    html.store-app-root .dashboard-header,
+    html.store-app-root .page-header,
+    html.store-app-root .pix-header {
+        padding: 20px;
+        border-radius: 20px;
+    }
+
+    html.store-app-root .summary-cards,
+    html.store-app-root .stats-container,
+    html.store-app-root .stats-grid,
+    html.store-app-root .results-stats {
+        grid-template-columns: 1fr;
+    }
+
+    html.store-app-root .card,
+    html.store-app-root .stat-card,
+    html.store-app-root .form-section,
+    html.store-app-root .content-section {
+        border-radius: 16px !important;
+    }
+
+    html.store-app-root th,
+    html.store-app-root td {
+        padding: 12px !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @view-transition { navigation: none; }
+
+    html.store-app-root *,
+    html.store-app-root *::before,
+    html.store-app-root *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+@media print {
+    html.store-app-root .sidebar-lojista-responsiva,
+    html.store-app-root .botao-toggle-mobile,
+    html.store-app-root .overlay-sidebar-mobile,
+    html.store-app-root .store-app-progress {
+        display: none !important;
+    }
+
+    html.store-app-root .main-content,
+    html.store-app-root .conteudo-principal,
+    html.store-app-root main {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+}

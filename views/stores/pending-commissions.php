@@ -10,16 +10,16 @@ require_once '../../models/CashbackBalance.php';
 
 session_start();
 
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'loja') {
+if (!AuthController::hasStoreAccess()) {
     header("Location: " . LOGIN_URL . "?error=acesso_restrito");
     exit;
 }
 
-$userId = $_SESSION['user_id'];
+$storeId = (int) AuthController::getStoreId();
 
 $db = Database::getConnection();
-$storeQuery = $db->prepare("SELECT id, nome_fantasia FROM lojas WHERE usuario_id = :usuario_id");
-$storeQuery->bindParam(':usuario_id', $userId);
+$storeQuery = $db->prepare("SELECT id, nome_fantasia FROM lojas WHERE id = :loja_id");
+$storeQuery->bindParam(':loja_id', $storeId, PDO::PARAM_INT);
 $storeQuery->execute();
 
 if ($storeQuery->rowCount() == 0) {
@@ -28,7 +28,7 @@ if ($storeQuery->rowCount() == 0) {
 }
 
 $store = $storeQuery->fetch(PDO::FETCH_ASSOC);
-$storeId = $store['id'];
+$storeId = (int) $store['id'];
 $storeName = $store['nome_fantasia'];
 
 $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
@@ -77,20 +77,11 @@ if ($result['status'] && isset($result['data']['totais'])) {
     <link rel="shortcut icon" type="image/jpg" href="../../assets/images/icons/KlubeCashLOGO.ico"/>
     <title>Comissões Pendentes - Klube Cash</title>
     
-    <?php
-    // Determinar qual CSS carregar baseado no campo senat do usuário
-    $pendingCommissionsCssFile = 'pending-commissions.css'; // CSS padrão
-    $sidebarCssFile = 'sidebar-lojista.css'; // CSS da sidebar padrão
-
-    if (isset($_SESSION['user_senat']) && ($_SESSION['user_senat'] === 'sim' || $_SESSION['user_senat'] === 'Sim')) {
-        $pendingCommissionsCssFile = 'pending-commissions_sest.css'; // CSS para usuários senat=sim
-        $sidebarCssFile = 'sidebar-lojista_sest.css'; // CSS da sidebar para usuários senat=sim
-    }
-    ?>
-    <link rel="stylesheet" href="../../assets/css/views/stores/<?php echo htmlspecialchars($pendingCommissionsCssFile); ?>">
+    <link rel="stylesheet" href="../../assets/css/views/stores/pending-commissions.css">
     <link rel="stylesheet" href="../../assets/css/openpix-styles.css">
 
-    <link rel="stylesheet" href="/assets/css/<?php echo htmlspecialchars($sidebarCssFile); ?>">
+    <link rel="stylesheet" href="/assets/css/sidebar-lojista.css">
+    <?php include __DIR__ . '/../components/store-app-head.php'; ?>
 </head>
 <body>
     <?php include '../../views/components/sidebar-lojista-responsiva.php'; ?>
@@ -392,6 +383,12 @@ if ($result['status'] && isset($result['data']['totais'])) {
         }
         
         function updatePaymentSummary() {
+            // A tela sem comissoes pendentes nao renderiza o formulario/resumo.
+            // Nesse estado, nao ha nada para recalcular.
+            if (!paymentSummary) {
+                return;
+            }
+
             const selectedCheckboxes = document.querySelectorAll('.transaction-checkbox:checked');
             const selectedCount = selectedCheckboxes.length;
             let totalCommission = 0;
@@ -854,40 +851,5 @@ if ($result['status'] && isset($result['data']['totais'])) {
             margin-right: 8px;
         }
     </style>
-    <script>
-// Teste de sessão
-function testSession() {
-    console.log('=== TESTE DE SESSÃO ===');
-    
-    fetch('/test-session.php', {
-        credentials: 'same-origin'
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log('1. Status da sessão:', data);
-        
-        // Teste API
-        const formData = new FormData();
-        formData.append('action', 'test');
-        
-        return fetch('../../api/payments.php', {
-            method: 'POST',
-            body: formData,
-            credentials: 'same-origin'
-        });
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log('2. Resposta da API:', data);
-    })
-    .catch(error => {
-        console.error('Erro no teste:', error);
-    });
-}
-
-// Criar botão após DOM carregado
-
-</script>
-<script src="/assets/js/sidebar-lojista.js"></script>
 </body>
 </html>

@@ -11,19 +11,20 @@ session_start();
 $activeMenu = 'perfil';
 
 // Verificar se o usuário está logado e é uma loja
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'loja') {
+if (!AuthController::hasStoreAccess()) {
     header("Location: " . LOGIN_URL . "?error=acesso_restrito");
     exit;
 }
 
 // Obter ID do usuário logado
 $userId = $_SESSION['user_id'];
+$sessionStoreId = (int) AuthController::getStoreId();
 
 // Obter dados da loja associada ao usuário
 $db = Database::getConnection();
 
 // Função para buscar dados atualizados da loja com validações
-function buscarDadosLoja($db, $userId) {
+function buscarDadosLoja($db, $storeId) {
     try {
         // Primeiro, buscar os dados básicos da loja e usuário
         $storeQuery = $db->prepare("
@@ -32,16 +33,16 @@ function buscarDadosLoja($db, $userId) {
                    u.email as usuario_email, u.nome as usuario_nome
             FROM lojas l
             INNER JOIN usuarios u ON l.usuario_id = u.id
-            WHERE l.usuario_id = :usuario_id
+            WHERE l.id = :loja_id
         ");
-        $storeQuery->bindParam(':usuario_id', $userId, PDO::PARAM_INT);
+        $storeQuery->bindParam(':loja_id', $storeId, PDO::PARAM_INT);
         $storeQuery->execute();
         
         $store = $storeQuery->fetch(PDO::FETCH_ASSOC);
         
         // Verificar se encontrou a loja e se tem ID válido
         if (!$store || !isset($store['id']) || empty($store['id']) || $store['id'] <= 0) {
-            error_log("ERRO: Loja não encontrada ou ID inválido para usuário $userId");
+            error_log("ERRO: Loja não encontrada ou ID inválido: $storeId");
             return false;
         }
         
@@ -70,7 +71,7 @@ function buscarDadosLoja($db, $userId) {
 }
 
 // Buscar dados iniciais com validação robusta
-$store = buscarDadosLoja($db, $userId);
+$store = buscarDadosLoja($db, $sessionStoreId);
 
 // Validação mais rigorosa dos dados da loja
 if (!$store || !isset($store['id']) || empty($store['id'])) {
@@ -298,11 +299,11 @@ if (isset($_SESSION['profile_error'])) {
 }
 
 // Recarregar dados da loja após possíveis alterações
-$store = buscarDadosLoja($db, $userId);
+$store = buscarDadosLoja($db, $sessionStoreId);
 $storeId = (int)$store['id'];
  
 // Definir menu ativo
-$activeMenu = 'profile';
+$activeMenu = 'perfil';
 ?>
 
 <!DOCTYPE html>
@@ -312,19 +313,10 @@ $activeMenu = 'profile';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Perfil da Loja - Klube Cash</title>
     <link rel="shortcut icon" type="image/jpg" href="../../assets/images/icons/KlubeCashLOGO.ico"/>
-    <?php
-    // Determinar qual CSS carregar baseado no campo senat do usuário
-    $profileCssFile = 'profile.css'; // CSS padrão
-    $sidebarCssFile = 'sidebar-lojista.css'; // CSS da sidebar padrão
+    <link rel="stylesheet" href="../../assets/css/views/stores/profile.css">
+    <link rel="stylesheet" href="/assets/css/sidebar-lojista.css">
 
-    if (isset($_SESSION['user_senat']) && ($_SESSION['user_senat'] === 'sim' || $_SESSION['user_senat'] === 'Sim')) {
-        $profileCssFile = 'profile_sest.css'; // CSS para usuários senat=sim
-        $sidebarCssFile = 'sidebar-lojista_sest.css'; // CSS da sidebar para usuários senat=sim
-    }
-    ?>
-    <link rel="stylesheet" href="../../assets/css/views/stores/<?php echo htmlspecialchars($profileCssFile); ?>">
-    <link rel="stylesheet" href="/assets/css/<?php echo htmlspecialchars($sidebarCssFile); ?>">
-
+    <?php include __DIR__ . '/../components/store-app-head.php'; ?>
 </head>
 <body>
     <!-- Incluir sidebar da loja -->
@@ -712,6 +704,5 @@ $activeMenu = 'profile';
         });
     });
     </script>
-    <script src="/assets/js/sidebar-lojista.js"></script>
 </body>
 </html>

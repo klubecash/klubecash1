@@ -5,7 +5,6 @@ require_once __DIR__ . '/../config/constants.php';
 // Importar PHPMailer
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
-use PHPMailer\PHPMailer\Exception;
 
 // Caminho para as classes do PHPMailer (já funcionando)
 require_once __DIR__ . '/../libs/PHPMailer/src/PHPMailer.php';
@@ -28,16 +27,83 @@ class Email {
      * Inicializa as configurações de SMTP
      */
     private static function init() {
-        // Usar as constantes que já estão funcionando
-        self::$host = defined('SMTP_HOST') ? SMTP_HOST : 'smtp.hostinger.com';
-        self::$port = defined('SMTP_PORT') ? SMTP_PORT : 587;
-        self::$username = defined('SMTP_USERNAME') ? SMTP_USERNAME : 'klubecash@klubecash.com';
-        self::$password = defined('SMTP_PASSWORD') ? SMTP_PASSWORD : 'Aaku_2004@';
-        self::$fromEmail = defined('SMTP_FROM_EMAIL') ? SMTP_FROM_EMAIL : 'noreply@klubecash.com';
-        self::$fromName = defined('SMTP_FROM_NAME') ? SMTP_FROM_NAME : 'Klube Cash';
-        self::$encryption = defined('SMTP_ENCRYPTION') ? SMTP_ENCRYPTION : 'tls';
-        
-        error_log("Email configurado - Host: " . self::$host . ", Port: " . self::$port);
+        self::$host = trim((string) (defined('SMTP_HOST') ? SMTP_HOST : ''));
+        self::$port = (int) (defined('SMTP_PORT') ? SMTP_PORT : 0);
+        self::$username = trim((string) (defined('SMTP_USERNAME') ? SMTP_USERNAME : ''));
+        self::$password = (string) (defined('SMTP_PASSWORD') ? SMTP_PASSWORD : '');
+        self::$fromEmail = trim((string) (defined('SMTP_FROM_EMAIL') ? SMTP_FROM_EMAIL : ''));
+        self::$fromName = trim((string) (defined('SMTP_FROM_NAME') ? SMTP_FROM_NAME : 'Klube Cash'));
+        self::$encryption = strtolower(trim((string) (defined('SMTP_ENCRYPTION') ? SMTP_ENCRYPTION : 'smtps')));
+
+        $missing = [];
+        foreach ([
+            'SMTP_HOST' => self::$host,
+            'SMTP_USERNAME' => self::$username,
+            'SMTP_PASSWORD' => self::$password,
+            'SMTP_FROM_EMAIL' => self::$fromEmail,
+        ] as $key => $value) {
+            if ($value === '') {
+                $missing[] = $key;
+            }
+        }
+
+        if ($missing !== []) {
+            error_log('Configuração SMTP incompleta. Variáveis ausentes: ' . implode(', ', $missing));
+            return false;
+        }
+
+        if (self::$port < 1 || self::$port > 65535) {
+            error_log('Configuração SMTP inválida: SMTP_PORT fora do intervalo permitido.');
+            return false;
+        }
+
+        if (!filter_var(self::$fromEmail, FILTER_VALIDATE_EMAIL)) {
+            error_log('Configuração SMTP inválida: SMTP_FROM_EMAIL não é um email válido.');
+            return false;
+        }
+
+        if (self::$fromName === '') {
+            self::$fromName = 'Klube Cash';
+        }
+
+        return true;
+    }
+
+    /**
+     * Aplica a mesma configuração segura em todos os clientes SMTP.
+     */
+    private static function configureMailer(PHPMailer $mail) {
+        $encryption = self::resolveEncryption();
+
+        $mail->isSMTP();
+        $mail->Host = self::$host;
+        $mail->SMTPAuth = true;
+        $mail->Username = self::$username;
+        $mail->Password = self::$password;
+        $mail->SMTPSecure = $encryption;
+        $mail->SMTPAutoTLS = $encryption !== '';
+        $mail->Port = self::$port;
+        $mail->CharSet = 'UTF-8';
+        $mail->Timeout = 30;
+        $mail->setFrom(self::$fromEmail, self::$fromName);
+        $mail->addReplyTo(self::$fromEmail, self::$fromName);
+        $mail->Sender = self::$fromEmail;
+    }
+
+    /**
+     * Converte a configuração textual para os valores aceitos pelo PHPMailer.
+     */
+    private static function resolveEncryption() {
+        switch (self::$encryption) {
+            case 'ssl':
+            case 'smtps':
+                return PHPMailer::ENCRYPTION_SMTPS;
+            case 'tls':
+            case 'starttls':
+                return PHPMailer::ENCRYPTION_STARTTLS;
+            default:
+                throw new InvalidArgumentException('SMTP_ENCRYPTION deve ser smtps, ssl, starttls ou tls.');
+        }
     }
     
     public static function queueEmail($to, $subject, $message, $toName = '') {
@@ -52,7 +118,7 @@ class Email {
             $stmt->bindParam(':subject', $subject);
             $stmt->bindParam(':message', $message);
             return $stmt->execute();
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log('Erro ao enfileirar email: ' . $e->getMessage());
             return false;
         }
@@ -62,39 +128,17 @@ class Email {
      * Envia um email - MÉTODO PRINCIPAL CORRIGIDO
      */
     public static function send($to, $subject, $message, $toName = '', $attachments = []) {
-        self::init();
+        if (!self::init()) {
+            return false;
+        }
         
         try {
             error_log("🚀 Tentando enviar email para: $to - Assunto: $subject");
             
             $mail = new PHPMailer(true);
             
-            // Configurações de servidor (EXATAMENTE como no teste que funcionou)
-            $mail->isSMTP();
-            $mail->Host = self::$host;
-            $mail->SMTPAuth = true;
-            $mail->Username = self::$username;
-            $mail->Password = self::$password;
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; // TLS explícito
-            $mail->Port = self::$port;
-            $mail->CharSet = 'UTF-8';
-            
-            // Configurações SSL (igual ao teste)
-            $mail->SMTPOptions = [
-                'ssl' => [
-                    'verify_peer' => false,
-                    'verify_peer_name' => false,
-                    'allow_self_signed' => true
-                ]
-            ];
-            
-            // Timeout
-            $mail->Timeout = 30;
-            
-            // CORREÇÃO CRÍTICA: Usar sempre klubecash@klubecash.com como remetente
-            $mail->setFrom('klubecash@klubecash.com', self::$fromName);
-            $mail->addReplyTo('klubecash@klubecash.com', self::$fromName);
-            
+            self::configureMailer($mail);
+
             // Destinatário
             $mail->addAddress($to, $toName);
             
@@ -124,7 +168,7 @@ class Email {
                 return false;
             }
             
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("🚨 EXCEÇÃO ao enviar email: " . $e->getMessage());
             error_log("📍 Arquivo: " . $e->getFile() . " - Linha: " . $e->getLine());
             return false;
@@ -139,18 +183,24 @@ class Email {
         
         $subject = 'Recuperação de Senha - Klube Cash';
         
-        $resetLink = SITE_URL . '/recuperar-senha?token=' . urlencode($token);
-        
+        $resetLink = SITE_URL . RECOVER_PASSWORD_URL . '?token=' . rawurlencode($token);
+        $safeResetLink = htmlspecialchars($resetLink, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $safeName = htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $expirationHours = max(1, (int) ceil(TOKEN_EXPIRATION / 3600));
+
         $message = "
-        <h2>Olá, " . htmlspecialchars($name) . "!</h2>
+        <h2>Olá, {$safeName}!</h2>
         <p>Recebemos uma solicitação para redefinir sua senha no Klube Cash.</p>
         <p>Para redefinir sua senha, clique no botão abaixo:</p>
         <p>
-            <a href='$resetLink' style='background-color: #FF7A00; color: white; padding: 15px 25px; text-decoration: none; border-radius: 5px; display: inline-block;'>
+            <a href='{$safeResetLink}' style='background-color: #FF7A00; color: white; padding: 15px 25px; text-decoration: none; border-radius: 5px; display: inline-block;'>
                 Redefinir Minha Senha
             </a>
         </p>
-        <p><strong>Este link é válido por 2 horas.</strong></p>
+        <p>Se o botão não funcionar, copie e cole este endereço no navegador:<br>
+            <a href='{$safeResetLink}'>{$safeResetLink}</a>
+        </p>
+        <p><strong>Este link é válido por {$expirationHours} horas.</strong></p>
         <p>Se você não solicitou esta alteração, por favor ignore este email.</p>
         <p>Atenciosamente,<br>Equipe Klube Cash</p>
         ";
@@ -244,7 +294,7 @@ class Email {
                 </div>
                 <div class='footer'>
                     <p>&copy; " . date('Y') . " Klube Cash. Todos os direitos reservados.</p>
-                    <p>Este é um email automático, por favor não responda.</p>
+                    <p>Mensagem automática enviada com segurança pela equipe Klube Cash.</p>
                 </div>
             </div>
         </body>
@@ -364,28 +414,18 @@ class Email {
      * Teste de conexão SMTP
      */
     public static function testConnection() {
-        self::init();
+        if (!self::init()) {
+            return [
+                'status' => false,
+                'message' => 'Configuração SMTP incompleta. Defina a senha da caixa postal no ambiente.',
+                'debug' => ''
+            ];
+        }
         
         try {
             $mail = new PHPMailer(true);
             
-            $mail->isSMTP();
-            $mail->Host = self::$host;
-            $mail->SMTPAuth = true;
-            $mail->Username = self::$username;
-            $mail->Password = self::$password;
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port = self::$port;
-            
-            $mail->SMTPOptions = [
-                'ssl' => [
-                    'verify_peer' => false,
-                    'verify_peer_name' => false,
-                    'allow_self_signed' => true
-                ]
-            ];
-            
-            $mail->Timeout = 30;
+            self::configureMailer($mail);
             $mail->SMTPDebug = SMTP::DEBUG_CONNECTION;
             
             ob_start();
@@ -412,7 +452,7 @@ class Email {
                     'debug' => $debugInfo
                 ];
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'status' => false,
                 'message' => 'Erro: ' . $e->getMessage(),

@@ -66,22 +66,19 @@ class StoreHelper {
             // 2. Página de assinatura (para ver plano e pagar)
             // 3. Página de pagamento PIX (para pagar faturas)
             $allowedPages = [
-                '/views/stores/register-transaction.php',
-                '/views/stores/subscription.php',
-                '/views/stores/invoice-pix.php',
-                '/views/stores/payment-pix.php'
+                '/store/registrar-transacao',
+                '/store/meu-plano',
+                '/store/fatura-pix',
+                '/store/pagamento-pix'
             ];
 
-            $currentPage = $_SERVER['PHP_SELF'] ?? '';
+            // PHP_SELF identifica o roteador na Vercel. Use sempre a rota
+            // canonica realmente solicitada para decidir o feature gate.
+            $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+            $currentPage = '/' . trim($requestPath, '/');
 
             // Verificar se a página atual está na lista de permitidas
-            $isAllowed = false;
-            foreach ($allowedPages as $allowedPage) {
-                if (strpos($currentPage, $allowedPage) !== false) {
-                    $isAllowed = true;
-                    break;
-                }
-            }
+            $isAllowed = in_array($currentPage, $allowedPages, true);
 
             if (!$isAllowed) {
                 // Redirecionar para página de assinatura com mensagem
@@ -91,13 +88,6 @@ class StoreHelper {
             }
         }
 
-        // Log de acesso bem-sucedido
-        if (defined('TRACK_USER_ACTIONS') && TRACK_USER_ACTIONS) {
-            self::logUserAction($userId, 'store_access', [
-                'page' => $_SERVER['REQUEST_URI'] ?? 'unknown',
-                'store_id' => $_SESSION['store_id']
-            ]);
-        }
     }
     
     /**
@@ -193,6 +183,11 @@ class StoreHelper {
         if (!defined('TRACK_USER_ACTIONS') || !TRACK_USER_ACTIONS) {
             return;
         }
+
+        $purpose = strtolower((string) ($_SERVER['HTTP_SEC_PURPOSE'] ?? $_SERVER['HTTP_PURPOSE'] ?? ''));
+        if (str_contains($purpose, 'prefetch') || str_contains($purpose, 'prerender')) {
+            return;
+        }
         
         $logData = [
             'usuario_id' => $userId,
@@ -210,26 +205,23 @@ class StoreHelper {
         // Log para arquivo
         error_log("KLUBE_AUDIT: " . json_encode($logData));
         
-        // Opcional: salvar no banco de dados se tabela existir
+        // O schema e criado por migration. Evitar SHOW TABLES/DDL no caminho
+        // de cada requisicao reduz round trips e locks de metadata.
         try {
             if (class_exists('Database')) {
                 $db = Database::getConnection();
-                $checkTable = $db->query("SHOW TABLES LIKE 'audit_log'");
-                
-                if ($checkTable->rowCount() > 0) {
-                    $stmt = $db->prepare("
-                        INSERT INTO audit_log (usuario_id, acao, detalhes, ip, user_agent, data_hora)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ");
-                    $stmt->execute([
-                        $userId, 
-                        $action, 
-                        $logData['detalhes'], 
-                        $logData['ip'], 
-                        $logData['user_agent'], 
-                        $logData['data_hora']
-                    ]);
-                }
+                $stmt = $db->prepare("
+                    INSERT INTO audit_log (usuario_id, acao, detalhes, ip, user_agent, data_hora)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([
+                    $userId,
+                    $action,
+                    $logData['detalhes'],
+                    $logData['ip'],
+                    $logData['user_agent'],
+                    $logData['data_hora']
+                ]);
             }
         } catch (Exception $e) {
             error_log("Erro ao salvar audit_log no banco: " . $e->getMessage());

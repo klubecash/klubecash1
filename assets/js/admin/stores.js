@@ -133,7 +133,7 @@ function viewStoreDetails(storeId) {
     document.body.style.overflow = 'hidden';
     
     // Fazer requisição AJAX
-    fetch('../../controllers/AjaxStoreController.php', {
+    fetch('/admin/ajax/stores-direct', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',

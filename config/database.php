@@ -99,10 +99,6 @@ class Database
             );
 
             // Cria tabela email_queue se necessário
-            self::createEmailQueueTableIfNotExists(
-                self::$connection
-            );
-
             return self::$connection;
 
         } catch (PDOException $e) {
@@ -127,73 +123,6 @@ class Database
             die(
                 'Erro na configuração do banco de dados. ' .
                 'Verifique o certificado SSL.'
-            );
-        }
-    }
-
-
-    /**
-     * Cria a tabela de fila de emails caso ela ainda não exista.
-     *
-     * @param PDO $db
-     * @return void
-     */
-    private static function createEmailQueueTableIfNotExists($db)
-    {
-        try {
-
-            $sql = "
-                CREATE TABLE IF NOT EXISTS `email_queue` (
-                    `id` INT NOT NULL AUTO_INCREMENT,
-
-                    `to_email` VARCHAR(255) NOT NULL,
-
-                    `to_name` VARCHAR(255) DEFAULT NULL,
-
-                    `subject` VARCHAR(255) NOT NULL,
-
-                    `message` TEXT NOT NULL,
-
-                    `status`
-                        ENUM(
-                            'pending',
-                            'sending',
-                            'sent',
-                            'failed'
-                        )
-                        NOT NULL
-                        DEFAULT 'pending',
-
-                    `attempts`
-                        INT NOT NULL
-                        DEFAULT 0,
-
-                    `last_attempt`
-                        TIMESTAMP NULL
-                        DEFAULT NULL,
-
-                    `created_at`
-                        TIMESTAMP NULL
-                        DEFAULT CURRENT_TIMESTAMP,
-
-                    PRIMARY KEY (`id`),
-
-                    INDEX `idx_email_queue_status` (`status`),
-
-                    INDEX `idx_email_queue_created_at` (`created_at`)
-
-                ) ENGINE=InnoDB
-                  DEFAULT CHARSET=utf8mb4
-                  COLLATE=utf8mb4_unicode_ci
-            ";
-
-            $db->exec($sql);
-
-        } catch (PDOException $e) {
-
-            error_log(
-                'Erro ao criar tabela email_queue: ' .
-                $e->getMessage()
             );
         }
     }

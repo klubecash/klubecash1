@@ -581,7 +581,7 @@ try {
         function approveStore(storeId) {
             if (confirm('Tem certeza que deseja aprovar esta loja?')) {
                 const xhr = new XMLHttpRequest();
-                xhr.open('POST', '<?php echo SITE_URL; ?>/controllers/StoreController.php', true);
+                xhr.open('POST', '/admin/ajax/store-controller', true);
                 xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
                 xhr.onload = function() {
                     if (this.status === 200) {

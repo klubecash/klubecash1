@@ -6,17 +6,17 @@ require_once '../../controllers/AuthController.php';
 
 session_start();
 
-if (!AuthController::isAuthenticated() || !AuthController::isStore()) {
+if (!AuthController::isAuthenticated() || !AuthController::hasStoreAccess()) {
     header("Location: " . LOGIN_URL . "?error=acesso_restrito");
     exit;
 }
 
-$userId = AuthController::getCurrentUserId();
+$storeId = (int) AuthController::getStoreId();
 $db = Database::getConnection();
 
 // Obter dados da loja
-$storeQuery = $db->prepare("SELECT id, nome_fantasia FROM lojas WHERE usuario_id = ?");
-$storeQuery->execute([$userId]);
+$storeQuery = $db->prepare("SELECT id, nome_fantasia FROM lojas WHERE id = ?");
+$storeQuery->execute([$storeId]);
 $store = $storeQuery->fetch(PDO::FETCH_ASSOC);
 
 if (!$store) {
@@ -25,7 +25,7 @@ if (!$store) {
 }
 
 $paymentId = $_GET['payment_id'] ?? 0;
-$storeId = $store['id'];
+$storeId = (int) $store['id'];
 
 // Buscar dados do pagamento
 $paymentStmt = $db->prepare("
@@ -53,11 +53,12 @@ $activeMenu = 'payment-pix';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pagamento PIX - Klube Cash</title>
     <link rel="shortcut icon" type="image/jpg" href="../../assets/images/icons/KlubeCashLOGO.ico"/>
-    <link rel="stylesheet" href="/assets/css/sidebar-lojista_sest.css">
+    <link rel="stylesheet" href="/assets/css/sidebar-lojista.css">
     <link rel="stylesheet" href="../../assets/css/views/stores/payment-pix.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <script src="../../assets/js/mercadopago-sdk.js?v=2.1.0"></script>
+    <?php include __DIR__ . '/../components/store-app-head.php'; ?>
 </head>
 <body>
     <?php
@@ -568,12 +569,12 @@ $activeMenu = 'payment-pix';
         // Buscar quantidade de transações e verificar estado existente
         document.addEventListener('DOMContentLoaded', async function() {
             try {
-                const response = await fetch(`../../controllers/TransactionController.php?action=payment_details&payment_id=${paymentId}`, {
+                const response = await fetch('/api/store-details', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: 'payment_id=' + paymentId
+                    body: 'action=payment_details&payment_id=' + encodeURIComponent(paymentId)
                 });
                 const result = await response.json();
                 
@@ -669,6 +670,5 @@ $activeMenu = 'payment-pix';
     }
 }
 </style>
-<script src="/assets/js/sidebar-lojista.js"></script>
 </body>
 </html>

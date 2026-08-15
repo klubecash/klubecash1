@@ -6,24 +6,25 @@ require_once '../../config/constants.php';
 require_once '../../controllers/AuthController.php';
 require_once '../../controllers/TransactionController.php';
 require_once '../../models/CashbackBalance.php';
+require_once '../../models/PaymentReceipt.php';
 
 // Iniciar sessão
 session_start();
 
 // Verificar se o usuário está logado e é uma loja
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'loja') {
+if (!AuthController::hasStoreAccess()) {
     header("Location: " . LOGIN_URL . "?error=acesso_restrito");
     exit;
 }
 
 // Obter ID do usuário logado
-$userId = $_SESSION['user_id'];
+$storeId = (int) AuthController::getStoreId();
 
 // Obter dados da loja associada ao usuário
 $db = Database::getConnection();
 $activeMenu = 'pagamentos';
-$storeQuery = $db->prepare("SELECT id, nome_fantasia FROM lojas WHERE usuario_id = :usuario_id");
-$storeQuery->bindParam(':usuario_id', $userId);
+$storeQuery = $db->prepare("SELECT id, nome_fantasia FROM lojas WHERE id = :loja_id");
+$storeQuery->bindParam(':loja_id', $storeId, PDO::PARAM_INT);
 $storeQuery->execute();
 
 // Verificar se o usuário tem uma loja associada
@@ -34,7 +35,7 @@ if ($storeQuery->rowCount() == 0) {
 
 // Obter os dados da loja
 $store = $storeQuery->fetch(PDO::FETCH_ASSOC);
-$storeId = $store['id'];
+$storeId = (int) $store['id'];
 $storeName = $store['nome_fantasia'];
 
 // Verificar se viemos da página de comissões pendentes
@@ -99,25 +100,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($transactionIds) || empty($metodoPagamento) || $valorTotal <= 0) {
             $error = 'Dados obrigatórios não informados.';
         } else {
-            // Upload do comprovante
-            $comprovante = '';
-            if (isset($_FILES['comprovante']) && $_FILES['comprovante']['error'] === UPLOAD_ERR_OK) {
-                $uploadDir = '../../uploads/comprovantes/';
-                if (!file_exists($uploadDir)) {
-                    mkdir($uploadDir, 0755, true);
-                }
-                
-                $fileInfo = pathinfo($_FILES['comprovante']['name']);
-                $extension = strtolower($fileInfo['extension']);
-                
-                if (in_array($extension, ['jpg', 'jpeg', 'png', 'pdf'])) {
-                    $comprovante = 'comprovante_' . $storeId . '_' . time() . '.' . $extension;
-                    if (move_uploaded_file($_FILES['comprovante']['tmp_name'], $uploadDir . $comprovante)) {
-                        // Upload realizado com sucesso
-                    } else {
-                        $error = 'Erro ao fazer upload do comprovante.';
-                    }
-                }
+            $receiptData = null;
+
+            try {
+                $receiptData = PaymentReceipt::validateUpload($_FILES['comprovante'] ?? []);
+                // Falha antes do pagamento caso a tabela ainda nao possa ser criada/acessada.
+                PaymentReceipt::ensureStorageAvailable();
+            } catch (InvalidArgumentException $exception) {
+                $error = $exception->getMessage();
+            } catch (Throwable $exception) {
+                error_log('Erro ao preparar armazenamento do comprovante: ' . $exception->getMessage());
+                $error = 'Não foi possível preparar o comprovante. Tente novamente em instantes.';
             }
             
             if (empty($error)) {
@@ -128,8 +121,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'valor_total' => $valorTotal,
                     'metodo_pagamento' => $metodoPagamento,
                     'numero_referencia' => $numeroReferencia,
-                    'comprovante' => $comprovante,
-                    'observacao' => $observacao
+                    // O marcador so e gravado depois que o controlador confirmar o payment_id.
+                    'comprovante' => '',
+                    'observacao' => $observacao,
+                    'receipt_data' => $receiptData
                 ];
                 
                 // Registrar pagamento
@@ -137,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if ($result['status']) {
                     $success = $result['message'];
-                    // Limpar dados da sessão
+                    // Pagamento, associações e comprovante confirmados na mesma transação.
                     $selectedTransactions = [];
                     $totalValue = 0;
                     $totalOriginalValue = 0;
@@ -193,7 +188,7 @@ if (!empty($selectedTransactions)) {
     }
 }
 
-$activeMenu = 'payment';
+$activeMenu = 'pagamentos';
 ?>
 
 <!DOCTYPE html>
@@ -205,6 +200,7 @@ $activeMenu = 'payment';
     <title>Realizar Pagamento - Klube Cash</title>
     <link rel="stylesheet" href="../../assets/css/views/stores/payment.css">
     <link rel="stylesheet" href="/assets/css/sidebar-lojista.css">
+    <?php include __DIR__ . '/../components/store-app-head.php'; ?>
 </head>
 <body>
     <?php include '../../views/components/sidebar-lojista-responsiva.php'; ?>
@@ -350,9 +346,11 @@ $activeMenu = 'payment';
                     
                     <div class="form-group">
                         <label for="comprovante">Comprovante de Pagamento *</label>
-                        <input type="file" id="comprovante" name="comprovante" accept="image/*,.pdf" required>
+                        <input type="hidden" name="MAX_FILE_SIZE" value="<?php echo PaymentReceipt::MAX_FILE_SIZE; ?>">
+                        <input type="file" id="comprovante" name="comprovante"
+                               accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" required>
                         <small style="display: block; margin-top: 0.5rem; color: var(--medium-gray);">
-                            Formatos aceitos: JPG, PNG, PDF (máx. 5MB)
+                            Formatos aceitos: JPG, PNG, PDF (máx. 4MB)
                         </small>
                     </div>
                     
@@ -459,11 +457,11 @@ $activeMenu = 'payment';
                     // Validar arquivo
                     if (comprovanteInput && comprovanteInput.files.length > 0) {
                         const file = comprovanteInput.files[0];
-                        const maxSize = 5 * 1024 * 1024; // 5MB
+                        const maxSize = 4 * 1024 * 1024; // 4MB
                         
                         if (file.size > maxSize) {
                             e.preventDefault();
-                            alert('O arquivo do comprovante é muito grande. Tamanho máximo: 5MB');
+                            alert('O arquivo do comprovante é muito grande. Tamanho máximo: 4MB');
                             return;
                         }
                         
@@ -509,6 +507,5 @@ $activeMenu = 'payment';
         });
     </script>
     
-    <script src="/assets/js/sidebar-lojista.js"></script>
 </body>
 </html>

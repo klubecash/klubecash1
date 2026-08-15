@@ -16,18 +16,18 @@ if (!AuthController::isAuthenticated()) {
 }
 
 // Verificar se o usuário é do tipo loja
-if (!AuthController::isStore()) {
+if (!AuthController::hasStoreAccess()) {
     header('Location: ' . CLIENT_DASHBOARD_URL . '?error=' . urlencode('Acesso restrito a lojas parceiras.'));
     exit;
 }
 
 // Obter ID do usuário logado
-$userId = AuthController::getCurrentUserId();
+$storeId = (int) AuthController::getStoreId();
 
 // Obter dados da loja associada ao usuário
 $db = Database::getConnection();
-$storeQuery = $db->prepare("SELECT * FROM lojas WHERE usuario_id = :usuario_id");
-$storeQuery->bindParam(':usuario_id', $userId);
+$storeQuery = $db->prepare("SELECT * FROM lojas WHERE id = :loja_id");
+$storeQuery->bindParam(':loja_id', $storeId, PDO::PARAM_INT);
 $storeQuery->execute();
 
 // Verificar se o usuário tem uma loja associada
@@ -38,7 +38,7 @@ if ($storeQuery->rowCount() == 0) {
 
 // Obter os dados da loja
 $store = $storeQuery->fetch(PDO::FETCH_ASSOC);
-$storeId = $store['id'];
+$storeId = (int) $store['id'];
 
 // Definir menu ativo
 $activeMenu = 'transactions';
@@ -51,15 +51,16 @@ $activeMenu = 'transactions';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transações - Klube Cash</title>
     <link rel="shortcut icon" type="image/jpg" href="../../assets/images/icons/KlubeCashLOGO.ico"/>
-    <link rel="stylesheet" href="/assets/css/sidebar-lojista_sest.css">
+    <link rel="stylesheet" href="/assets/css/sidebar-lojista.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="../../assets/css/views/stores/transactions.css">
+    <?php include __DIR__ . '/../components/store-app-head.php'; ?>
 </head>
 <body>
     <div class="dashboard-container">
         <!-- Incluir o componente sidebar -->
         <?php
-        $activeMenu = 'dashboard'; // Menu ativo para transações
+        $activeMenu = 'transactions'; // Menu ativo para transações
         include '../../views/components/sidebar-lojista-responsiva.php';
         ?>
         
@@ -285,8 +286,12 @@ $activeMenu = 'transactions';
                 }
             });
 
-            fetch('../../controllers/TransactionController.php', {
+            fetch('/api/store-transactions', {
                 method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
                 body: formData
             })
             .then(response => response.json())
@@ -332,6 +337,8 @@ $activeMenu = 'transactions';
 
             data.transacoes.forEach(transaction => {
                 const row = document.createElement('tr');
+                const transactionId = Number.parseInt(transaction.id, 10);
+                if (!Number.isInteger(transactionId) || transactionId <= 0) return;
                 
                 let statusBadge = '';
                 switch (transaction.status) {
@@ -345,21 +352,21 @@ $activeMenu = 'transactions';
                         statusBadge = '<span class="status-badge cancelado">Cancelado</span>';
                         break;
                     default:
-                        statusBadge = '<span class="status-badge">' + transaction.status + '</span>';
+                        statusBadge = '<span class="status-badge">' + escapeHtml(transaction.status) + '</span>';
                 }
 
                 row.innerHTML = `
                     <td data-label="Data">${formatDateTime(transaction.data_transacao)}</td>
                     <td data-label="Cliente">
-                        <div><strong>${transaction.cliente_nome}</strong></div>
-                        <small style="color: var(--medium-gray);">${transaction.cliente_email}</small>
+                        <div><strong>${escapeHtml(transaction.cliente_nome)}</strong></div>
+                        <small style="color: var(--medium-gray);">${escapeHtml(transaction.cliente_email)}</small>
                     </td>
-                    <td data-label="Código"><code>${transaction.codigo_transacao}</code></td>
+                    <td data-label="Código"><code>${escapeHtml(transaction.codigo_transacao)}</code></td>
                     <td data-label="Valor">R$ ${formatMoney(transaction.valor_total)}</td>
                     <td data-label="Comissão">R$ ${formatMoney(transaction.valor_cashback)}</td>
                     <td data-label="Status">${statusBadge}</td>
                     <td data-label="Ações">
-                        <button class="btn btn-outline-primary btn-sm" onclick="viewTransactionDetails(${transaction.id})">
+                        <button class="btn btn-outline-primary btn-sm" onclick="viewTransactionDetails(${transactionId})">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                                 <circle cx="12" cy="12" r="3"></circle>
@@ -464,8 +471,12 @@ $activeMenu = 'transactions';
             formData.append('action', 'transaction_details');
             formData.append('transaction_id', transactionId);
 
-            fetch('../../controllers/TransactionController.php', {
+            fetch('/api/store-details', {
                 method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
                 body: formData
             })
             .then(response => response.json())
@@ -476,7 +487,7 @@ $activeMenu = 'transactions';
                     document.getElementById('detailsModalContent').innerHTML = `
                         <div style="text-align: center; padding: 2rem; color: var(--danger-color);">
                             <h3>Erro ao carregar</h3>
-                            <p>${data.message}</p>
+                            <p>${escapeHtml(data.message)}</p>
                         </div>
                     `;
                 }
@@ -527,6 +538,9 @@ $activeMenu = 'transactions';
 
             let comissaoHtml = '';
             if (transaction.pagamento_id) {
+                const paymentStatus = ['pendente', 'aprovado', 'cancelado', 'rejeitado'].includes(transaction.status_pagamento)
+                    ? transaction.status_pagamento
+                    : 'pendente';
                 comissaoHtml = `
                     <div class="detail-card">
                         <h4>💼 Informações de Pagamento</h4>
@@ -536,7 +550,7 @@ $activeMenu = 'transactions';
                         </div>
                         <div class="detail-row">
                             <span>Status do Pagamento:</span>
-                            <span class="status-badge ${transaction.status_pagamento || 'pendente'}">${transaction.status_pagamento || 'Pendente'}</span>
+                            <span class="status-badge ${paymentStatus}">${escapeHtml(transaction.status_pagamento || 'Pendente')}</span>
                         </div>
                         ${transaction.data_pagamento ? `
                         <div class="detail-row">
@@ -555,7 +569,7 @@ $activeMenu = 'transactions';
                         <h4>📋 Informações Gerais</h4>
                         <div class="detail-row">
                             <span>Código da Transação:</span>
-                            <strong><code>${transaction.codigo_transacao}</code></strong>
+                            <strong><code>${escapeHtml(transaction.codigo_transacao)}</code></strong>
                         </div>
                         <div class="detail-row">
                             <span>Data:</span>
@@ -563,12 +577,12 @@ $activeMenu = 'transactions';
                         </div>
                         <div class="detail-row">
                             <span>Status:</span>
-                            <span class="status-badge ${statusClass[transaction.status] || ''}">${statusText[transaction.status] || transaction.status}</span>
+                            <span class="status-badge ${statusClass[transaction.status] || ''}">${escapeHtml(statusText[transaction.status] || transaction.status)}</span>
                         </div>
                         ${transaction.descricao ? `
                         <div class="detail-row">
                             <span>Descrição:</span>
-                            <strong>${transaction.descricao}</strong>
+                            <strong>${escapeHtml(transaction.descricao)}</strong>
                         </div>
                         ` : ''}
                     </div>
@@ -578,11 +592,11 @@ $activeMenu = 'transactions';
                         <h4>👤 Cliente</h4>
                         <div class="detail-row">
                             <span>Nome:</span>
-                            <strong>${transaction.cliente_nome}</strong>
+                            <strong>${escapeHtml(transaction.cliente_nome)}</strong>
                         </div>
                         <div class="detail-row">
                             <span>Email:</span>
-                            <strong>${transaction.cliente_email}</strong>
+                            <strong>${escapeHtml(transaction.cliente_email)}</strong>
                         </div>
                     </div>
 
@@ -631,7 +645,7 @@ $activeMenu = 'transactions';
                         <line x1="9" y1="9" x2="15" y2="15"></line>
                     </svg>
                     <h3>Erro ao carregar</h3>
-                    <p>${message}</p>
+                    <p>${escapeHtml(message)}</p>
                     <button class="btn btn-primary" onclick="loadTransactions()">Tentar Novamente</button>
                 </div>
             `;
@@ -645,6 +659,18 @@ $activeMenu = 'transactions';
             });
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, function(character) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[character];
+            });
+        }
+
         function formatDateTime(dateString) {
             const date = new Date(dateString);
             return date.toLocaleString('pt-BR');
@@ -653,6 +679,5 @@ $activeMenu = 'transactions';
         // Fechar modal clicando no backdrop
         document.getElementById('filterModalBackdrop').addEventListener('click', closeFilterModal);
     </script>
-    <script src="/assets/js/sidebar-lojista.js"></script>
 </body>
 </html>

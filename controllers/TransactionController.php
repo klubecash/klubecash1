@@ -33,14 +33,14 @@ class TransactionController {
             $db = Database::getConnection();
             
             // Verificar permiss�es - apenas a loja dona das transa��es ou admin podem acessar
-            if (AuthController::isStore()) {
+            if (AuthController::hasStoreAccess()) {
                 $currentUserId = AuthController::getCurrentUserId();
                 $storeOwnerQuery = $db->prepare("SELECT usuario_id FROM lojas WHERE id = :loja_id");
                 $storeOwnerQuery->bindParam(':loja_id', $storeId);
                 $storeOwnerQuery->execute();
                 $storeOwner = $storeOwnerQuery->fetch(PDO::FETCH_ASSOC);
                 
-                if (!$storeOwner || $storeOwner['usuario_id'] != $currentUserId) {
+                if (!AuthController::canAccessStoreId((int) $storeId)) {
                     return ['status' => false, 'message' => 'Acesso n�o autorizado a esta loja.'];
                 }
             } elseif (!AuthController::isAdmin()) {
@@ -58,10 +58,7 @@ class TransactionController {
             }
             
             // Construir consulta
-            $query = "
-                SELECT t.*, u.nome as cliente_nome, u.email as cliente_email,
-                    pc.id as pagamento_id, pc.status as status_pagamento,
-                    pc.data_aprovacao as data_pagamento
+            $fromWhere = "
                 FROM transacoes_cashback t
                 JOIN usuarios u ON t.usuario_id = u.id
                 LEFT JOIN pagamentos_transacoes pt ON t.id = pt.transacao_id
@@ -75,49 +72,49 @@ class TransactionController {
             if (!empty($filters)) {
                 // Filtro por status
                 if (isset($filters['status']) && !empty($filters['status'])) {
-                    $query .= " AND t.status = :status";
+                    $fromWhere .= " AND t.status = :status";
                     $params[':status'] = $filters['status'];
                 }
                 
                 // Filtro por per�odo
                 if (isset($filters['data_inicio']) && !empty($filters['data_inicio'])) {
-                    $query .= " AND t.data_transacao >= :data_inicio";
+                    $fromWhere .= " AND t.data_transacao >= :data_inicio";
                     $params[':data_inicio'] = $filters['data_inicio'] . ' 00:00:00';
                 }
                 
                 if (isset($filters['data_fim']) && !empty($filters['data_fim'])) {
-                    $query .= " AND t.data_transacao <= :data_fim";
+                    $fromWhere .= " AND t.data_transacao <= :data_fim";
                     $params[':data_fim'] = $filters['data_fim'] . ' 23:59:59';
                 }
                 
                 // Filtro por cliente
                 if (isset($filters['cliente']) && !empty($filters['cliente'])) {
-                    $query .= " AND (u.nome LIKE :cliente OR u.email LIKE :cliente)";
+                    $fromWhere .= " AND (u.nome LIKE :cliente OR u.email LIKE :cliente)";
                     $params[':cliente'] = '%' . $filters['cliente'] . '%';
                 }
                 
                 // Filtro por valor m�nimo
                 if (isset($filters['valor_min']) && !empty($filters['valor_min'])) {
-                    $query .= " AND t.valor_total >= :valor_min";
+                    $fromWhere .= " AND t.valor_total >= :valor_min";
                     $params[':valor_min'] = $filters['valor_min'];
                 }
                 
                 // Filtro por valor m�ximo
                 if (isset($filters['valor_max']) && !empty($filters['valor_max'])) {
-                    $query .= " AND t.valor_total <= :valor_max";
+                    $fromWhere .= " AND t.valor_total <= :valor_max";
                     $params[':valor_max'] = $filters['valor_max'];
                 }
             }
             
             // Ordena��o
-            $query .= " ORDER BY t.data_transacao DESC";
-            
-            // Contagem total para pagina��o
-            $countQuery = str_replace(
-                "t.*, u.nome as cliente_nome, u.email as cliente_email, pc.id as pagamento_id, pc.status as status_pagamento, pc.data_aprovacao as data_pagamento", 
-                "COUNT(*) as total", 
-                $query
-            );
+            $query = "
+                SELECT t.*, u.nome as cliente_nome, u.email as cliente_email,
+                    pc.id as pagamento_id, pc.status as status_pagamento,
+                    pc.data_aprovacao as data_pagamento
+            " . $fromWhere . " ORDER BY t.data_transacao DESC";
+
+            // Contar IDs distintos evita duplicidade introduzida pelos JOINs.
+            $countQuery = "SELECT COUNT(DISTINCT t.id) AS total" . $fromWhere;
             $countStmt = $db->prepare($countQuery);
             
             foreach ($params as $param => $value) {
@@ -125,11 +122,11 @@ class TransactionController {
             }
             
             $countStmt->execute();
-            $totalCount = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+            $totalCount = (int) ($countStmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
             
             // Pagina��o
             $perPage = defined('ITEMS_PER_PAGE') ? ITEMS_PER_PAGE : 10;
-            $totalPages = ceil($totalCount / $perPage);
+            $totalPages = (int) ceil($totalCount / $perPage);
             $page = max(1, min($page, $totalPages));
             $offset = ($page - 1) * $perPage;
             
@@ -448,7 +445,7 @@ class TransactionController {
      */
     public static function createNewPixPayment($paymentId, $storeId) {
         try {
-            if (!AuthController::isAuthenticated() || !AuthController::isStore()) {
+            if (!AuthController::isAuthenticated() || !AuthController::hasStoreAccess()) {
                 return ['status' => false, 'message' => 'Acesso n�o autorizado.'];
             }
             
@@ -645,13 +642,13 @@ class TransactionController {
             $currentUserId = AuthController::getCurrentUserId();
             
             if (!AuthController::isAdmin()) {
-                if (AuthController::isStore()) {
+            if (AuthController::hasStoreAccess()) {
                     // Verificar se � a loja propriet�ria
                     $storeCheckStmt = $db->prepare("SELECT usuario_id FROM lojas WHERE id = ?");
                     $storeCheckStmt->execute([$transaction['loja_id']]);
                     $storeCheck = $storeCheckStmt->fetch(PDO::FETCH_ASSOC);
                     
-                    if (!$storeCheck || $storeCheck['usuario_id'] != $currentUserId) {
+                    if (!AuthController::canAccessStoreId((int) $transaction['loja_id'])) {
                         return ['status' => false, 'message' => 'Acesso n�o autorizado a esta transa��o.'];
                     }
                 } else {
@@ -718,13 +715,13 @@ class TransactionController {
             $currentUserId = AuthController::getCurrentUserId();
             
             if (!AuthController::isAdmin()) {
-                if (AuthController::isStore()) {
+            if (AuthController::hasStoreAccess()) {
                     // Verificar se � a loja propriet�ria
                     $storeCheckStmt = $db->prepare("SELECT usuario_id FROM lojas WHERE id = ?");
                     $storeCheckStmt->execute([$payment['loja_id']]);
                     $storeCheck = $storeCheckStmt->fetch(PDO::FETCH_ASSOC);
                     
-                    if (!$storeCheck || $storeCheck['usuario_id'] != $currentUserId) {
+                    if (!AuthController::canAccessStoreId((int) $payment['loja_id'])) {
                         return ['status' => false, 'message' => 'Acesso n�o autorizado a este pagamento.'];
                     }
                 } else {
@@ -968,7 +965,7 @@ class TransactionController {
                 return ['status' => false, 'message' => 'Usu�rio n�o autenticado.'];
             }
             
-            if (!AuthController::isStore() && !AuthController::isAdmin()) {
+            if (!AuthController::hasStoreAccess() && !AuthController::isAdmin()) {
                 return ['status' => false, 'message' => 'Apenas lojas e administradores podem registrar transa��es.'];
             }
             
@@ -1509,7 +1506,7 @@ class TransactionController {
                 return ['status' => false, 'message' => 'Usu�rio n�o autenticado.'];
             }
 
-            if (!AuthController::isStore() && !AuthController::isAdmin()) {
+            if (!AuthController::hasStoreAccess() && !AuthController::isAdmin()) {
                 return ['status' => false, 'message' => 'Apenas lojas e administradores podem registrar transa��es.'];
             }
 
@@ -1540,7 +1537,7 @@ class TransactionController {
 
             // Obter configura��es de cashback da loja
             $storeConfigQuery = $db->prepare("
-                SELECT l.*, u.mvp, u.senat,
+                SELECT l.*, u.mvp,
                        COALESCE(l.porcentagem_cliente, 5.00) as porcentagem_cliente,
                        COALESCE(l.porcentagem_admin, 5.00) as porcentagem_admin,
                        COALESCE(l.cashback_ativo, 1) as cashback_ativo
@@ -1561,29 +1558,6 @@ class TransactionController {
             }
 
             $isStoreMvp = ($storeConfig['mvp'] === 'sim');
-
-            // NOVA FUNCIONALIDADE: Se o lojista tem senat='Sim', o cliente tamb�m deve ter
-            // IMPORTANTE: A coluna senat � enum('Sim','N�o') com S mai�sculo
-            if (isset($storeConfig['senat']) && $storeConfig['senat'] === 'Sim') {
-                try {
-                    // Verificar se o cliente j� tem senat='Sim'
-                    $checkClientSenatStmt = $db->prepare("SELECT senat FROM usuarios WHERE id = ?");
-                    $checkClientSenatStmt->execute([$data['usuario_id']]);
-                    $clientSenat = $checkClientSenatStmt->fetch(PDO::FETCH_ASSOC);
-
-                    // Se o cliente n�o tem senat='Sim', atualizar para 'Sim'
-                    if ($clientSenat && $clientSenat['senat'] !== 'Sim') {
-                        $updateClientSenatStmt = $db->prepare("UPDATE usuarios SET senat = 'Sim' WHERE id = ?");
-                        $updateClientSenatStmt->execute([$data['usuario_id']]);
-                        error_log("SENAT UPDATE: Cliente ID {$data['usuario_id']} atualizado para senat='Sim' pois lojista ID {$data['loja_id']} � senat='Sim'");
-                    } else {
-                        error_log("SENAT UPDATE: Cliente ID {$data['usuario_id']} j� possui senat='Sim', nenhuma atualiza��o necess�ria");
-                    }
-                } catch (Exception $e) {
-                    error_log("SENAT UPDATE ERROR: Erro ao atualizar senat do cliente: " . $e->getMessage());
-                    // N�o retornar erro, apenas logar - a transa��o deve continuar
-                }
-            }
 
             // Validar valor da transa��o
             $valorOriginal = (float) $data['valor_total'];
@@ -1900,7 +1874,7 @@ class TransactionController {
                 return ['status' => false, 'message' => 'Usu�rio n�o autenticado.'];
             }
             
-            if (!AuthController::isStore() && !AuthController::isAdmin()) {
+            if (!AuthController::hasStoreAccess() && !AuthController::isAdmin()) {
                 return ['status' => false, 'message' => 'Apenas lojas e administradores podem registrar transa��es em lote.'];
             }
             
@@ -2115,7 +2089,7 @@ class TransactionController {
     */
     public static function registerPayment($data) {
         try {
-            error_log("registerPayment - Dados recebidos: " . print_r($data, true));
+            error_log("registerPayment - Campos recebidos: " . implode(',', array_keys($data)));
             
             // Valida��o b�sica
             if (!isset($data['loja_id']) || !isset($data['transacoes']) || !isset($data['valor_total'])) {
@@ -2127,21 +2101,37 @@ class TransactionController {
                 return ['status' => false, 'message' => 'Usu�rio n�o autenticado.'];
             }
             
-            if (!AuthController::isStore() && !AuthController::isAdmin()) {
+            if (!AuthController::hasStoreAccess() && !AuthController::isAdmin()) {
                 return ['status' => false, 'message' => 'Apenas lojas e administradores podem registrar pagamentos.'];
+            }
+
+            // Para lojistas, a loja autorizada vem apenas da sessao. O campo
+            // oculto do formulario nao pode conceder acesso a outra conta.
+            if (AuthController::hasStoreAccess()) {
+                $sessionStoreId = (int) (AuthController::getStoreId() ?? 0);
+                if ($sessionStoreId <= 0) {
+                    return ['status' => false, 'message' => 'Conta sem loja associada.'];
+                }
+                $data['loja_id'] = $sessionStoreId;
+            } elseif ((int) ($data['loja_id'] ?? 0) <= 0) {
+                return ['status' => false, 'message' => 'Loja invalida.'];
             }
             
             $db = Database::getConnection();
             
             // Converter transa��es para array se necess�rio
             $transactionIds = is_array($data['transacoes']) ? $data['transacoes'] : explode(',', $data['transacoes']);
-            $transactionIds = array_map('intval', $transactionIds);
+            $transactionIds = array_values(array_unique(array_filter(
+                array_map('intval', $transactionIds),
+                static fn (int $id): bool => $id > 0
+            )));
             
             if (empty($transactionIds)) {
                 return ['status' => false, 'message' => 'Nenhuma transa��o selecionada'];
             }
             
             error_log("registerPayment - IDs: " . implode(',', $transactionIds));
+            $db->beginTransaction();
             
             // CORRE��O: Validar se todas as transa��es existem e calcular valor total correto
             $placeholders = implode(',', array_fill(0, count($transactionIds), '?'));
@@ -2153,6 +2143,7 @@ class TransactionController {
                     loja_id
                 FROM transacoes_cashback 
                 WHERE id IN ($placeholders) AND loja_id = ? AND status = ?
+                FOR UPDATE
             ");
             
             $validateParams = array_merge($transactionIds, [$data['loja_id'], TRANSACTION_PENDING]);
@@ -2161,6 +2152,7 @@ class TransactionController {
             
             // Verificar se todas as transa��es foram encontradas
             if (count($transactions) !== count($transactionIds)) {
+                $db->rollBack();
                 return [
                     'status' => false, 
                     'message' => 'Algumas transa��es n�o foram encontradas ou n�o est�o pendentes. Esperado: ' . count($transactionIds) . ', Encontrado: ' . count($transactions)
@@ -2177,6 +2169,7 @@ class TransactionController {
             $valorInformado = floatval($data['valor_total']);
             if (abs($totalCalculated - $valorInformado) > 0.01) {
                 error_log("registerPayment - Erro valor: Calculado=$totalCalculated, Informado=$valorInformado");
+                $db->rollBack();
                 return [
                     'status' => false, 
                     'message' => 'Valor total informado (R$ ' . number_format($valorInformado, 2, ',', '.') . 
@@ -2186,11 +2179,9 @@ class TransactionController {
             
             // Validar valores num�ricos
             if ($valorInformado <= 0) {
+                $db->rollBack();
                 return ['status' => false, 'message' => 'Valor total deve ser maior que zero'];
             }
-            
-            // Iniciar transa��o no banco de dados
-            $db->beginTransaction();
             
             try {
                 // 1. Inserir o pagamento
@@ -2229,11 +2220,16 @@ class TransactionController {
                 
                 // 3. Atualizar status das transa��es
                 $placeholders = implode(',', array_fill(0, count($transactionIds), '?'));
-                $updateStmt = $db->prepare("UPDATE transacoes_cashback SET status = 'pagamento_pendente' WHERE id IN ($placeholders)");
+                $updateStmt = $db->prepare("
+                    UPDATE transacoes_cashback
+                    SET status = 'pagamento_pendente'
+                    WHERE id IN ($placeholders) AND loja_id = ? AND status = ?
+                ");
                 
-                $updateResult = $updateStmt->execute($transactionIds);
-                if (!$updateResult) {
-                    throw new Exception('Erro ao atualizar status das transa��es');
+                $updateParams = array_merge($transactionIds, [(int) $data['loja_id'], TRANSACTION_PENDING]);
+                $updateResult = $updateStmt->execute($updateParams);
+                if (!$updateResult || $updateStmt->rowCount() !== count($transactionIds)) {
+                    throw new Exception('As transacoes selecionadas mudaram de status. Atualize a pagina e tente novamente.');
                 }
                 
                 // 4. Criar notifica��o para admin
@@ -2243,6 +2239,13 @@ class TransactionController {
                     'Nova solicita��o de pagamento de comiss�o de R$ ' . number_format($totalCalculated, 2, ',', '.') . ' aguardando aprova��o.',
                     'info'
                 );
+
+                if (isset($data['receipt_data']) && is_array($data['receipt_data'])) {
+                    if (!class_exists('PaymentReceipt')) {
+                        require_once __DIR__ . '/../models/PaymentReceipt.php';
+                    }
+                    PaymentReceipt::store((int) $paymentId, $data['receipt_data']);
+                }
                 
                 // 5. Log de sucesso
                 error_log("registerPayment - Pagamento registrado com sucesso: ID=$paymentId, Valor=$totalCalculated, Transa��es=" . implode(',', $transactionIds));
@@ -2271,10 +2274,13 @@ class TransactionController {
             }
             
         } catch (Exception $e) {
+            if (isset($db) && $db instanceof PDO && $db->inTransaction()) {
+                $db->rollBack();
+            }
             error_log("registerPayment - ERRO: " . $e->getMessage());
             return [
                 'status' => false, 
-                'message' => 'Erro ao registrar pagamento: ' . $e->getMessage()
+                'message' => 'Nao foi possivel registrar o pagamento. Atualize a pagina e tente novamente.'
             ];
         }
     }
@@ -3015,14 +3021,14 @@ class TransactionController {
             $db = Database::getConnection();
             
             // Verificar permiss�es - apenas a loja dona das transa��es ou admin podem acessar
-            if (AuthController::isStore()) {
+            if (AuthController::hasStoreAccess()) {
                 $currentUserId = AuthController::getCurrentUserId();
                 $storeOwnerQuery = $db->prepare("SELECT usuario_id FROM lojas WHERE id = :loja_id");
                 $storeOwnerQuery->bindParam(':loja_id', $storeId);
                 $storeOwnerQuery->execute();
                 $storeOwner = $storeOwnerQuery->fetch(PDO::FETCH_ASSOC);
                 
-                if (!$storeOwner || $storeOwner['usuario_id'] != $currentUserId) {
+                if (!AuthController::canAccessStoreId((int) $storeId)) {
                     return ['status' => false, 'message' => 'Acesso n�o autorizado a esta loja.'];
                 }
             } elseif (!AuthController::isAdmin()) {
@@ -3189,14 +3195,14 @@ class TransactionController {
             // Verificar permiss�es - admin ou a pr�pria loja
             $currentUserId = AuthController::getCurrentUserId();
             if (!AuthController::isAdmin()) {
-                if (AuthController::isStore()) {
+            if (AuthController::hasStoreAccess()) {
                     // Verificar se � a loja dona do pagamento
                     $storeCheckStmt = $db->prepare("SELECT usuario_id FROM lojas WHERE id = :loja_id");
                     $storeCheckStmt->bindParam(':loja_id', $payment['loja_id']);
                     $storeCheckStmt->execute();
                     $storeCheck = $storeCheckStmt->fetch(PDO::FETCH_ASSOC);
                     
-                    if (!$storeCheck || $storeCheck['usuario_id'] != $currentUserId) {
+                    if (!AuthController::canAccessStoreId((int) $payment['loja_id'])) {
                         return ['status' => false, 'message' => 'Acesso n�o autorizado.'];
                     }
                 } else {
@@ -3261,26 +3267,6 @@ class TransactionController {
             $db = Database::getConnection();
             
             // Verificar se a tabela existe, criar se n�o existir
-            $tableCheckStmt = $db->prepare("SHOW TABLES LIKE 'notificacoes'");
-            $tableCheckStmt->execute();
-            
-            if ($tableCheckStmt->rowCount() == 0) {
-                $createTableQuery = "
-                    CREATE TABLE notificacoes (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        usuario_id INT NOT NULL,
-                        titulo VARCHAR(100) NOT NULL,
-                        mensagem TEXT NOT NULL,
-                        tipo ENUM('info', 'success', 'warning', 'error') DEFAULT 'info',
-                        data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        lida TINYINT(1) DEFAULT 0,
-                        data_leitura TIMESTAMP NULL,
-                        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
-                    )
-                ";
-                $db->exec($createTableQuery);
-            }
-            
             $stmt = $db->prepare("
                 INSERT INTO notificacoes (usuario_id, titulo, mensagem, tipo, data_criacao, lida)
                 VALUES (:usuario_id, :titulo, :mensagem, :tipo, NOW(), 0)
@@ -3317,14 +3303,14 @@ class TransactionController {
             $db = Database::getConnection();
             
             // Verificar permiss�es - apenas a loja dona dos pagamentos ou admin podem acessar
-            if (AuthController::isStore()) {
+            if (AuthController::hasStoreAccess()) {
                 $currentUserId = AuthController::getCurrentUserId();
                 $storeOwnerQuery = $db->prepare("SELECT usuario_id FROM lojas WHERE id = :loja_id");
                 $storeOwnerQuery->bindParam(':loja_id', $storeId);
                 $storeOwnerQuery->execute();
                 $storeOwner = $storeOwnerQuery->fetch(PDO::FETCH_ASSOC);
                 
-                if (!$storeOwner || $storeOwner['usuario_id'] != $currentUserId) {
+                if (!AuthController::canAccessStoreId((int) $storeId)) {
                     return ['status' => false, 'message' => 'Acesso n�o autorizado a esta loja.'];
                 }
             } elseif (!AuthController::isAdmin()) {

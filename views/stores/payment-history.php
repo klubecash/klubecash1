@@ -15,18 +15,18 @@ require_once '../../models/CashbackBalance.php';
 session_start();
 
 // Verificar se o usuário está logado e é uma loja
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'loja') {
+if (!AuthController::hasStoreAccess()) {
     header("Location: " . LOGIN_URL . "?error=acesso_restrito");
     exit;
 }
 
 // Obter ID do usuário logado
-$userId = $_SESSION['user_id'];
+$storeId = (int) AuthController::getStoreId();
 
 // Obter dados da loja associada ao usuário
 $db = Database::getConnection();
-$storeQuery = $db->prepare("SELECT id, nome_fantasia FROM lojas WHERE usuario_id = :usuario_id");
-$storeQuery->bindParam(':usuario_id', $userId);
+$storeQuery = $db->prepare("SELECT id, nome_fantasia FROM lojas WHERE id = :loja_id");
+$storeQuery->bindParam(':loja_id', $storeId, PDO::PARAM_INT);
 $storeQuery->execute();
 
 if ($storeQuery->rowCount() == 0) {
@@ -35,7 +35,7 @@ if ($storeQuery->rowCount() == 0) {
 }
 
 $store = $storeQuery->fetch(PDO::FETCH_ASSOC);
-$storeId = $store['id'];
+$storeId = (int) $store['id'];
 $storeName = $store['nome_fantasia'];
 
 // Determinar aba ativa
@@ -152,19 +152,8 @@ $statusLabels = [
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="shortcut icon" type="image/jpg" href="../../assets/images/icons/KlubeCashLOGO.ico"/>
     <title>Histórico de Pagamentos - Klube Cash</title>
-    <?php
-    // Determinar qual CSS carregar baseado no campo senat do usuário
-    $paymentHistoryCssFile = 'payment-history.css'; // CSS padrão
-    $sidebarCssFile = 'sidebar-lojista.css'; // CSS da sidebar padrão
-
-    if (isset($_SESSION['user_senat']) && ($_SESSION['user_senat'] === 'sim' || $_SESSION['user_senat'] === 'Sim')) {
-        $paymentHistoryCssFile = 'payment-history_sest.css'; // CSS para usuários senat=sim
-        $sidebarCssFile = 'sidebar-lojista_sest.css'; // CSS da sidebar para usuários senat=sim
-    }
-    ?>
-    <link rel="stylesheet" href="../../assets/css/main.css">
-    <link rel="stylesheet" href="../../assets/css/views/stores/<?php echo htmlspecialchars($paymentHistoryCssFile); ?>">
-    <link rel="stylesheet" href="/assets/css/<?php echo htmlspecialchars($sidebarCssFile); ?>">
+    <link rel="stylesheet" href="../../assets/css/views/stores/payment-history.css">
+    <link rel="stylesheet" href="/assets/css/sidebar-lojista.css">
     <style>
         /* Estilos para as abas */
         .tabs-container {
@@ -510,6 +499,7 @@ $statusLabels = [
             }
         }
     </style>
+    <?php include __DIR__ . '/../components/store-app-head.php'; ?>
 </head>
 <body>
     <?php include '../../views/components/sidebar-lojista-responsiva.php'; ?>
@@ -704,7 +694,7 @@ $statusLabels = [
                                                         <button class="btn btn-action" onclick="viewPaymentDetails(<?php echo $payment['id']; ?>)">Detalhes</button>
                                                         
                                                         <?php if (!empty($payment['comprovante'])): ?>
-                                                            <button class="btn btn-action" onclick="viewReceipt('<?php echo htmlspecialchars($payment['comprovante']); ?>')">Comprovante</button>
+                                                            <button class="btn btn-action" onclick="viewReceipt(<?php echo (int) $payment['id']; ?>)">Comprovante</button>
                                                         <?php endif; ?>
                                                         
                                                         <?php if ($payment['metodo_pagamento'] === 'pix_mercadopago' && $payment['status'] !== 'aprovado'): ?>
@@ -1147,9 +1137,21 @@ $statusLabels = [
         });
 
         // Função para ver detalhes do repasse
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, function(character) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[character];
+            });
+        }
+
         function verDetalhesRepasse(repasseId) {
             // Fazer requisição AJAX para buscar detalhes
-            fetch('../../controllers/StoreBalancePaymentController.php', {
+            fetch('/api/store-details', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -1173,6 +1175,7 @@ $statusLabels = [
         function mostrarDetalhesRepasse(dados) {
             const repasse = dados.repasse;
             const transacoes = dados.transacoes;
+            const repasseId = Number.parseInt(repasse.id, 10) || 0;
             
             const statusLabels = {
                 'pendente': 'Pendente',
@@ -1180,17 +1183,20 @@ $statusLabels = [
                 'aprovado': 'Aprovado',
                 'rejeitado': 'Rejeitado'
             };
+            const safeStatus = Object.prototype.hasOwnProperty.call(statusLabels, repasse.status)
+                ? repasse.status
+                : 'pendente';
             
             let conteudo = `
                 <div class="repasse-details">
                     <div class="detail-row">
                         <span class="detail-label">ID do Repasse:</span>
-                        <span class="detail-value">#${repasse.id}</span>
+                        <span class="detail-value">#${repasseId}</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Status:</span>
                         <span class="detail-value">
-                            <span class="repasse-status ${repasse.status}">${statusLabels[repasse.status] || repasse.status}</span>
+                            <span class="repasse-status ${safeStatus}">${escapeHtml(statusLabels[repasse.status] || repasse.status)}</span>
                         </span>
                     </div>
                     <div class="detail-row">
@@ -1210,7 +1216,7 @@ $statusLabels = [
                     ${repasse.observacao ? `
                     <div class="detail-row">
                         <span class="detail-label">Observação:</span>
-                        <span class="detail-value">${repasse.observacao}</span>
+                        <span class="detail-value">${escapeHtml(repasse.observacao)}</span>
                     </div>
                     ` : ''}
                 </div>
@@ -1233,8 +1239,8 @@ $statusLabels = [
             transacoes.forEach(transacao => {
                 conteudo += `
                     <tr>
-                        <td>${transacao.cliente_nome}</td>
-                        <td>${transacao.codigo_transacao}</td>
+                        <td>${escapeHtml(transacao.cliente_nome)}</td>
+                        <td>${escapeHtml(transacao.codigo_transacao)}</td>
                         <td>R$ ${parseFloat(transacao.valor_venda).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
                         <td>R$ ${parseFloat(transacao.valor_saldo_usado).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
                         <td>${new Date(transacao.data_operacao).toLocaleString('pt-BR')}</td>
@@ -1305,7 +1311,7 @@ $statusLabels = [
                 paymentDetailsContent.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Carregando detalhes...</p></div>';
                 
                 // Usar TransactionController para buscar detalhes com informações de saldo
-                fetch('../../controllers/TransactionController.php', {
+                fetch('/api/store-details', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
@@ -1323,7 +1329,7 @@ $statusLabels = [
                         renderPaymentDetailsWithBalance(data.data);
                     } else {
                         const errorMessage = data && data.message ? data.message : 'Erro desconhecido ao carregar detalhes';
-                        paymentDetailsContent.innerHTML = `<div class="error-state"><p class="error">Erro: ${errorMessage}</p></div>`;
+                        paymentDetailsContent.innerHTML = `<div class="error-state"><p class="error">Erro: ${escapeHtml(errorMessage)}</p></div>`;
                     }
                 })
                 .catch(error => {
@@ -1332,7 +1338,7 @@ $statusLabels = [
                         <div class="error-state">
                             <p class="error">
                                 Erro de conexão. Verifique sua internet e tente novamente.
-                                <br><small>Detalhes técnicos: ${error.message}</small>
+                                <br><small>Detalhes técnicos: ${escapeHtml(error.message)}</small>
                             </p>
                         </div>
                     `;
@@ -1340,26 +1346,18 @@ $statusLabels = [
             };
             
             // Função para visualizar comprovante de pagamento
-            window.viewReceipt = function(receiptUrl) {
-                if (!receiptUrl) {
+            window.viewReceipt = function(paymentId) {
+                const normalizedPaymentId = Number.parseInt(paymentId, 10);
+                if (!Number.isInteger(normalizedPaymentId) || normalizedPaymentId <= 0) {
                     alert('Comprovante não disponível');
                     return;
                 }
-                
-                receiptImage.src = '../../uploads/comprovantes/' + encodeURIComponent(receiptUrl);
-                receiptModal.style.display = 'block';
-                
-                receiptImage.onload = function() {
-                    if (receiptImage.height > 600) {
-                        receiptImage.style.height = '600px';
-                        receiptImage.style.width = 'auto';
-                    }
-                };
-                
-                receiptImage.onerror = function() {
-                    alert('Erro ao carregar o comprovante. Arquivo pode estar corrompido ou não encontrado.');
-                    receiptModal.style.display = 'none';
-                };
+
+                window.open(
+                    '/api/payment-receipt?payment_id=' + encodeURIComponent(normalizedPaymentId),
+                    '_blank',
+                    'noopener,noreferrer'
+                );
             };
             
             // Função para renderizar os detalhes do pagamento com informações de saldo
@@ -1602,6 +1600,5 @@ $statusLabels = [
             }
         });
     </script>
-    <script src="/assets/js/sidebar-lojista.js"></script>
 </body>
 </html>

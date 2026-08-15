@@ -36,11 +36,12 @@ if (!$configuredSiteUrl && getenv('VERCEL_URL')) {
 define('SITE_URL', rtrim($configuredSiteUrl ?: 'https://www.klubecash.com', '/'));
 define('ADMIN_EMAIL', 'contato@klubecash.com');
 // === SMTP CONFIGURAÇÕES ===
-define('SMTP_HOST_HOSTINGER', getenv('SMTP_HOST') ?: '');
-define('SMTP_PORT_HOSTINGER', (int) (getenv('SMTP_PORT') ?: 587));
-define('SMTP_USER_HOSTINGER', getenv('SMTP_USERNAME') ?: '');
+// A senha nunca deve ter fallback no código; configure SMTP_PASSWORD no ambiente.
+define('SMTP_HOST_HOSTINGER', getenv('SMTP_HOST') ?: 'smtp.resend.com');
+define('SMTP_PORT_HOSTINGER', (int) (getenv('SMTP_PORT') ?: 465));
+define('SMTP_USER_HOSTINGER', getenv('SMTP_USERNAME') ?: 'resend');
 define('SMTP_PASS_HOSTINGER', getenv('SMTP_PASSWORD') ?: '');
-define('SMTP_FROM_HOSTINGER', getenv('SMTP_FROM_EMAIL') ?: '');
+define('SMTP_FROM_HOSTINGER', getenv('SMTP_FROM_EMAIL') ?: 'notificacoes@klubecash.com');
 define('SMTP_NAME_HOSTINGER', getenv('SMTP_FROM_NAME') ?: 'Klube Cash');
 // === CORES DO TEMA ===
 define('PRIMARY_COLOR', '#FF7A00');
@@ -196,20 +197,20 @@ define('MIN_TRANSACTION_VALUE', 5.00);
 define('MIN_WITHDRAWAL_VALUE', 20.00);
 
 // === URLs PRINCIPAIS ===
-define('LOGIN_URL', SITE_URL . '/login');
-define('REGISTER_URL', SITE_URL . '/registro');
-define('RECOVER_PASSWORD_URL', SITE_URL . '/recuperar-senha');
+define('LOGIN_URL', '/login');
+define('REGISTER_URL', '/registro');
+define('RECOVER_PASSWORD_URL', '/recuperar-senha');
 // === URLs DE AUTENTICAÇÃO ===
 
-define('LOGOUT_URL', SITE_URL . '/logout'); // ADICIONAR ESTA LINHA
+define('LOGOUT_URL', '/logout');
 
 // === URLs DO CLIENTE ===
-define('CLIENT_DASHBOARD_URL', SITE_URL . '/cliente/dashboard');
-define('CLIENT_STATEMENT_URL', SITE_URL . '/cliente/extrato');
-define('CLIENT_STORES_URL', SITE_URL . '/cliente/lojas-parceiras');
-define('CLIENT_PROFILE_URL', SITE_URL . '/cliente/perfil');
-define('CLIENT_BALANCE_URL', SITE_URL . '/cliente/saldo');
-define('CLIENT_ACTIONS_URL', SITE_URL . '/cliente/actions');
+define('CLIENT_DASHBOARD_URL', '/cliente/dashboard');
+define('CLIENT_STATEMENT_URL', '/cliente/extrato');
+define('CLIENT_STORES_URL', '/cliente/lojas-parceiras');
+define('CLIENT_PROFILE_URL', '/cliente/perfil');
+define('CLIENT_BALANCE_URL', '/cliente/saldo');
+define('CLIENT_ACTIONS_URL', '/cliente/actions');
 
 
 // === CONFIGURAÇÕES DE CPF ===
@@ -218,32 +219,32 @@ define('CPF_OBRIGATORIO_PIX', true); // Exigir CPF para pagamentos PIX
 
 
 // === URLs DO ADMIN ===
-define('ADMIN_DASHBOARD_URL', SITE_URL . '/admin/dashboard');
-define('ADMIN_USERS_URL', SITE_URL . '/admin/usuarios');
-define('ADMIN_STORES_URL', SITE_URL . '/admin/lojas');
-define('ADMIN_TRANSACTIONS_URL', SITE_URL . '/admin/transacoes');
-define('ADMIN_SETTINGS_URL', SITE_URL . '/admin/configuracoes');
-define('ADMIN_TRANSACTION_DETAILS_URL', SITE_URL . '/admin/transacao');
-define('ADMIN_REPORTS_URL', SITE_URL . '/admin/relatorios');
-define('ADMIN_COMMISSIONS_URL', SITE_URL . '/admin/comissoes');
-define('ADMIN_PAYMENTS_URL', SITE_URL . '/admin/pagamentos');
-define('ADMIN_BALANCE_URL', SITE_URL . '/admin/saldo');
+define('ADMIN_DASHBOARD_URL', '/admin/dashboard');
+define('ADMIN_USERS_URL', '/admin/usuarios');
+define('ADMIN_STORES_URL', '/admin/lojas');
+define('ADMIN_TRANSACTIONS_URL', '/admin/transacoes');
+define('ADMIN_SETTINGS_URL', '/admin/configuracoes');
+define('ADMIN_TRANSACTION_DETAILS_URL', '/admin/transacao');
+define('ADMIN_REPORTS_URL', '/admin/relatorios');
+define('ADMIN_COMMISSIONS_URL', '/admin/comissoes');
+define('ADMIN_PAYMENTS_URL', '/admin/pagamentos');
+define('ADMIN_BALANCE_URL', '/admin/saldo');
 
 // === URLs DA LOJA ===
-define('STORE_REGISTER_URL', SITE_URL . '/lojas/cadastro');
-define('STORE_DASHBOARD_URL', SITE_URL . '/store/dashboard');
-define('STORE_TRANSACTIONS_URL', SITE_URL . '/store/transacoes');
-define('STORE_PENDING_TRANSACTIONS_URL', SITE_URL . '/store/transacoes-pendentes');
-define('STORE_REGISTER_TRANSACTION_URL', SITE_URL . '/store/registrar-transacao');
-define('STORE_BATCH_UPLOAD_URL', SITE_URL . '/store/upload-lote');
-define('STORE_PAYMENT_URL', SITE_URL . '/store/pagamento');
-define('STORE_PAYMENT_HISTORY_URL', SITE_URL . '/store/historico-pagamentos');
-define('STORE_PROFILE_URL', SITE_URL . '/store/perfil');
-define('STORE_PAYMENT_PIX_URL', SITE_URL . '/store/pagamento-pix');
-define('STORE_SALDOS_URL', SITE_URL . '/store/saldos');
-define('STORE_BALANCE_REPASSES_URL', SITE_URL . '/store/repasses-saldo');
+define('STORE_REGISTER_URL', '/lojas/cadastro');
+define('STORE_DASHBOARD_URL', '/store/dashboard');
+define('STORE_TRANSACTIONS_URL', '/store/transacoes');
+define('STORE_PENDING_TRANSACTIONS_URL', '/store/transacoes-pendentes');
+define('STORE_REGISTER_TRANSACTION_URL', '/store/registrar-transacao');
+define('STORE_BATCH_UPLOAD_URL', '/store/upload-lote');
+define('STORE_PAYMENT_URL', '/store/pagamento');
+define('STORE_PAYMENT_HISTORY_URL', '/store/historico-pagamentos');
+define('STORE_PROFILE_URL', '/store/perfil');
+define('STORE_PAYMENT_PIX_URL', '/store/pagamento-pix');
+define('STORE_SALDOS_URL', '/store/saldos');
+define('STORE_BALANCE_REPASSES_URL', '/store/repasses-saldo');
 // Adicionar esta linha se não existir
-define('STORE_EMPLOYEES_URL', SITE_URL . '/store/funcionarios');
+define('STORE_EMPLOYEES_URL', '/store/funcionarios');
 
 
 // === CONFIGURAÇÕES DE ASSETS ===
@@ -286,13 +287,25 @@ define('EMAIL_MAX_RETRIES', 3);
 
 // === CONFIGURAÇÕES DE EMAIL ===
 if (!defined('SMTP_HOST')) {
-    define('SMTP_HOST', getenv('SMTP_HOST') ?: '');
-    define('SMTP_PORT', (int) (getenv('SMTP_PORT') ?: 587));
-    define('SMTP_USERNAME', getenv('SMTP_USERNAME') ?: '');
+    define('SMTP_HOST', getenv('SMTP_HOST') ?: 'smtp.resend.com');
+}
+if (!defined('SMTP_PORT')) {
+    define('SMTP_PORT', (int) (getenv('SMTP_PORT') ?: 465));
+}
+if (!defined('SMTP_USERNAME')) {
+    define('SMTP_USERNAME', getenv('SMTP_USERNAME') ?: 'resend');
+}
+if (!defined('SMTP_PASSWORD')) {
     define('SMTP_PASSWORD', getenv('SMTP_PASSWORD') ?: '');
-    define('SMTP_FROM_EMAIL', getenv('SMTP_FROM_EMAIL') ?: '');
+}
+if (!defined('SMTP_FROM_EMAIL')) {
+    define('SMTP_FROM_EMAIL', getenv('SMTP_FROM_EMAIL') ?: 'notificacoes@klubecash.com');
+}
+if (!defined('SMTP_FROM_NAME')) {
     define('SMTP_FROM_NAME', getenv('SMTP_FROM_NAME') ?: 'Klube Cash');
-    define('SMTP_ENCRYPTION', getenv('SMTP_ENCRYPTION') ?: 'tls');
+}
+if (!defined('SMTP_ENCRYPTION')) {
+    define('SMTP_ENCRYPTION', strtolower(getenv('SMTP_ENCRYPTION') ?: 'smtps'));
 }
 // === OPENPIX CONFIGURAÇÕES (NOVA) ===
 define('OPENPIX_API_URL', 'https://api.openpix.com.br');
@@ -319,8 +332,8 @@ define('STRIPE_VALIDATE_WEBHOOK', true); // IMPORTANTE: true em produção, fals
 // URLs de Assinaturas
 define('ADMIN_SUBSCRIPTIONS_URL', SITE_URL . '/admin/assinaturas');
 define('ADMIN_PLANS_URL', SITE_URL . '/admin/planos');
-define('STORE_SUBSCRIPTION_URL', SITE_URL . '/store/meu-plano');
-define('STORE_INVOICE_PIX_URL', SITE_URL . '/store/fatura-pix');
+define('STORE_SUBSCRIPTION_URL', '/store/meu-plano');
+define('STORE_INVOICE_PIX_URL', '/store/fatura-pix');
 
 // === AMBIENTE ===
 if (!defined('ENVIRONMENT')) {

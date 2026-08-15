@@ -92,7 +92,7 @@ class StoreController {
                     
                     <h4>🚀 Próximos passos:</h4>
                     <ul>
-                        <li>Acesse o sistema com seu email e senha: <a href='" . LOGIN_URL . "'>Fazer Login</a></li>
+                        <li>Acesse o sistema com seu email e senha: <a href='" . SITE_URL . LOGIN_URL . "'>Fazer Login</a></li>
                         <li>Configure seu painel de controle</li>
                         <li>Comece a registrar vendas e oferecer cashback</li>
                     </ul>
@@ -604,33 +604,14 @@ class StoreController {
         }
         
         // Verificar se está logado e é loja
-        return isset($_SESSION['user_id']) && 
-               isset($_SESSION['user_type']) && 
-               $_SESSION['user_type'] === USER_TYPE_STORE;
+        return AuthController::hasStoreAccess();
     }
     
     /**
      * Obtém o ID da loja vinculada ao usuário logado
      */
     private static function getStoreId() {
-        if (!self::validateStore()) {
-            return null;
-        }
-        
-        try {
-            $db = Database::getConnection();
-            $userId = $_SESSION['user_id'];
-            
-            $stmt = $db->prepare("SELECT id FROM lojas WHERE usuario_id = ?");
-            $stmt->execute([$userId]);
-            
-            $store = $stmt->fetch(PDO::FETCH_ASSOC);
-            return $store ? $store['id'] : null;
-            
-        } catch (PDOException $e) {
-            error_log('Erro ao obter ID da loja: ' . $e->getMessage());
-            return null;
-        }
+        return AuthController::getStoreId();
     }
     
     /**
@@ -638,8 +619,8 @@ class StoreController {
      */
     public static function getEmployees($filters = [], $page = 1) {
         try {
-            if (!self::validateStore()) {
-                return ['status' => false, 'message' => 'Acesso restrito a lojistas.'];
+            if (!AuthController::canManageEmployees()) {
+                return ['status' => false, 'message' => 'Acesso restrito a lojistas e gerentes.'];
             }
             
             $storeId = self::getStoreId();
@@ -758,6 +739,10 @@ class StoreController {
             
             if (!AuthController::canManageEmployees()) {
                 return ['status' => false, 'message' => 'Apenas lojistas e gerentes podem criar funcionários.'];
+            }
+
+            if (AuthController::isEmployee() && ($data['subtipo_funcionario'] ?? null) === EMPLOYEE_TYPE_MANAGER) {
+                return ['status' => false, 'message' => 'Apenas o lojista pode cadastrar outro gerente.'];
             }
             
             // USAR NOVO MÉTODO
@@ -881,8 +866,8 @@ class StoreController {
      */
     public static function updateEmployee($employeeId, $data) {
         try {
-            if (!self::validateStore()) {
-                return ['status' => false, 'message' => 'Acesso restrito a lojistas.'];
+            if (!AuthController::canManageEmployees()) {
+                return ['status' => false, 'message' => 'Acesso restrito a lojistas e gerentes.'];
             }
             
             $storeId = self::getStoreId();
@@ -931,6 +916,9 @@ class StoreController {
             }
             
             if (!empty($data['subtipo_funcionario'])) {
+                if (AuthController::isEmployee() && $data['subtipo_funcionario'] === EMPLOYEE_TYPE_MANAGER) {
+                    return ['status' => false, 'message' => 'Apenas o lojista pode conceder acesso de gerente.'];
+                }
                 $updateFields[] = "subtipo_funcionario = ?";
                 $params[] = $data['subtipo_funcionario'];
             }
@@ -973,7 +961,7 @@ class StoreController {
      */
     public static function deleteEmployee($employeeId) {
         try {
-            if (!self::validateStore()) {
+            if (!AuthController::isStore()) {
                 return ['status' => false, 'message' => 'Acesso restrito a lojistas.'];
             }
             

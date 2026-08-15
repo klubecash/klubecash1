@@ -214,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Definir menu ativo
-$activeMenu = 'register-transaction';
+$activeMenu = 'nova-venda';
 ?>
 
 <!DOCTYPE html>
@@ -225,22 +225,10 @@ $activeMenu = 'register-transaction';
     <title>Registrar Venda - Klube Cash</title>
     <link rel="shortcut icon" type="image/jpg" href="../../assets/images/icons/KlubeCashLOGO.ico"/>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <?php
-    // Determinar qual CSS carregar baseado no campo senat do usuário
-    $profileCssFile = 'profile.css'; // CSS padrão
-    $registerCssFile = 'register-transaction.css'; // CSS padrão
-    $sidebarCssFile = 'sidebar-lojista.css'; // CSS da sidebar padrão
-
-    if (isset($_SESSION['user_senat']) && ($_SESSION['user_senat'] === 'sim' || $_SESSION['user_senat'] === 'Sim')) {
-        $profileCssFile = 'profile_sest.css'; // CSS para usuários senat=sim
-        $registerCssFile = 'register-transaction_sest.css'; // CSS para usuários senat=sim
-        $sidebarCssFile = 'sidebar-lojista_sest.css'; // CSS da sidebar para usuários senat=sim
-    }
-    ?>
-    <link rel="stylesheet" href="../../assets/css/views/stores/<?php echo htmlspecialchars($profileCssFile); ?>">
+    <link rel="stylesheet" href="../../assets/css/views/stores/profile.css">
     <!-- CSS Customizado para a nova interface -->
-    <link rel="stylesheet" href="/assets/css/<?php echo htmlspecialchars($sidebarCssFile); ?>">
-    <link rel="stylesheet" href="../../assets/css/views/stores/<?php echo htmlspecialchars($registerCssFile); ?>">
+    <link rel="stylesheet" href="/assets/css/sidebar-lojista.css">
+    <link rel="stylesheet" href="../../assets/css/views/stores/register-transaction.css">
     <style>
 /* Estilos específicos para cliente visitante nesta página */
 .visitor-client-section {
@@ -363,6 +351,7 @@ $activeMenu = 'register-transaction';
     }
 }
 </style>
+    <?php include __DIR__ . '/../components/store-app-head.php'; ?>
 </head>
 <body>
     <?php include '../../views/components/sidebar-lojista-responsiva.php'; ?>
@@ -1116,13 +1105,13 @@ $activeMenu = 'register-transaction';
             const emailDisplay = (client.email && !client.email.includes('@klubecash.local')) ? 
                 `<div class="client-info-row">
                     <span class="label">Email:</span>
-                    <span class="value email-text">${client.email}</span>
+                    <span class="value email-text">${escapeHtml(client.email)}</span>
                 </div>` : '';
 
             clientInfoDetails.innerHTML = `
                 <div class="client-info-compact">
                     <div class="client-header">
-                        <div class="client-name">${client.nome}</div>
+                        <div class="client-name">${escapeHtml(client.nome)}</div>
                         <div class="client-type">${typeIcon} ${typeLabel}</div>
                     </div>
                     
@@ -1131,7 +1120,7 @@ $activeMenu = 'register-transaction';
                         
                         <div class="client-info-row">
                             <span class="label">Telefone:</span>
-                            <span class="value">${formatPhone(client.telefone)}</span>
+                            <span class="value">${escapeHtml(formatPhone(client.telefone))}</span>
                         </div>
                         
                         <div class="client-info-row">
@@ -1143,7 +1132,7 @@ $activeMenu = 'register-transaction';
                         
                         <div class="client-info-row">
                             <span class="label">Compras aqui:</span>
-                            <span class="value">${client.estatisticas.total_compras}</span>
+                            <span class="value">${Number.parseInt(client.estatisticas.total_compras, 10) || 0}</span>
                         </div>
                     </div>
                     
@@ -1151,7 +1140,8 @@ $activeMenu = 'register-transaction';
                 </div>
             `;
 
-            document.getElementById('cliente_id_hidden').value = client.id;
+            const clientId = Number.parseInt(client.id, 10);
+            document.getElementById('cliente_id_hidden').value = Number.isInteger(clientId) && clientId > 0 ? clientId : '';
         }
 
         function mostrarErroCliente(message) {
@@ -1165,7 +1155,7 @@ $activeMenu = 'register-transaction';
 
             clientInfoDetails.innerHTML = `
                 <div class="client-info-item">
-                    <span class="client-info-value">${message}</span>
+                    <span class="client-info-value">${escapeHtml(message)}</span>
                 </div>
                 <div class="client-info-item">
                     <span class="client-info-value">🔍 Verifique se o email/CPF está correto e se o cliente está cadastrado no Klube Cash.</span>
@@ -1349,15 +1339,16 @@ $activeMenu = 'register-transaction';
 
             createToast(type, title, message, closable, showProgress) {
                 const toast = document.createElement('div');
-                toast.className = `toast ${type}`;
+                const safeType = ['success', 'warning', 'error', 'info'].includes(type) ? type : 'info';
+                toast.className = `toast ${safeType}`;
 
-                const icon = this.getIcon(type);
+                const icon = this.getIcon(safeType);
 
                 toast.innerHTML = `
                     ${icon}
                     <div class="toast-content">
-                        <div class="toast-title">${title}</div>
-                        <div class="toast-message">${message}</div>
+                        <div class="toast-title">${escapeHtml(title)}</div>
+                        <div class="toast-message">${escapeHtml(message)}</div>
                     </div>
                     ${closable ? '<button class="toast-close" onclick="toast.remove(this.parentElement)">&times;</button>' : ''}
                     ${showProgress ? '<div class="toast-progress"></div>' : ''}
@@ -1499,6 +1490,18 @@ $activeMenu = 'register-transaction';
             return parseFloat(value).toLocaleString('pt-BR', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
+            });
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, function(character) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[character];
             });
         }
 
@@ -1762,6 +1765,5 @@ document.addEventListener('DOMContentLoaded', function() {
         
     </script>
 
-    <script src="/assets/js/sidebar-lojista.js"></script>
 </body>
 </html>

@@ -1,32 +1,95 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST');
-header('Access-Control-Allow-Headers: Content-Type');
 
 require_once '../config/database.php';
 require_once '../config/constants.php';
 require_once '../controllers/AuthController.php';
 require_once '../models/CashbackBalance.php';
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-// Log para debug
+function respondClientSearchError(int $statusCode, string $message): void
+{
+    http_response_code($statusCode);
+    echo json_encode([
+        'status' => false,
+        'message' => $message,
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
+function resolveClientSearchStoreId(PDO $db, int $userId, string $userType): ?int
+{
+    if ($userType === USER_TYPE_STORE) {
+        $stmt = $db->prepare("
+            SELECT l.id
+            FROM lojas l
+            INNER JOIN usuarios u ON u.id = l.usuario_id
+            WHERE u.id = :user_id
+              AND u.tipo = :user_type
+              AND u.status = :user_status
+              AND l.status = 'aprovado'
+            ORDER BY l.id ASC
+            LIMIT 1
+        ");
+    } else {
+        $stmt = $db->prepare("
+            SELECT l.id
+            FROM usuarios u
+            INNER JOIN lojas l ON l.id = u.loja_vinculada_id
+            WHERE u.id = :user_id
+              AND u.tipo = :user_type
+              AND u.status = :user_status
+              AND l.status = 'aprovado'
+            LIMIT 1
+        ");
+    }
+
+    $stmt->execute([
+        ':user_id' => $userId,
+        ':user_type' => $userType,
+        ':user_status' => USER_ACTIVE,
+    ]);
+    $store = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return $store && (int) $store['id'] > 0 ? (int) $store['id'] : null;
+}
 
 // Verificar autenticação
 if (!AuthController::isAuthenticated()) {
     error_log("API CLIENT SEARCH - Usuário não autenticado");
-    echo json_encode(['status' => false, 'message' => 'Usuário não autenticado']);
-    exit;
+    respondClientSearchError(401, 'Usuário não autenticado');
 }
 
-// Verificar se é loja
-if (!AuthController::isStore()) {
-    error_log("API CLIENT SEARCH - Acesso não é de loja");
-    echo json_encode(['status' => false, 'message' => 'Acesso restrito a lojas']);
-    exit;
+$userId = (int) ($_SESSION['user_id'] ?? 0);
+$userType = $_SESSION['user_type'] ?? '';
+
+if ($userId <= 0) {
+    respondClientSearchError(401, 'Usuário não autenticado');
 }
+
+if (!in_array($userType, [USER_TYPE_STORE, USER_TYPE_EMPLOYEE], true)) {
+    error_log("API CLIENT SEARCH - Tipo de usuário sem acesso à loja");
+    respondClientSearchError(403, 'Acesso restrito a lojas e funcionários autorizados');
+}
+
+try {
+    $db = Database::getConnection();
+    $authenticatedStoreId = resolveClientSearchStoreId($db, $userId, $userType);
+} catch (Throwable $e) {
+    error_log('API CLIENT SEARCH - Erro ao validar associação com a loja: ' . $e->getMessage());
+    respondClientSearchError(500, 'Erro interno do servidor. Tente novamente.');
+}
+
+if (!$authenticatedStoreId) {
+    error_log("API CLIENT SEARCH - Usuário {$userId} sem loja ativa vinculada");
+    respondClientSearchError(403, 'Usuário sem loja ativa vinculada');
+}
+
+$_SESSION['store_id'] = $authenticatedStoreId;
+$_SESSION['loja_vinculada_id'] = $authenticatedStoreId;
 
 $input = json_decode(file_get_contents('php://input'), true);
 $action = $input['action'] ?? '';
@@ -35,10 +98,10 @@ $action = $input['action'] ?? '';
 // === AÇÃO PRINCIPAL: BUSCAR CLIENTE (VERSÃO UNIVERSAL) ===
 if ($action === 'search_client') {
     $searchTerm = trim($input['search_term'] ?? '');
-    $storeId = intval($input['store_id'] ?? 0);
+    $storeId = $authenticatedStoreId;
 
-    if (empty($searchTerm) || $storeId <= 0) {
-        echo json_encode(['status' => false, 'message' => 'Termo de busca (Email, CPF ou Telefone) e ID da loja são obrigatórios']);
+    if (empty($searchTerm)) {
+        echo json_encode(['status' => false, 'message' => 'Termo de busca (Email, CPF ou Telefone) é obrigatório']);
         exit;
     }
 
@@ -178,62 +241,31 @@ if ($action === 'search_client') {
 elseif ($action === 'create_visitor_client') {
     error_log("API CLIENT SEARCH - Criando cliente visitante");
     
-    $nome = trim($input['nome'] ?? '');
+    $nome = preg_replace('/\s+/u', ' ', trim((string) ($input['nome'] ?? '')));
     $telefone = preg_replace('/[^0-9]/', '', $input['telefone'] ?? '');
-    $storeId = intval($input['store_id'] ?? 0);
-
-    error_log("API CLIENT SEARCH - Dados recebidos: nome=$nome, telefone=$telefone, storeId=$storeId");
+    $storeId = $authenticatedStoreId;
 
     // Validações básicas
-    if (empty($nome) || strlen($nome) < 2) {
+    $nameLength = function_exists('mb_strlen') ? mb_strlen($nome, 'UTF-8') : strlen($nome);
+    if (
+        $nameLength < 2
+        || $nameLength > 120
+        || !preg_match("/^[\\p{L}\\p{M} .'-]+$/u", $nome)
+    ) {
         error_log("API CLIENT SEARCH - Erro: Nome inválido");
-        echo json_encode(['status' => false, 'message' => 'Nome é obrigatório e deve ter pelo menos 2 caracteres']);
+        echo json_encode(['status' => false, 'message' => 'Informe um nome válido entre 2 e 120 caracteres.']);
         exit;
     }
 
-    if (empty($telefone) || strlen($telefone) < VISITOR_PHONE_MIN_LENGTH) {
+    if (empty($telefone) || strlen($telefone) < VISITOR_PHONE_MIN_LENGTH || strlen($telefone) > 15) {
         error_log("API CLIENT SEARCH - Erro: Telefone inválido");
-        echo json_encode(['status' => false, 'message' => 'Telefone é obrigatório e deve ter pelo menos 10 dígitos']);
+        echo json_encode(['status' => false, 'message' => 'Informe um telefone válido com 10 a 15 dígitos.']);
         exit;
     }
 
     try {
         $db = Database::getConnection();
-        
-        // CORREÇÃO PRINCIPAL: Verificar se a loja existe, senão usar a primeira disponível
-        if ($storeId <= 0) {
-            error_log("API CLIENT SEARCH - Store ID não fornecido, buscando loja padrão");
-            $firstStoreStmt = $db->query("SELECT id FROM lojas WHERE status = 'aprovado' ORDER BY id LIMIT 1");
-            $firstStore = $firstStoreStmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($firstStore) {
-                $storeId = $firstStore['id'];
-                error_log("API CLIENT SEARCH - Store ID ajustado para: $storeId");
-            } else {
-                echo json_encode(['status' => false, 'message' => 'Nenhuma loja ativa encontrada no sistema']);
-                exit;
-            }
-        } else {
-            // Verificar se a loja fornecida existe
-            $checkStoreStmt = $db->prepare("SELECT id FROM lojas WHERE id = ? AND status = 'aprovado'");
-            $checkStoreStmt->execute([$storeId]);
-            
-            if ($checkStoreStmt->rowCount() == 0) {
-                error_log("API CLIENT SEARCH - Loja $storeId não existe, buscando alternativa");
-                // Se a loja não existe, pegar a primeira loja disponível
-                $firstStoreStmt = $db->query("SELECT id FROM lojas WHERE status = 'aprovado' ORDER BY id LIMIT 1");
-                $firstStore = $firstStoreStmt->fetch(PDO::FETCH_ASSOC);
-                
-                if ($firstStore) {
-                    $storeId = $firstStore['id'];
-                    error_log("API CLIENT SEARCH - Store ID ajustado para: $storeId");
-                } else {
-                    echo json_encode(['status' => false, 'message' => 'Nenhuma loja ativa encontrada']);
-                    exit;
-                }
-            }
-        }
-        
+
         error_log("API CLIENT SEARCH - Usando store_id final: $storeId");
         
         // Verificar se já existe cliente visitante com este telefone nesta loja
@@ -261,8 +293,6 @@ elseif ($action === 'create_visitor_client') {
         // Gerar email fictício único para evitar constraint violation
         $emailFicticio = 'visitante_' . $telefone . '_loja_' . $storeId . '@klubecash.local';
         
-        error_log("API CLIENT SEARCH - Criando cliente com email fictício: $emailFicticio");
-        
         // Criar cliente visitante
         $insertStmt = $db->prepare("
             INSERT INTO usuarios (nome, email, telefone, tipo, tipo_cliente, loja_criadora_id, status, data_criacao)
@@ -282,7 +312,8 @@ elseif ($action === 'create_visitor_client') {
         if (!$result) {
             $errorInfo = $insertStmt->errorInfo();
             error_log("API CLIENT SEARCH - Erro ao inserir no banco: " . print_r($errorInfo, true));
-            echo json_encode(['status' => false, 'message' => 'Erro ao criar cliente no banco de dados: ' . $errorInfo[2]]);
+            http_response_code(500);
+            echo json_encode(['status' => false, 'message' => 'Erro interno do servidor. Tente novamente.']);
             exit;
         }
         
@@ -302,7 +333,6 @@ elseif ($action === 'create_visitor_client') {
                 'tipo_cliente_label' => 'Cliente Visitante',
                 'saldo' => 0,
                 'data_cadastro' => date('d/m/Y'),
-                'store_id_usado' => $storeId,  // Para debug
                 'estatisticas' => [
                     'total_compras' => 0,
                     'total_gasto' => 0,
@@ -314,17 +344,18 @@ elseif ($action === 'create_visitor_client') {
         
     } catch (Exception $e) {
         error_log('API CLIENT SEARCH - ❌ Erro crítico: ' . $e->getMessage());
-        error_log('API CLIENT SEARCH - Stack trace: ' . $e->getTraceAsString());
+        http_response_code(500);
         echo json_encode([
-            'status' => false, 
-            'message' => 'Erro interno do servidor: ' . $e->getMessage()
+            'status' => false,
+            'message' => 'Erro interno do servidor. Tente novamente.'
         ]);
     }
 }
 
 else {
     error_log("API CLIENT SEARCH - Ação inválida: " . $action);
-    echo json_encode(['status' => false, 'message' => 'Ação inválida: ' . $action]);
+    http_response_code(400);
+    echo json_encode(['status' => false, 'message' => 'Ação inválida.']);
     exit;
 }
 

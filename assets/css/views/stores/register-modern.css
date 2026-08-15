@@ -1,0 +1,1073 @@
+/* Klube Cash - cadastro de loja parceira */
+
+body.store-registration-page {
+    --brand: #FC6914;
+    --brand-light: #FF8F4F;
+    --brand-strong: #C94400;
+    --brand-gradient: linear-gradient(135deg, #FC6914 0%, #FC6914 50%, #FF8F4F 100%);
+    --on-brand: #271005;
+    --page: #FFF8F3;
+    --page-secondary: #FFFDFC;
+    --surface: rgba(255, 255, 255, 0.94);
+    --surface-solid: #FFFFFF;
+    --surface-raised: #FFFFFF;
+    --surface-soft: #FFF3EA;
+    --surface-info: #F3F8FF;
+    --text: #201712;
+    --text-soft: #665A53;
+    --text-faint: #6D625D;
+    --border: rgba(74, 43, 25, 0.13);
+    --border-strong: rgba(74, 43, 25, 0.24);
+    --focus: #A93600;
+    --success: #16794A;
+    --success-soft: #EAF8F0;
+    --danger: #B42335;
+    --danger-soft: #FFF0F1;
+    --info: #1769AA;
+    --shadow-sm: 0 12px 32px rgba(82, 43, 18, 0.08);
+    --shadow-lg: 0 32px 90px rgba(82, 43, 18, 0.16);
+    --radius-sm: 12px;
+    --radius-md: 18px;
+    --radius-lg: 28px;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+    min-width: 320px;
+    min-height: 100vh;
+    min-height: 100svh;
+    margin: 0;
+    overflow-x: hidden;
+    color: var(--text);
+    background: var(--page);
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.6;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+}
+
+html[data-theme="dark"] body.store-registration-page {
+    --brand-strong: #FF9D67;
+    --page: #0B0D12;
+    --page-secondary: #10131A;
+    --surface: rgba(19, 22, 29, 0.92);
+    --surface-solid: #13161D;
+    --surface-raised: #191D26;
+    --surface-soft: #211A17;
+    --surface-info: #141D27;
+    --text: #F7F2EF;
+    --text-soft: #C1B8B3;
+    --text-faint: #B8AEA9;
+    --border: rgba(255, 255, 255, 0.10);
+    --border-strong: rgba(255, 255, 255, 0.19);
+    --focus: #FF9D67;
+    --success: #68D9A0;
+    --success-soft: #11281D;
+    --danger: #FF8793;
+    --danger-soft: #30171B;
+    --info: #83C6FF;
+    --shadow-sm: 0 14px 36px rgba(0, 0, 0, 0.24);
+    --shadow-lg: 0 34px 100px rgba(0, 0, 0, 0.42);
+}
+
+body.store-registration-page,
+body.store-registration-page *,
+body.store-registration-page *::before,
+body.store-registration-page *::after {
+    box-sizing: border-box;
+}
+
+body.store-registration-page button,
+body.store-registration-page input,
+body.store-registration-page select,
+body.store-registration-page textarea {
+    font: inherit;
+}
+
+body.store-registration-page button,
+body.store-registration-page label,
+body.store-registration-page select {
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.store-registration-page ::selection {
+    color: var(--on-brand);
+    background: var(--brand-light);
+}
+
+body.store-registration-page [hidden] {
+    display: none !important;
+}
+
+.store-registration-page .sr-only,
+.store-registration-page .file-input-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+.store-registration-page .registration-atmosphere {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.store-registration-page .registration-atmosphere::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.42;
+    background-image:
+        linear-gradient(rgba(252, 105, 20, 0.055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(252, 105, 20, 0.055) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: linear-gradient(to bottom, black, transparent 80%);
+}
+
+.store-registration-page .registration-atmosphere::after {
+    content: "";
+    position: absolute;
+    width: min(58vw, 760px);
+    aspect-ratio: 1;
+    top: -30%;
+    right: -12%;
+    border-radius: 50%;
+    background: rgba(252, 105, 20, 0.18);
+    filter: blur(90px);
+}
+
+.store-registration-page .registration-container {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    min-height: 100svh;
+    padding: clamp(18px, 3vw, 42px);
+}
+
+.store-registration-page .registration-shell {
+    width: min(100%, 1160px);
+}
+
+.store-registration-page .registration-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 58px;
+    margin-bottom: 14px;
+    padding: 8px 10px 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface-solid);
+    background: color-mix(in srgb, var(--surface-solid) 78%, transparent);
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+.store-registration-page .registration-brand {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.store-registration-page .registration-brand img {
+    display: block;
+    width: auto;
+    height: 38px;
+    max-width: min(180px, 58vw);
+    object-fit: contain;
+}
+
+.store-registration-page .theme-toggle {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    color: var(--text);
+    background: var(--surface-raised);
+    box-shadow: 0 6px 18px rgba(42, 23, 12, 0.08);
+    cursor: pointer;
+    transition: transform 180ms var(--ease), border-color 180ms ease, background-color 180ms ease;
+}
+
+.store-registration-page .theme-toggle:hover {
+    border-color: rgba(252, 105, 20, 0.55);
+    transform: translateY(-1px);
+}
+
+.store-registration-page .theme-icon {
+    position: absolute;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    font-size: 1.05rem;
+    line-height: 1;
+    transition: opacity 180ms ease, transform 240ms var(--ease);
+}
+
+.store-registration-page .theme-icon-moon {
+    opacity: 0;
+    transform: scale(0.55) rotate(-30deg);
+}
+
+html[data-theme="dark"] .store-registration-page .theme-icon-sun {
+    opacity: 0;
+    transform: scale(0.55) rotate(30deg);
+}
+
+html[data-theme="dark"] .store-registration-page .theme-icon-moon {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+}
+
+.store-registration-page .registration-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.58fr);
+    width: 100%;
+    min-height: 680px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
+    backdrop-filter: blur(24px) saturate(130%);
+    -webkit-backdrop-filter: blur(24px) saturate(130%);
+}
+
+.store-registration-page .registration-header {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: clamp(32px, 4vw, 52px) clamp(24px, 3vw, 38px);
+    overflow: hidden;
+    color: var(--on-brand);
+    background: var(--brand-gradient);
+}
+
+.store-registration-page .registration-header::before,
+.store-registration-page .registration-header::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.store-registration-page .registration-header::before {
+    width: 290px;
+    height: 290px;
+    right: -150px;
+    top: -130px;
+    border: 1px solid rgba(39, 16, 5, 0.18);
+    box-shadow: 0 0 0 42px rgba(255, 255, 255, 0.05), 0 0 0 84px rgba(39, 16, 5, 0.04);
+}
+
+.store-registration-page .registration-header::after {
+    width: 190px;
+    height: 190px;
+    left: -100px;
+    bottom: -80px;
+    background: rgba(255, 255, 255, 0.12);
+    filter: blur(2px);
+}
+
+.store-registration-page .registration-header > * {
+    position: relative;
+    z-index: 1;
+}
+
+.store-registration-page .registration-title {
+    max-width: 11ch;
+    margin: 0 0 12px;
+    font-size: clamp(1.85rem, 3vw, 2.65rem);
+    font-weight: 800;
+    letter-spacing: -0.045em;
+    line-height: 1.04;
+    text-wrap: balance;
+}
+
+.store-registration-page .registration-subtitle {
+    max-width: 30ch;
+    margin: 0;
+    color: rgba(39, 16, 5, 0.88);
+    font-size: 0.98rem;
+    font-weight: 550;
+    line-height: 1.55;
+}
+
+.store-registration-page .progress-container {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 330px;
+    margin-top: 34px;
+}
+
+.store-registration-page .progress-bar {
+    width: 100%;
+    height: 7px;
+    margin-bottom: 22px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(39, 16, 5, 0.17);
+}
+
+.store-registration-page .progress-fill {
+    width: 14.2857%;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--on-brand);
+    box-shadow: 0 0 18px rgba(39, 16, 5, 0.22);
+    transition: width 420ms var(--ease);
+}
+
+.store-registration-page .progress-steps {
+    display: grid;
+    gap: 7px;
+}
+
+.store-registration-page .progress-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 34px;
+    padding: 5px 8px;
+    border-radius: 10px;
+    color: rgba(39, 16, 5, 0.86);
+    font-size: 0.8rem;
+    font-weight: 650;
+    transition: color 180ms ease, background-color 180ms ease, transform 180ms var(--ease);
+}
+
+.store-registration-page .progress-step::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    flex: 0 0 8px;
+    border: 1.5px solid currentColor;
+    border-radius: 50%;
+    background: transparent;
+    transition: background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.store-registration-page .progress-step.active {
+    color: var(--on-brand);
+    background: rgba(255, 255, 255, 0.20);
+    transform: translateX(3px);
+}
+
+.store-registration-page .progress-step.completed {
+    color: var(--on-brand);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.store-registration-page .progress-step.completed::before {
+    background: currentColor;
+}
+
+.store-registration-page .progress-step.active::before {
+    background: var(--on-brand);
+    box-shadow: 0 0 0 4px rgba(39, 16, 5, 0.10);
+}
+
+.store-registration-page .registration-content {
+    position: relative;
+    min-width: 0;
+    padding: clamp(30px, 4vw, 58px);
+    background:
+        radial-gradient(circle at 100% 0%, rgba(252, 105, 20, 0.07), transparent 32%),
+        var(--surface);
+}
+
+.store-registration-page #store-form {
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+}
+
+.store-registration-page .step {
+    display: none;
+    width: 100%;
+}
+
+.store-registration-page .step.active {
+    display: block;
+    animation: storeStepIn 420ms var(--ease) both;
+}
+
+.store-registration-page .step.exiting {
+    animation: storeStepOut 150ms ease both;
+}
+
+@keyframes storeStepIn {
+    from { opacity: 0; transform: translate3d(18px, 0, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes storeStepOut {
+    from { opacity: 1; transform: translate3d(0, 0, 0); }
+    to { opacity: 0; transform: translate3d(-10px, 0, 0); }
+}
+
+.store-registration-page .step-header {
+    max-width: 660px;
+    margin: 0 0 clamp(26px, 4vw, 38px);
+}
+
+.store-registration-page .step-title {
+    margin: 0 0 9px;
+    color: var(--text);
+    font-size: clamp(1.55rem, 3vw, 2.1rem);
+    font-weight: 780;
+    letter-spacing: -0.035em;
+    line-height: 1.15;
+    text-wrap: balance;
+}
+
+.store-registration-page .step-description {
+    max-width: 58ch;
+    margin: 0;
+    color: var(--text-soft);
+    font-size: 0.98rem;
+}
+
+.store-registration-page .form-grid {
+    display: grid;
+    gap: 22px;
+    margin: 0 0 28px;
+}
+
+.store-registration-page .form-grid.two-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.store-registration-page .form-group {
+    position: relative;
+    min-width: 0;
+}
+
+.store-registration-page .form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+.store-registration-page .form-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text);
+    font-size: 0.875rem;
+    font-weight: 680;
+    letter-spacing: -0.01em;
+}
+
+.store-registration-page .required,
+.store-registration-page .form-label .required {
+    color: var(--danger);
+}
+
+.store-registration-page .form-input,
+.store-registration-page .form-select,
+.store-registration-page .form-textarea {
+    width: 100%;
+    min-height: 50px;
+    padding: 12px 15px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    outline: none;
+    color: var(--text);
+    background: var(--surface-raised);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+    transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.store-registration-page .form-input::placeholder,
+.store-registration-page .form-textarea::placeholder {
+    color: var(--text-faint);
+    opacity: 1;
+}
+
+.store-registration-page .form-select {
+    cursor: pointer;
+}
+
+.store-registration-page .form-select option {
+    color: var(--text);
+    background: var(--surface-solid);
+}
+
+.store-registration-page .form-textarea {
+    min-height: 118px;
+    resize: vertical;
+}
+
+.store-registration-page .form-input:hover,
+.store-registration-page .form-select:hover,
+.store-registration-page .form-textarea:hover {
+    border-color: rgba(252, 105, 20, 0.48);
+}
+
+.store-registration-page .form-input:focus,
+.store-registration-page .form-select:focus,
+.store-registration-page .form-textarea:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 4px rgba(252, 105, 20, 0.14);
+}
+
+.store-registration-page .form-input.error,
+.store-registration-page .form-select.error,
+.store-registration-page .form-textarea.error {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 3px rgba(180, 35, 53, 0.14);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.store-registration-page .form-input.valid,
+.store-registration-page .form-select.valid,
+.store-registration-page .form-textarea.valid {
+    border-color: var(--success);
+}
+
+.store-registration-page .form-input:disabled,
+.store-registration-page .form-select:disabled,
+.store-registration-page .form-textarea:disabled {
+    opacity: 0.72;
+    cursor: wait;
+}
+
+.store-registration-page input:-webkit-autofill,
+.store-registration-page input:-webkit-autofill:hover,
+.store-registration-page input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--text);
+    box-shadow: 0 0 0 1000px var(--surface-raised) inset;
+    transition: background-color 9999s ease-out;
+}
+
+.store-registration-page .validation-message {
+    min-height: 1.25rem;
+    margin-top: 6px;
+    color: var(--text-faint);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.store-registration-page .validation-message.error { color: var(--danger); }
+.store-registration-page .validation-message.success { color: var(--success); }
+.store-registration-page .validation-message.info { color: var(--info); }
+
+.store-registration-page .logo-upload-container {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: 220px;
+    padding: 30px;
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    text-align: center;
+    background:
+        radial-gradient(circle at 50% 0%, rgba(252, 105, 20, 0.10), transparent 54%),
+        var(--surface-soft);
+    cursor: pointer;
+    transition: border-color 180ms ease, background-color 180ms ease, transform 180ms var(--ease), box-shadow 180ms ease;
+}
+
+.store-registration-page .logo-upload-container:hover,
+.store-registration-page .logo-upload-container:focus-visible,
+.store-registration-page .logo-upload-container.is-dragover {
+    border-color: var(--brand);
+    background-color: var(--surface-soft);
+    background-color: color-mix(in srgb, var(--surface-soft) 84%, var(--brand) 16%);
+    box-shadow: 0 0 0 4px rgba(252, 105, 20, 0.10);
+    transform: translateY(-2px);
+}
+
+.store-registration-page .logo-upload-container.has-file {
+    border-style: solid;
+    border-color: var(--success);
+    background: var(--success-soft);
+}
+
+.store-registration-page .upload-icon {
+    margin-bottom: 12px;
+    font-size: 2.65rem;
+    line-height: 1;
+    filter: saturate(0.8);
+}
+
+.store-registration-page .upload-text {
+    margin-bottom: 4px;
+    font-weight: 720;
+}
+
+.store-registration-page .upload-hint {
+    color: var(--text-soft);
+    font-size: 0.82rem;
+}
+
+.store-registration-page .logo-preview {
+    display: none;
+    margin-top: 20px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+}
+
+.store-registration-page .logo-preview.active {
+    display: block;
+    animation: storeStepIn 300ms var(--ease) both;
+}
+
+.store-registration-page .logo-preview h4 {
+    margin: 0 0 12px;
+    color: var(--text);
+}
+
+.store-registration-page .logo-preview img {
+    display: block;
+    max-width: min(240px, 100%);
+    max-height: 150px;
+    border-radius: 12px;
+    object-fit: contain;
+    box-shadow: var(--shadow-sm);
+}
+
+.store-registration-page .info-card,
+.store-registration-page .terms-section,
+.store-registration-page .summary-section {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-info);
+}
+
+.store-registration-page .info-card {
+    margin: 22px 0;
+    padding: 20px;
+}
+
+.store-registration-page .info-card h4 {
+    margin: 0 0 11px;
+    color: var(--brand-strong);
+    font-size: 1rem;
+}
+
+.store-registration-page .info-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.store-registration-page .info-list li {
+    position: relative;
+    margin: 8px 0;
+    padding-left: 22px;
+    color: var(--text-soft);
+    font-size: 0.87rem;
+}
+
+.store-registration-page .info-list li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--success);
+    font-weight: 850;
+}
+
+.store-registration-page .terms-section {
+    margin: 22px 0;
+    padding: clamp(18px, 3vw, 25px);
+    background: var(--surface-soft);
+}
+
+.store-registration-page .terms-title {
+    margin: 0 0 14px;
+    color: var(--text);
+    font-size: 1.12rem;
+}
+
+.store-registration-page .terms-content {
+    max-height: 190px;
+    margin-bottom: 18px;
+    padding: 14px 14px 14px 16px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text-soft);
+    background: var(--surface-raised);
+    font-size: 0.84rem;
+    scrollbar-color: var(--brand) transparent;
+    scrollbar-width: thin;
+}
+
+.store-registration-page .terms-list {
+    margin: 10px 0 0;
+    padding-left: 20px;
+}
+
+.store-registration-page .checkbox-group {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.store-registration-page .checkbox-group input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    margin-top: 2px;
+    accent-color: var(--brand);
+}
+
+.store-registration-page .checkbox-group label {
+    color: var(--text);
+    cursor: pointer;
+}
+
+.store-registration-page .summary-section {
+    margin-bottom: 26px;
+    padding: clamp(18px, 3vw, 25px);
+    background: var(--surface-soft);
+}
+
+.store-registration-page .summary-title {
+    margin: 0 0 18px;
+    color: var(--text);
+    font-size: 1.2rem;
+    text-align: center;
+}
+
+.store-registration-page .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.store-registration-page .summary-item {
+    min-width: 0;
+    padding: 14px 15px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-raised);
+}
+
+.store-registration-page .summary-label {
+    margin-bottom: 4px;
+    color: var(--text-faint);
+    font-size: 0.7rem;
+    font-weight: 760;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.store-registration-page .summary-value {
+    overflow-wrap: anywhere;
+    color: var(--text);
+    font-weight: 620;
+}
+
+.store-registration-page .step-navigation {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    margin-top: auto;
+    padding-top: 28px;
+}
+
+.store-registration-page .navigation-spacer {
+    flex: 1;
+}
+
+.store-registration-page .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 11px 21px;
+    border: 1px solid transparent;
+    border-radius: 13px;
+    font-size: 0.94rem;
+    font-weight: 720;
+    line-height: 1.2;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 180ms var(--ease), box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease;
+}
+
+.store-registration-page .btn-primary {
+    color: var(--on-brand);
+    background: var(--brand-gradient);
+    box-shadow: 0 12px 26px rgba(252, 105, 20, 0.25);
+}
+
+.store-registration-page .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 32px rgba(252, 105, 20, 0.34);
+}
+
+.store-registration-page .btn-secondary {
+    color: var(--text);
+    border-color: var(--border-strong);
+    background: var(--surface-raised);
+}
+
+.store-registration-page .btn-secondary:hover {
+    border-color: rgba(252, 105, 20, 0.48);
+    background: var(--surface-soft);
+}
+
+.store-registration-page .btn:disabled,
+.store-registration-page .btn.loading {
+    opacity: 0.66;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.store-registration-page .btn.loading::after {
+    content: "";
+    width: 16px;
+    height: 16px;
+    margin-left: 8px;
+    border: 2px solid rgba(39, 16, 5, 0.28);
+    border-top-color: var(--on-brand);
+    border-radius: 50%;
+    animation: storeSpin 750ms linear infinite;
+}
+
+@keyframes storeSpin {
+    to { transform: rotate(360deg); }
+}
+
+.store-registration-page .alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 22px;
+    padding: 15px 18px;
+    border: 1px solid;
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+}
+
+.store-registration-page .alert-danger {
+    color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 28%, transparent);
+    background: var(--danger-soft);
+}
+
+.store-registration-page .alert-success {
+    color: var(--success);
+    border-color: color-mix(in srgb, var(--success) 28%, transparent);
+    background: var(--success-soft);
+}
+
+.store-registration-page .alert-icon {
+    flex: 0 0 auto;
+    line-height: 1.4;
+}
+
+.store-registration-page .success-next-steps {
+    margin-top: 10px;
+    font-size: 0.9rem;
+}
+
+.store-registration-page .form-input.loading-cep {
+    padding-right: 44px;
+    background-image: radial-gradient(circle, var(--brand) 2px, transparent 3px);
+    background-position: right 18px center;
+    background-repeat: no-repeat;
+    background-size: 8px 8px;
+    animation: storeCepPulse 900ms ease-in-out infinite alternate;
+}
+
+@keyframes storeCepPulse {
+    from { background-size: 7px 7px; }
+    to { background-size: 13px 13px; }
+}
+
+.store-registration-page :where(button, input, select, textarea, [role="button"]):focus-visible {
+    outline: 3px solid var(--focus);
+    outline: 3px solid color-mix(in srgb, var(--focus) 62%, transparent);
+    outline-offset: 3px;
+}
+
+@media (max-width: 920px) {
+    .store-registration-page .registration-container {
+        align-items: flex-start;
+    }
+
+    .store-registration-page .registration-card {
+        display: block;
+        min-height: 0;
+    }
+
+    .store-registration-page .registration-header {
+        min-height: 0;
+        padding: 28px clamp(20px, 5vw, 38px) 24px;
+    }
+
+    .store-registration-page .registration-title {
+        max-width: 18ch;
+        font-size: clamp(1.65rem, 5vw, 2.25rem);
+    }
+
+    .store-registration-page .registration-subtitle {
+        max-width: 48ch;
+    }
+
+    .store-registration-page .progress-container {
+        display: block;
+        min-height: 0;
+        margin-top: 24px;
+    }
+
+    .store-registration-page .progress-bar {
+        margin-bottom: 14px;
+    }
+
+    .store-registration-page .progress-steps {
+        display: flex;
+        gap: 7px;
+        padding: 1px 1px 8px;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scroll-snap-type: x proximity;
+        scrollbar-color: rgba(39, 16, 5, 0.38) transparent;
+        scrollbar-width: thin;
+    }
+
+    .store-registration-page .progress-step {
+        flex: 0 0 auto;
+        min-width: max-content;
+        scroll-snap-align: start;
+    }
+
+    .store-registration-page .progress-step.active {
+        transform: none;
+    }
+}
+
+@media (max-width: 700px) {
+    .store-registration-page .registration-container {
+        padding: 10px;
+    }
+
+    .store-registration-page .registration-topbar {
+        margin-bottom: 9px;
+        border-radius: 15px;
+    }
+
+    .store-registration-page .registration-card {
+        border-radius: 21px;
+    }
+
+    .store-registration-page .registration-content {
+        padding: 28px clamp(17px, 5vw, 28px);
+    }
+
+    .store-registration-page .form-grid.two-columns,
+    .store-registration-page .summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .store-registration-page .form-grid {
+        gap: 17px;
+    }
+}
+
+@media (max-width: 480px) {
+    .store-registration-page .registration-container {
+        padding: 0;
+    }
+
+    .store-registration-page .registration-topbar {
+        margin: 8px 8px 7px;
+    }
+
+    .store-registration-page .registration-brand img {
+        height: 34px;
+    }
+
+    .store-registration-page .registration-card {
+        border-right: 0;
+        border-left: 0;
+        border-radius: 18px 18px 0 0;
+    }
+
+    .store-registration-page .registration-header {
+        padding: 25px 18px 20px;
+    }
+
+    .store-registration-page .registration-content {
+        padding: 25px 17px 30px;
+    }
+
+    .store-registration-page .logo-upload-container {
+        min-height: 190px;
+        padding: 24px 16px;
+    }
+
+    .store-registration-page .step-navigation {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .store-registration-page .navigation-spacer {
+        display: none;
+    }
+
+    .store-registration-page .step-navigation .btn {
+        width: 100%;
+        padding-inline: 12px;
+    }
+
+    .store-registration-page #nextBtn,
+    .store-registration-page #submitBtn {
+        grid-column: 2;
+    }
+
+    .store-registration-page #prevBtn[hidden] + .navigation-spacer + #nextBtn,
+    .store-registration-page #prevBtn[hidden] + .navigation-spacer + #submitBtn {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .store-registration-page *,
+    .store-registration-page *::before,
+    .store-registration-page *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+@media (forced-colors: active) {
+    .store-registration-page .registration-header,
+    .store-registration-page .btn-primary {
+        border: 1px solid ButtonText;
+        color: ButtonText;
+        background: Canvas;
+    }
+
+    .store-registration-page .progress-fill,
+    .store-registration-page .progress-step.active::before {
+        background: Highlight;
+    }
+}

@@ -18,18 +18,18 @@
     }
 
     // Verificar se o usuário é do tipo loja
-    if (!AuthController::isStore()) {
+    if (!AuthController::hasStoreAccess()) {
         header('Location: ' . CLIENT_DASHBOARD_URL . '?error=' . urlencode('Acesso restrito a lojas parceiras.'));
         exit;
     }
 
     // Obter ID do usuário logado
-    $userId = AuthController::getCurrentUserId();
+    $storeId = (int) AuthController::getStoreId();
 
     // Obter dados da loja associada ao usuário
     $db = Database::getConnection();
-    $storeQuery = $db->prepare("SELECT * FROM lojas WHERE usuario_id = :usuario_id");
-    $storeQuery->bindParam(':usuario_id', $userId);
+    $storeQuery = $db->prepare("SELECT * FROM lojas WHERE id = :loja_id");
+    $storeQuery->bindParam(':loja_id', $storeId, PDO::PARAM_INT);
     $storeQuery->execute();
 
     // Verificar se o usuário tem uma loja associada
@@ -40,7 +40,7 @@
 
     // Obter os dados da loja
     $store = $storeQuery->fetch(PDO::FETCH_ASSOC);
-    $storeId = $store['id'];
+    $storeId = (int) $store['id'];
 
     // Variáveis de controle
     $uploadResult = null;
@@ -274,14 +274,15 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Upload em Lote - Klube Cash</title>
         <link rel="shortcut icon" type="image/jpg" href="../../assets/images/icons/KlubeCashLOGO.ico"/>
-        <link rel="stylesheet" href="/assets/css/sidebar-lojista_sest.css">
+        <link rel="stylesheet" href="/assets/css/sidebar-lojista.css">
         <link rel="stylesheet" href="../../assets/css/views/stores/batch-upload.css">
-    </head>
+    <?php include __DIR__ . '/../components/store-app-head.php'; ?>
+</head>
     <body>
         <div class="dashboard-container">
             <!-- Incluir sidebar/menu lateral -->
             <?php
-            $activeMenu = 'nova-venda'; // Menu ativo para upload em lote
+            $activeMenu = 'batch-upload'; // Menu ativo para upload em lote
             include '../../views/components/sidebar-lojista-responsiva.php';
             ?>
             
@@ -354,7 +355,7 @@
                 <div class="template-section">
                     <div class="template-header">
                         <h3>Template do Arquivo</h3>
-                        <a href="../../downloads/template-upload-lote.csv" class="download-template-btn" download>
+                        <a href="/assets/downloads/template-upload-lote.csv" class="download-template-btn" download>
                             Baixar Template CSV
                         </a>
                     </div>
@@ -605,6 +606,5 @@
                 });
             }
         </script>
-        <script src="/assets/js/sidebar-lojista.js"></script>
     </body>
     </html>

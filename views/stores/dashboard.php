@@ -13,11 +13,6 @@ session_start();
 // Verificação ultra-simples - substitui TODAS as verificações anteriores
 StoreHelper::requireStoreAccess();
 
-// Registrar acesso para auditoria
-StoreHelper::logUserAction($_SESSION['user_id'], 'acessou_dashboard', [
-    'loja_id' => StoreHelper::getCurrentStoreId()
-]);
-
 // Obter dados da loja - funciona para lojista E funcionário
 $storeId = StoreHelper::getCurrentStoreId();
 $store = AuthController::getStoreData();
@@ -132,23 +127,10 @@ $activeMenu = 'dashboard';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard da Loja - Klube Cash</title>
     <link rel="shortcut icon" type="image/jpg" href="../../assets/images/icons/KlubeCashLOGO.ico"/>
-    <?php
-    // Determinar qual CSS carregar baseado no campo senat do usuário
-    $cssFile = 'dashboard.css'; // CSS padrão
-    if (isset($_SESSION['user_senat']) && ($_SESSION['user_senat'] === 'sim' || $_SESSION['user_senat'] === 'Sim')) {
-        $cssFile = 'dashboard_sest.css'; // CSS para usuários senat=sim
-    }
-    ?>
-    <link rel="stylesheet" href="../../assets/css/views/stores/<?php echo htmlspecialchars($cssFile); ?>">
-    <?php
-    // Determinar qual CSS da sidebar carregar baseado no campo senat do usuário
-    $sidebarCssFile = 'sidebar-lojista.css'; // CSS da sidebar padrão
-    if (isset($_SESSION['user_senat']) && ($_SESSION['user_senat'] === 'sim' || $_SESSION['user_senat'] === 'Sim')) {
-        $sidebarCssFile = 'sidebar-lojista_sest.css'; // CSS da sidebar para usuários senat=sim
-    }
-    ?>
-    <link rel="stylesheet" href="/assets/css/<?php echo htmlspecialchars($sidebarCssFile); ?>">
+    <link rel="stylesheet" href="../../assets/css/views/stores/dashboard.css">
+    <link rel="stylesheet" href="/assets/css/sidebar-lojista.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <?php include __DIR__ . '/../components/store-app-head.php'; ?>
 </head>
 <body>
     <div class="dashboard-container">
@@ -342,7 +324,7 @@ $activeMenu = 'dashboard';
             <div class="recent-transactions">
                 <div class="section-header">
                     <h2>Últimas Transações</h2>
-                    <a href="<?php echo STORE_PAYMENT_HISTORY_URL; ?>" class="link-more">Ver Todas</a>
+                    <a href="<?php echo STORE_TRANSACTIONS_URL; ?>" class="link-more">Ver Todas</a>
                 </div>
                 
                 <div class="table-responsive">
@@ -467,6 +449,5 @@ $activeMenu = 'dashboard';
     </div>
     
     <script src="../../assets/js/views/stores/dashboard.js"></script>
-    <script src="/assets/js/sidebar-lojista.js"></script>
 </body>
 </html>

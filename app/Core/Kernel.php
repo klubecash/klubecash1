@@ -25,10 +25,16 @@ final class Kernel
 
         $match = $this->router->match($_SERVER['REQUEST_METHOD'] ?? 'GET', $path);
         if ($match !== null) {
+            if (!$this->authorize($match->route, $path)) {
+                return;
+            }
             foreach ($match->parameters as $name => $value) {
                 $_GET[$name] = $value;
             }
-            $this->execute($match->route->target);
+            $this->execute(
+                $match->route->target,
+                str_starts_with($match->route->target, 'controllers/')
+            );
             return;
         }
 
@@ -46,6 +52,13 @@ final class Kernel
             if ($canonicalPath !== null) {
                 $query = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_QUERY);
                 header('Location: ' . $canonicalPath . ($query ? '?' . $query : ''), true, 308);
+                return;
+            }
+
+            // APIs legadas so podem existir quando ha uma rota canonica
+            // declarada. Arquivos de diagnostico soltos nunca sao executados.
+            if (str_starts_with($legacyTarget, 'api/')) {
+                $this->respondError(404, 'Pagina nao encontrada.');
                 return;
             }
 
@@ -73,7 +86,7 @@ final class Kernel
     private function legacyTarget(string $path): ?string
     {
         if (!preg_match(
-            '#^/((?:api/[^/]+)|(?:controllers/[a-zA-Z0-9_.-]+)|(?:views/(?:auth|client|stores|admin|blog|marketing)/[a-zA-Z0-9_.-]+)|politica-de-privacidade)\.php$#',
+            '#^/((?:api/[^/]+)|(?:views/(?:auth|client|stores|admin|blog|marketing)/[a-zA-Z0-9_.-]+)|politica-de-privacidade)\.php$#',
             $path,
             $match
         )) {
@@ -84,7 +97,67 @@ final class Kernel
         return is_file($this->root . '/' . $target) ? $target : null;
     }
 
-    private function execute(string $target): void
+    private function authorize(RouteDefinition $route, string $path): bool
+    {
+        $middleware = $route->middleware;
+        $userType = (string) ($_SESSION['user_type'] ?? '');
+        $authenticated = isset($_SESSION['user_id']) && $userType !== '';
+
+        $requiredRole = null;
+        foreach (['admin', 'store', 'client'] as $role) {
+            if (in_array($role, $middleware, true)) {
+                $requiredRole = $role;
+                break;
+            }
+        }
+
+        $needsAuthentication = in_array('auth', $middleware, true) || $requiredRole !== null;
+        if ($needsAuthentication && !$authenticated) {
+            return $this->denyRoute($path, 401, 'Autenticacao necessaria.');
+        }
+
+        $allowed = match ($requiredRole) {
+            'admin' => $userType === 'admin',
+            'store' => in_array($userType, ['loja', 'funcionario'], true)
+                && (int) ($_SESSION['store_id'] ?? 0) > 0,
+            'client' => $userType === 'cliente',
+            default => true,
+        };
+
+        if (!$allowed) {
+            return $this->denyRoute($path, 403, 'Acesso nao autorizado.');
+        }
+
+        return true;
+    }
+
+    private function denyRoute(string $path, int $status, string $message): bool
+    {
+        if (
+            str_starts_with($path, '/api/')
+            || str_contains($path, '/ajax/')
+            || $path === '/cliente/actions'
+        ) {
+            http_response_code($status);
+            header('Content-Type: application/json; charset=UTF-8');
+            echo json_encode([
+                'status' => false,
+                'message' => $message,
+                'request_id' => RequestContext::id(),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            return false;
+        }
+
+        if ($status === 401) {
+            header('Location: /login?error=' . rawurlencode($message), true, 302);
+            return false;
+        }
+
+        $this->respondError($status, $message);
+        return false;
+    }
+
+    private function execute(string $target, bool $activateController = false): void
     {
         $absolute = $this->root . '/' . ltrim($target, '/');
         if (!is_file($absolute)) {
@@ -94,6 +167,11 @@ final class Kernel
 
         $_SERVER['SCRIPT_FILENAME'] = $absolute;
         $_SERVER['SCRIPT_NAME'] = '/' . ltrim($target, '/');
+        if ($activateController) {
+            // Apenas rotas canonicas com middleware validado podem ativar os
+            // switches legados de controller.
+            $_SERVER['PHP_SELF'] = $_SERVER['SCRIPT_NAME'];
+        }
         chdir(dirname($absolute));
         require $absolute;
     }

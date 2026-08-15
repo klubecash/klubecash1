@@ -23,9 +23,11 @@ header('Content-Type: application/json; charset=UTF-8');
 $allowed_origins = [
     'https://klubecash.com',     
     'https://www.klubecash.com',
-    'https://sest-senat.klubecash.com',
     'https://sdk.mercadopago.com'
 ];
+if (!defined('USERS_API_ALLOWED_ORIGINS')) {
+    define('USERS_API_ALLOWED_ORIGINS', $allowed_origins);
+}
 
 if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowed_origins)) {
     header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
@@ -35,20 +37,21 @@ header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 header('Access-Control-Allow-Credentials: true');
 
-session_set_cookie_params([
-    'lifetime' => 0,
-    'path'     => '/',
-    'domain'   => '.klubecash.com',
-    'secure'   => true,
-    'httponly' => true,
-    'samesite' => 'None' 
-]);
-
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
 if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'domain'   => '',
+        'secure'   => getenv('VERCEL') === '1'
+            || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https',
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
     session_start();
 }
 
@@ -306,10 +309,12 @@ function logoutUser() {
         setcookie('jwt_token', '', [
             'expires' => time() - 3600,
             'path' => '/',
-            'domain' => '.klubecash.com',
-            'secure' => true,
+            'domain' => '',
+            'secure' => getenv('VERCEL') === '1'
+                || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https',
             'httponly' => true,
-            'samesite' => 'None',
+            'samesite' => 'Lax',
         ]);
     }
 
@@ -367,7 +372,7 @@ function loginUser() {
         require_once __DIR__ . '/../controllers/AuthController.php';
     }
     
-    $result = AuthController::login($data['email'], $data['senha'], false, ($data['origem'] ?? '')); 
+    $result = AuthController::login($data['email'], $data['senha'], false);
     
     if ($result['status']) {
         if (session_status() === PHP_SESSION_ACTIVE) { session_destroy(); }
@@ -385,8 +390,12 @@ function loginUser() {
                 'jwt_token', $token,
                 [
                     'expires'  => time() + (defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400),
-                    'path'     => '/', 'domain'   => '.klubecash.com',
-                    'secure'   => true, 'httponly' => true, 'samesite' => 'None'
+                    'path'     => '/', 'domain'   => '',
+                    'secure'   => getenv('VERCEL') === '1'
+                        || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                        || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https',
+                    'httponly' => true,
+                    'samesite' => 'Lax'
                 ]
             );
         }
@@ -399,8 +408,19 @@ function recoverPassword() {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         http_response_code(405); echo json_encode(['status' => false, 'message' => 'Método não permitido']); exit;
     }
+
+    $contentType = strtolower(trim(explode(';', (string) ($_SERVER['CONTENT_TYPE'] ?? ''), 2)[0]));
+    if ($contentType !== 'application/json') {
+        http_response_code(415); echo json_encode(['status' => false, 'message' => 'Content-Type deve ser application/json']); exit;
+    }
+
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    if ($origin !== '' && !in_array($origin, USERS_API_ALLOWED_ORIGINS, true)) {
+        http_response_code(403); echo json_encode(['status' => false, 'message' => 'Origem não permitida']); exit;
+    }
+
     $data = json_decode(file_get_contents('php://input'), true);
-    if (!$data || !isset($data['email'])) {
+    if (!$data || !isset($data['email']) || !is_string($data['email'])) {
         http_response_code(400); echo json_encode(['status' => false, 'message' => 'Email obrigatório']); exit;
     }
     

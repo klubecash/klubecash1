@@ -2,11 +2,12 @@
 .github
 .claude
 .vercel
+.env
+.env.*
 node_modules
 vendor
 documentacao
-database/*.sql
-database/test_*.sql
+database/**
 logs
 *.log
 *.md

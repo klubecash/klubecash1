@@ -4,12 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "check:php": "bash scripts/quality/php-lint.sh",
+    "check:php": "php scripts/quality/php-lint.php",
     "check:routes": "php scripts/quality/check-routes.php",
+    "check:email": "php scripts/quality/check-email-config.php",
     "docs:routes": "php scripts/quality/generate-route-inventory.php",
     "check:secrets": "php scripts/quality/check-secrets.php",
     "test:smoke": "bash scripts/quality/smoke-test.sh",
-    "test": "npm run check:php && npm run check:routes"
+    "test": "npm run check:php && npm run check:routes && npm run check:email"
   },
   "repository": {
     "type": "git",

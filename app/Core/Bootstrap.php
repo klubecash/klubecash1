@@ -77,20 +77,43 @@ final class Bootstrap
             return;
         }
 
+        // Use a Klube Cash-specific cookie name so stale PHPSESSID cookies
+        // left by the legacy hosting cannot override the current session.
+        $sessionName = trim((string) (getenv('SESSION_NAME') ?: 'KLCSESSID'));
+        if (preg_match('/^[A-Za-z][A-Za-z0-9_]{0,31}$/', $sessionName) !== 1) {
+            $sessionName = 'KLCSESSID';
+        }
+        session_name($sessionName);
+
         $host = preg_replace('/:\\d+$/', '', $_SERVER['HTTP_HOST'] ?? '');
-        $cookieDomain = str_ends_with($host, 'klubecash.com') ? '.klubecash.com' : '';
+        // Host-only para impedir que outros subdominios fixem a sessao.
+        $cookieDomain = '';
+
+        $forwardedProtocol = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+        $secureCookie = $cookieDomain !== ''
+            || $forwardedProtocol === 'https'
+            || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || getenv('VERCEL') === '1';
+        $sessionLifetime = defined('SESSION_LIFETIME') ? (int) SESSION_LIFETIME : 3600;
+
+        $defaultDriver = getenv('VERCEL') === '1' ? 'database' : 'files';
+        $sessionDriver = strtolower(trim((string) (getenv('SESSION_DRIVER') ?: $defaultDriver)));
+        if ($sessionDriver === 'database') {
+            $handler = new DatabaseSessionHandler(\Database::getConnection(), $sessionLifetime);
+            session_set_save_handler($handler, true);
+        }
 
         session_set_cookie_params([
             'lifetime' => 0,
             'path' => '/',
             'domain' => $cookieDomain,
-            'secure' => $cookieDomain !== '',
+            'secure' => $secureCookie,
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
         ini_set('session.use_only_cookies', '1');
         ini_set('session.use_strict_mode', '1');
-        ini_set('session.gc_maxlifetime', (string) (defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 3600));
+        ini_set('session.gc_maxlifetime', (string) $sessionLifetime);
         session_start();
     }
 }

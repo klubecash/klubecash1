@@ -187,7 +187,7 @@ function hideLoading() {
  * Carrega lojas disponíveis para vinculação
  */
 function loadAvailableStores() {
-    fetch('/controllers/AdminController.php', {
+    fetch('/admin/ajax/users', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -266,7 +266,7 @@ function handleStoreEmailChange(email) {
     }
     
     // Buscar dados da loja selecionada
-    fetch('/controllers/AdminController.php', {
+    fetch('/admin/ajax/users', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -440,7 +440,7 @@ function editUser(userId) {
     // Carregar dados do usuário
     showLoading();
     
-    fetch('/controllers/AdminController.php', {
+    fetch('/admin/ajax/users', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -503,7 +503,7 @@ function viewUser(userId) {
     modal.classList.add('show');
     content.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Carregando...</div>';
     
-    fetch('/controllers/AdminController.php', {
+    fetch('/admin/ajax/users', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -620,7 +620,7 @@ function changeUserStatus(userId, newStatus, userName) {
     
     showLoading();
     
-    fetch('/controllers/AdminController.php', {
+    fetch('/admin/ajax/users', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -713,7 +713,7 @@ function submitUserForm(event) {
         }
     }
     
-    const url = isEditing ? '/controllers/AdminController.php' : '/controllers/AuthController.php';
+    const url = isEditing ? '/admin/ajax/users' : '/admin/ajax/auth';
     
     fetch(url, {
         method: 'POST',
@@ -896,7 +896,7 @@ function bulkAction(status) {
     let successful = 0;
     
     const processUser = (userId) => {
-        return fetch('/controllers/AdminController.php', {
+        return fetch('/admin/ajax/users', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',

@@ -7,7 +7,7 @@ require_once '../controllers/TransactionController.php';
 header('Content-Type: application/json; charset=UTF-8');
 session_start();
 
-if (!AuthController::isAuthenticated() || !AuthController::isStore()) {
+if (!AuthController::isAuthenticated() || !AuthController::hasStoreAccess()) {
     echo json_encode(['status' => false, 'message' => 'Acesso não autorizado']);
     exit;
 }

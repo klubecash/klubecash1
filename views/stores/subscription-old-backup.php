@@ -85,14 +85,7 @@ $activeMenu = 'meu-plano';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meu Plano - <?php echo SYSTEM_NAME; ?></title>
 
-    <?php
-    // Determinar qual CSS da sidebar carregar baseado no campo senat do usuário
-    $sidebarCssFile = 'sidebar-lojista.css'; // CSS da sidebar padrão
-    if (isset($_SESSION['user_senat']) && ($_SESSION['user_senat'] === 'sim' || $_SESSION['user_senat'] === 'Sim')) {
-        $sidebarCssFile = 'sidebar-lojista_sest.css'; // CSS da sidebar para usuários senat=sim
-    }
-    ?>
-    <link rel="stylesheet" href="/assets/css/<?php echo htmlspecialchars($sidebarCssFile); ?>">
+    <link rel="stylesheet" href="/assets/css/sidebar-lojista.css">
 
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }

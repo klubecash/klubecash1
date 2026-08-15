@@ -64,7 +64,7 @@ $activeMenu = 'meu-plano';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pagamento de Assinatura - <?php echo SYSTEM_NAME; ?></title>
     <link rel="stylesheet" href="../../assets/css/store.css">
-    <link rel="stylesheet" href="/assets/css/sidebar-lojista_sest.css">
+    <link rel="stylesheet" href="/assets/css/sidebar-lojista.css">
 
     <!-- Stripe.js -->
     <script src="https://js.stripe.com/v3/"></script>

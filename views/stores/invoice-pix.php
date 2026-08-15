@@ -8,7 +8,10 @@ require_once __DIR__ . '/../../config/constants.php';
 
 session_start();
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'loja') {
+if (
+    !isset($_SESSION['user_id'], $_SESSION['store_id'])
+    || !in_array($_SESSION['user_type'] ?? '', ['loja', 'funcionario'], true)
+) {
     header('Location: ' . LOGIN_URL);
     exit;
 }
@@ -63,7 +66,7 @@ $activeMenu = 'meu-plano';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pagamento via PIX - <?php echo SYSTEM_NAME; ?></title>
     <link rel="stylesheet" href="../../assets/css/store.css">
-    <link rel="stylesheet" href="/assets/css/sidebar-lojista_sest.css">
+    <link rel="stylesheet" href="/assets/css/sidebar-lojista.css">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: #f5f7fa; }
@@ -145,6 +148,7 @@ $activeMenu = 'meu-plano';
             .amount-value { font-size: 32px; }
         }
     </style>
+    <?php include __DIR__ . '/../components/store-app-head.php'; ?>
 </head>
 <body>
     <?php
@@ -388,6 +392,5 @@ $activeMenu = 'meu-plano';
         checkPaymentStatus();
         <?php endif; ?>
     </script>
-    <script src="/assets/js/sidebar-lojista.js"></script>
 </body>
 </html>

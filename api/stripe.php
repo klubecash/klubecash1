@@ -1,269 +1,360 @@
 <?php
-/**
- * API Endpoint para pagamentos com cartão via Stripe
- *
- * Endpoints disponíveis:
- * - POST ?action=create_payment_intent&invoice_id=X - Cria Payment Intent para pagamento com cartão
- * - GET ?action=payment_status&payment_intent_id=X - Consulta status de um pagamento
- * - POST ?action=cancel_payment&payment_intent_id=X - Cancela um pagamento pendente
- *
- * @package KlubeCash
- * @version 1.0.0
- */
 
-header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
+declare(strict_types=1);
 
-// Tratar preflight CORS
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
+header('Content-Type: application/json; charset=UTF-8');
+header('Cache-Control: no-store');
+header('X-Content-Type-Options: nosniff');
 
 require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../utils/StripePayClient.php';
 require_once __DIR__ . '/../config/constants.php';
+require_once __DIR__ . '/../controllers/AuthController.php';
+require_once __DIR__ . '/../utils/StripePayClient.php';
 
-// Função para retornar resposta JSON
-function jsonResponse($data, $statusCode = 200)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+/**
+ * @param array<string, mixed> $payload
+ */
+function stripeJsonResponse(array $payload, int $statusCode = 200): never
 {
     http_response_code($statusCode);
-    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
-// Função para log de erros
-function logError($message, $context = [])
+function stripeRequireStoreId(): int
 {
-    $logFile = __DIR__ . '/../logs/stripe_api.log';
-    $timestamp = date('Y-m-d H:i:s');
-    $contextStr = !empty($context) ? json_encode($context) : '';
-    $logMessage = "[{$timestamp}] {$message} {$contextStr}\n";
-    file_put_contents($logFile, $logMessage, FILE_APPEND);
+    if (!AuthController::hasStoreAccess()) {
+        stripeJsonResponse([
+            'success' => false,
+            'error' => 'Autenticação necessária.',
+        ], 401);
+    }
+
+    $storeId = (int) AuthController::getStoreId();
+    if ($storeId <= 0) {
+        stripeJsonResponse([
+            'success' => false,
+            'error' => 'A sessão não está associada a uma loja.',
+        ], 403);
+    }
+
+    return $storeId;
 }
 
-// Obter ação e método HTTP
-$action = $_GET['action'] ?? '';
-$method = $_SERVER['REQUEST_METHOD'];
+function stripeInvoiceId(mixed $value): int
+{
+    $invoiceId = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($invoiceId === false) {
+        stripeJsonResponse([
+            'success' => false,
+            'error' => 'invoice_id é obrigatório.',
+        ], 400);
+    }
 
-try {
-    // Inicializar cliente Stripe
-    $stripeClient = new StripePayClient();
-    $db = Database::getConnection();
+    return (int) $invoiceId;
+}
 
-    // ============================================================================
-    // POST /api/stripe.php?action=create_payment_intent&invoice_id=123
-    // Cria Payment Intent para fatura específica
-    // ============================================================================
-    if ($method === 'POST' && $action === 'create_payment_intent') {
-        $invoiceId = $_GET['invoice_id'] ?? null;
+function stripePaymentIntentId(mixed $value): string
+{
+    $paymentIntentId = trim((string) $value);
+    if (!preg_match('/^pi_[A-Za-z0-9_]{3,252}$/', $paymentIntentId)) {
+        stripeJsonResponse([
+            'success' => false,
+            'error' => 'payment_intent_id inválido.',
+        ], 400);
+    }
 
-        if (!$invoiceId) {
-            jsonResponse(['error' => 'invoice_id é obrigatório'], 400);
-        }
+    return $paymentIntentId;
+}
 
-        // Buscar dados da fatura com informações da loja
+function stripeRequireConfiguration(): void
+{
+    if (!defined('STRIPE_SECRET_KEY') || trim((string) STRIPE_SECRET_KEY) === '') {
+        stripeJsonResponse([
+            'success' => false,
+            'error' => 'Integração com cartão indisponível no momento.',
+        ], 503);
+    }
+}
+
+function stripeCreatePaymentIntent(int $storeId): never
+{
+    stripeRequireConfiguration();
+    $invoiceId = stripeInvoiceId($_GET['invoice_id'] ?? null);
+    $db = null;
+
+    try {
+        $db = Database::getConnection();
+        $db->beginTransaction();
+
         $stmt = $db->prepare("
-            SELECT
-                f.id as fatura_id,
-                f.assinatura_id,
-                f.numero as fatura_numero,
-                f.amount,
-                f.status as fatura_status,
-                f.gateway_charge_id,
-                l.id as loja_id,
-                l.nome_fantasia,
-                l.email,
-                l.cnpj,
-                a.loja_id,
-                p.nome as plano_nome,
-                a.ciclo
+            SELECT f.id AS fatura_id,
+                   f.assinatura_id,
+                   f.numero AS fatura_numero,
+                   f.amount,
+                   f.status AS fatura_status,
+                   f.gateway_charge_id,
+                   l.id AS loja_id,
+                   l.nome_fantasia,
+                   l.email,
+                   p.nome AS plano_nome,
+                   a.ciclo
             FROM faturas f
             INNER JOIN assinaturas a ON f.assinatura_id = a.id
             INNER JOIN lojas l ON a.loja_id = l.id
             INNER JOIN planos p ON a.plano_id = p.id
             WHERE f.id = ?
+              AND a.loja_id = ?
+            FOR UPDATE
         ");
-        $stmt->execute([$invoiceId]);
-        $fatura = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->execute([$invoiceId, $storeId]);
+        $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$fatura) {
-            jsonResponse(['error' => 'Fatura não encontrada'], 404);
+        if (!$invoice) {
+            $db->rollBack();
+            stripeJsonResponse([
+                'success' => false,
+                'error' => 'Fatura não encontrada.',
+            ], 404);
         }
 
-        // Verificar se fatura já foi paga
-        if ($fatura['fatura_status'] === 'paid') {
-            jsonResponse(['error' => 'Fatura já foi paga'], 400);
+        if (in_array((string) $invoice['fatura_status'], ['paid', 'canceled', 'refunded'], true)) {
+            $db->rollBack();
+            stripeJsonResponse([
+                'success' => false,
+                'error' => 'Esta fatura não pode receber um novo pagamento.',
+            ], 409);
         }
 
-        // Verificar se já existe Payment Intent criado para esta fatura
-        if ($fatura['gateway_charge_id'] && strpos($fatura['gateway_charge_id'], 'pi_') === 0) {
-            // Payment Intent já existe, retornar dados existentes
-            try {
-                $existingPI = $stripeClient->getPaymentIntent($fatura['gateway_charge_id']);
+        $stripeClient = new StripePayClient();
+        $existingPaymentIntentId = (string) ($invoice['gateway_charge_id'] ?? '');
+        if (str_starts_with($existingPaymentIntentId, 'pi_')) {
+            // Falhas na consulta não criam uma segunda cobrança: o operador pode
+            // tentar novamente quando a Stripe estiver disponível.
+            $existingPaymentIntent = $stripeClient->getPaymentIntent($existingPaymentIntentId);
+            $existingStatus = (string) ($existingPaymentIntent['status'] ?? '');
 
-                // Se o Payment Intent ainda está pendente, retornar ele
-                if (in_array($existingPI['status'], ['requires_payment_method', 'requires_confirmation', 'requires_action'])) {
-                    jsonResponse([
-                        'success' => true,
-                        'payment_intent_id' => $existingPI['id'],
-                        'client_secret' => null, // Por segurança, não expor client_secret de PIs antigos
-                        'status' => $existingPI['status'],
-                        'amount' => $existingPI['amount'],
-                        'message' => 'Payment Intent já existe para esta fatura'
-                    ]);
-                }
-            } catch (Exception $e) {
-                // Se Payment Intent não existe mais, criar novo
-                logError("Payment Intent anterior não encontrado: " . $e->getMessage());
+            if ($existingStatus !== 'canceled') {
+                $db->commit();
+                stripeJsonResponse([
+                    'success' => true,
+                    'payment_intent_id' => (string) $existingPaymentIntent['id'],
+                    'client_secret' => null,
+                    'status' => $existingStatus,
+                    'amount' => (int) $existingPaymentIntent['amount'],
+                    'currency' => (string) $existingPaymentIntent['currency'],
+                    'message' => 'Já existe um pagamento Stripe para esta fatura.',
+                ]);
             }
         }
 
-        // Preparar payload para Stripe
-        $cicloTexto = $fatura['ciclo'] === 'yearly' ? 'anual' : 'mensal';
-        $payload = [
-            'amount' => StripePayClient::toCents($fatura['amount']),
+        $amountInCents = StripePayClient::toCents($invoice['amount']);
+        if ($amountInCents <= 0) {
+            $db->rollBack();
+            stripeJsonResponse([
+                'success' => false,
+                'error' => 'A fatura possui valor inválido.',
+            ], 422);
+        }
+
+        $cycleLabel = $invoice['ciclo'] === 'yearly' ? 'anual' : 'mensal';
+        $paymentIntent = $stripeClient->createPaymentIntent([
+            'amount' => $amountInCents,
             'currency' => 'brl',
-            'description' => "Klube Cash - {$fatura['plano_nome']} ({$cicloTexto}) - Fatura #{$fatura['fatura_numero']}",
-            'customer_email' => $fatura['email'],
+            'description' => "Klube Cash - {$invoice['plano_nome']} ({$cycleLabel}) - Fatura #{$invoice['fatura_numero']}",
+            'customer_email' => $invoice['email'],
             'metadata' => [
-                'invoice_id' => $fatura['fatura_id'],
-                'invoice_number' => $fatura['fatura_numero'],
-                'subscription_id' => $fatura['assinatura_id'],
-                'store_id' => $fatura['loja_id'],
-                'store_name' => $fatura['nome_fantasia'],
-                'plan_name' => $fatura['plano_nome'],
-                'billing_cycle' => $fatura['ciclo'],
+                'invoice_id' => (string) $invoice['fatura_id'],
+                'invoice_number' => (string) $invoice['fatura_numero'],
+                'subscription_id' => (string) $invoice['assinatura_id'],
+                'store_id' => (string) $storeId,
+                'store_name' => (string) $invoice['nome_fantasia'],
+                'plan_name' => (string) $invoice['plano_nome'],
+                'billing_cycle' => (string) $invoice['ciclo'],
             ],
-        ];
+        ]);
 
-        // Criar Payment Intent na Stripe
-        $paymentIntent = $stripeClient->createPaymentIntent($payload);
+        if (empty($paymentIntent['id']) || empty($paymentIntent['client_secret'])) {
+            throw new RuntimeException('A Stripe não retornou um Payment Intent completo.');
+        }
 
-        // Atualizar fatura com dados do Payment Intent
         $updateStmt = $db->prepare("
-            UPDATE faturas SET
-                gateway = 'stripe',
-                gateway_charge_id = ?,
-                payment_method = 'card',
-                updated_at = NOW()
-            WHERE id = ?
+            UPDATE faturas f
+            INNER JOIN assinaturas a ON f.assinatura_id = a.id
+            SET f.gateway = 'stripe',
+                f.gateway_charge_id = ?,
+                f.payment_method = 'card',
+                f.updated_at = NOW()
+            WHERE f.id = ?
+              AND a.loja_id = ?
         ");
-        $updateStmt->execute([
-            $paymentIntent['id'],
-            $invoiceId
-        ]);
-
-        logError("Payment Intent criado com sucesso", [
-            'invoice_id' => $invoiceId,
-            'payment_intent_id' => $paymentIntent['id'],
-            'amount' => $paymentIntent['amount']
-        ]);
-
-        jsonResponse([
-            'success' => true,
-            'payment_intent_id' => $paymentIntent['id'],
-            'client_secret' => $paymentIntent['client_secret'],
-            'status' => $paymentIntent['status'],
-            'amount' => $paymentIntent['amount'],
-            'currency' => $paymentIntent['currency'],
-        ]);
-    }
-
-    // ============================================================================
-    // GET /api/stripe.php?action=payment_status&payment_intent_id=pi_xxx
-    // Consulta status de pagamento
-    // ============================================================================
-    elseif ($method === 'GET' && $action === 'payment_status') {
-        $paymentIntentId = $_GET['payment_intent_id'] ?? null;
-
-        if (!$paymentIntentId) {
-            jsonResponse(['error' => 'payment_intent_id é obrigatório'], 400);
+        $updateStmt->execute([(string) $paymentIntent['id'], $invoiceId, $storeId]);
+        if ($updateStmt->rowCount() !== 1) {
+            throw new RuntimeException('A fatura foi alterada durante a criação do pagamento.');
         }
 
-        // Consultar Payment Intent na Stripe
-        $paymentIntent = $stripeClient->getPaymentIntent($paymentIntentId);
+        $db->commit();
 
-        // Buscar fatura associada
-        $stmt = $db->prepare("
-            SELECT id, status, paid_at
-            FROM faturas
-            WHERE gateway_charge_id = ?
-        ");
-        $stmt->execute([$paymentIntentId]);
-        $fatura = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        jsonResponse([
+        stripeJsonResponse([
             'success' => true,
-            'payment_intent_id' => $paymentIntent['id'],
-            'status' => $paymentIntent['status'],
-            'amount' => $paymentIntent['amount'],
-            'currency' => $paymentIntent['currency'],
-            'invoice_status' => $fatura ? $fatura['status'] : null,
-            'paid_at' => $fatura ? $fatura['paid_at'] : null,
-        ]);
-    }
-
-    // ============================================================================
-    // POST /api/stripe.php?action=cancel_payment&payment_intent_id=pi_xxx
-    // Cancela Payment Intent pendente
-    // ============================================================================
-    elseif ($method === 'POST' && $action === 'cancel_payment') {
-        $paymentIntentId = $_GET['payment_intent_id'] ?? null;
-
-        if (!$paymentIntentId) {
-            jsonResponse(['error' => 'payment_intent_id é obrigatório'], 400);
+            'payment_intent_id' => (string) $paymentIntent['id'],
+            'client_secret' => (string) $paymentIntent['client_secret'],
+            'status' => (string) $paymentIntent['status'],
+            'amount' => (int) $paymentIntent['amount'],
+            'currency' => (string) $paymentIntent['currency'],
+        ], 201);
+    } catch (Throwable $e) {
+        if ($db instanceof PDO && $db->inTransaction()) {
+            $db->rollBack();
         }
 
-        // Cancelar na Stripe
-        $result = $stripeClient->cancelPaymentIntent($paymentIntentId);
-
-        // Atualizar fatura para status 'canceled'
-        $stmt = $db->prepare("
-            UPDATE faturas SET
-                status = 'canceled',
-                updated_at = NOW()
-            WHERE gateway_charge_id = ?
-        ");
-        $stmt->execute([$paymentIntentId]);
-
-        logError("Payment Intent cancelado", [
-            'payment_intent_id' => $paymentIntentId,
-            'status' => $result['status']
-        ]);
-
-        jsonResponse([
-            'success' => true,
-            'payment_intent_id' => $result['id'],
-            'status' => $result['status'],
-            'message' => 'Pagamento cancelado com sucesso'
-        ]);
+        error_log('Stripe create Payment Intent error: ' . $e->getMessage());
+        stripeJsonResponse([
+            'success' => false,
+            'error' => 'Não foi possível iniciar o pagamento com cartão.',
+        ], 502);
     }
-
-    // ============================================================================
-    // Ação não reconhecida
-    // ============================================================================
-    else {
-        jsonResponse([
-            'error' => 'Ação não reconhecida',
-            'available_actions' => [
-                'create_payment_intent' => 'POST ?action=create_payment_intent&invoice_id=X',
-                'payment_status' => 'GET ?action=payment_status&payment_intent_id=pi_xxx',
-                'cancel_payment' => 'POST ?action=cancel_payment&payment_intent_id=pi_xxx',
-            ]
-        ], 400);
-    }
-} catch (Exception $e) {
-    logError("Erro na API Stripe: " . $e->getMessage(), [
-        'action' => $action,
-        'method' => $method,
-        'trace' => $e->getTraceAsString()
-    ]);
-
-    jsonResponse([
-        'error' => 'Erro ao processar requisição',
-        'message' => $e->getMessage()
-    ], 500);
 }
+
+function stripePaymentStatus(int $storeId): never
+{
+    stripeRequireConfiguration();
+    $paymentIntentId = stripePaymentIntentId($_GET['payment_intent_id'] ?? null);
+
+    try {
+        $db = Database::getConnection();
+        $stmt = $db->prepare("
+            SELECT f.id, f.status, f.paid_at
+            FROM faturas f
+            INNER JOIN assinaturas a ON f.assinatura_id = a.id
+            WHERE f.gateway_charge_id = ?
+              AND a.loja_id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$paymentIntentId, $storeId]);
+        $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$invoice) {
+            stripeJsonResponse([
+                'success' => false,
+                'error' => 'Pagamento não encontrado.',
+            ], 404);
+        }
+
+        $paymentIntent = (new StripePayClient())->getPaymentIntent($paymentIntentId);
+        stripeJsonResponse([
+            'success' => true,
+            'payment_intent_id' => (string) $paymentIntent['id'],
+            'status' => (string) $paymentIntent['status'],
+            'amount' => (int) $paymentIntent['amount'],
+            'currency' => (string) $paymentIntent['currency'],
+            'invoice_status' => (string) $invoice['status'],
+            'paid_at' => $invoice['paid_at'],
+        ]);
+    } catch (Throwable $e) {
+        error_log('Stripe payment status error: ' . $e->getMessage());
+        stripeJsonResponse([
+            'success' => false,
+            'error' => 'Não foi possível consultar o pagamento com cartão.',
+        ], 502);
+    }
+}
+
+function stripeCancelPayment(int $storeId): never
+{
+    stripeRequireConfiguration();
+    $paymentIntentId = stripePaymentIntentId($_GET['payment_intent_id'] ?? null);
+
+    try {
+        $db = Database::getConnection();
+        $stmt = $db->prepare("
+            SELECT f.id, f.status
+            FROM faturas f
+            INNER JOIN assinaturas a ON f.assinatura_id = a.id
+            WHERE f.gateway_charge_id = ?
+              AND a.loja_id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$paymentIntentId, $storeId]);
+        $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$invoice) {
+            stripeJsonResponse([
+                'success' => false,
+                'error' => 'Pagamento não encontrado.',
+            ], 404);
+        }
+
+        if ($invoice['status'] !== 'pending') {
+            stripeJsonResponse([
+                'success' => false,
+                'error' => 'Apenas pagamentos pendentes podem ser cancelados.',
+            ], 409);
+        }
+
+        $result = (new StripePayClient())->cancelPaymentIntent($paymentIntentId);
+
+        $updateStmt = $db->prepare("
+            UPDATE faturas f
+            INNER JOIN assinaturas a ON f.assinatura_id = a.id
+            SET f.status = 'canceled',
+                f.updated_at = NOW()
+            WHERE f.id = ?
+              AND a.loja_id = ?
+              AND f.status = 'pending'
+        ");
+        $updateStmt->execute([(int) $invoice['id'], $storeId]);
+
+        if ($updateStmt->rowCount() !== 1) {
+            stripeJsonResponse([
+                'success' => false,
+                'error' => 'O estado da fatura mudou durante o cancelamento.',
+            ], 409);
+        }
+
+        stripeJsonResponse([
+            'success' => true,
+            'payment_intent_id' => (string) $result['id'],
+            'status' => (string) $result['status'],
+            'message' => 'Pagamento cancelado com sucesso.',
+        ]);
+    } catch (Throwable $e) {
+        error_log('Stripe cancel Payment Intent error: ' . $e->getMessage());
+        stripeJsonResponse([
+            'success' => false,
+            'error' => 'Não foi possível cancelar o pagamento com cartão.',
+        ], 502);
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
+
+$storeId = stripeRequireStoreId();
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$action = (string) ($_GET['action'] ?? '');
+
+if ($method === 'POST' && $action === 'create_payment_intent') {
+    stripeCreatePaymentIntent($storeId);
+}
+
+if ($method === 'GET' && $action === 'payment_status') {
+    stripePaymentStatus($storeId);
+}
+
+if ($method === 'POST' && $action === 'cancel_payment') {
+    stripeCancelPayment($storeId);
+}
+
+stripeJsonResponse([
+    'success' => false,
+    'error' => $method === 'GET' || $method === 'POST'
+        ? 'Ação inválida.'
+        : 'Método não permitido.',
+], $method === 'GET' || $method === 'POST' ? 400 : 405);

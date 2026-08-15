@@ -552,7 +552,7 @@ if ($activeTab === 'balance') {
                                                         </button>
                                                     <?php endif; ?>
                                                     <?php if (!empty($payment['comprovante'])): ?>
-                                                        <button class="btn-action btn-view" onclick="viewReceipt('<?php echo htmlspecialchars($payment['comprovante']); ?>')">
+                                                        <button class="btn-action btn-view" onclick="viewReceipt(<?php echo (int) $payment['id']; ?>)">
                                                             Comprovante
                                                         </button>
                                                     <?php endif; ?>
@@ -965,7 +965,7 @@ if ($activeTab === 'balance') {
             modal.style.display = 'block';
             content.innerHTML = '<p>Carregando detalhes...</p>';
             
-            fetch('../../controllers/TransactionController.php', {
+            fetch('/admin/ajax/transaction-controller', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -1061,10 +1061,15 @@ if ($activeTab === 'balance') {
             contentElement.innerHTML = html;
         }
         
-        function viewReceipt(filename) {
-            if (!filename) return;
-            document.getElementById('receiptImage').src = '../../uploads/comprovantes/' + filename;
-            document.getElementById('receiptModal').style.display = 'block';
+        function viewReceipt(paymentId) {
+            const normalizedPaymentId = Number.parseInt(paymentId, 10);
+            if (!Number.isInteger(normalizedPaymentId) || normalizedPaymentId <= 0) return;
+
+            window.open(
+                '/api/payment-receipt?payment_id=' + encodeURIComponent(normalizedPaymentId),
+                '_blank',
+                'noopener,noreferrer'
+            );
         }
         
         // Funções para pagamentos de saldo às lojas
@@ -1074,7 +1079,7 @@ if ($activeTab === 'balance') {
             modal.style.display = 'block';
             content.innerHTML = '<p>Carregando detalhes...</p>';
             
-            fetch('../../controllers/StoreBalancePaymentController.php', {
+            fetch('/admin/ajax/store-balance-payments', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -1192,7 +1197,7 @@ if ($activeTab === 'balance') {
             
             // Se movimentações não foram fornecidas, buscar do backend
             if (!movimentacoes) {
-                fetch('../../controllers/StoreBalancePaymentController.php', {
+                fetch('/admin/ajax/store-balance-payments', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
@@ -1224,7 +1229,7 @@ if ($activeTab === 'balance') {
             modal.style.display = 'block';
             content.innerHTML = '<p>Carregando detalhes...</p>';
             
-            fetch('../../controllers/StoreBalancePaymentController.php', {
+            fetch('/admin/ajax/store-balance-payments', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',

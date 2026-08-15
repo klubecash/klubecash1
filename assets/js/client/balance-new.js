@@ -303,7 +303,7 @@ function viewStoreDetails(storeId) {
     modalContent.innerHTML = '<div class="loading-state">🔄 Buscando informações da loja...</div>';
     
     // Fazer requisição para obter detalhes (mantendo URL original)
-    fetch(`../../controllers/client_actions.php?action=store_balance_details&loja_id=${storeId}`)
+    fetch(`/cliente/actions?action=store_balance_details&loja_id=${storeId}`)
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);

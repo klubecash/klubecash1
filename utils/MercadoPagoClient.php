@@ -66,7 +66,19 @@ class MercadoPagoClient {
         }
         
         // Log de inicialização para debug (mascarando dados sensíveis)
-        error_log("MercadoPagoClient inicializado com token: " . substr($this->accessToken, 0, 20) . "...");
+        error_log('MercadoPagoClient inicializado.');
+    }
+
+    /**
+     * Gera uma chave estavel por loja/pagamento. Repeticoes do mesmo fluxo
+     * usam a mesma chave no Mercado Pago e nao criam cobrancas duplicadas.
+     */
+    public static function buildPaymentIdempotencyKey(int $storeId, int $paymentId): string {
+        if ($storeId <= 0 || $paymentId <= 0) {
+            throw new InvalidArgumentException('Loja e pagamento devem ser positivos.');
+        }
+
+        return hash('sha256', "klubecash:mercadopago:commission:{$storeId}:{$paymentId}");
     }
     
     /**
@@ -219,7 +231,12 @@ class MercadoPagoClient {
             error_log("MP createPixPayment - Payload CORRIGIDO: " . json_encode($logPayload, JSON_PRETTY_PRINT));
             
             // Fazer a requisição para o Mercado Pago
-            $response = $this->makeRequest('POST', self::ENDPOINTS['payments'], $payload);
+            $response = $this->makeRequest(
+                'POST',
+                self::ENDPOINTS['payments'],
+                $payload,
+                (string) ($data['idempotency_key'] ?? '')
+            );
             
             // Se a requisição foi bem-sucedida, extrair os dados do PIX
             if ($response['status'] && isset($response['data'])) {
@@ -603,7 +620,7 @@ class MercadoPagoClient {
     /**
      * Método central para fazer requisições HTTP para o Mercado Pago
      */
-    private function makeRequest($method, $endpoint, $data = null) {
+    private function makeRequest($method, $endpoint, $data = null, string $idempotencyKey = '') {
         $startTime = microtime(true);
         $url = $this->baseUrl . $endpoint;
         
@@ -613,10 +630,16 @@ class MercadoPagoClient {
             'Content-Type: application/json',
             'Accept: application/json',
             'User-Agent: KlubeCash/2.1 (PHP/' . PHP_VERSION . '; MP-Integration-Quality-Optimized)',
-            'X-Idempotency-Key: ' . uniqid('klube_' . time() . '_', true),
             'X-meli-session-id: ' . uniqid('session_', true),
             'X-Product-Id: KLUBE_CASH_CASHBACK_SYSTEM'
         ];
+
+        if (in_array($method, ['POST', 'PUT', 'PATCH'], true)) {
+            if ($idempotencyKey === '') {
+                throw new InvalidArgumentException('Chave de idempotencia obrigatoria para operacoes mutaveis.');
+            }
+            $headers[] = 'X-Idempotency-Key: ' . $idempotencyKey;
+        }
         
         // ADICIONAR TRACKING DE ORIGEM MELHORADO
         if (isset($_SERVER['HTTP_USER_AGENT'])) {

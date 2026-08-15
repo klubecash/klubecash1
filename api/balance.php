@@ -20,7 +20,6 @@ header('Content-Type: application/json; charset=UTF-8');
 header('Content-Type: application/json; charset=UTF-8');
 
 $allowed_origins = [
-    'https://sest-senat.klubecash.com',
     'https://sdk.mercadopago.com'
     // Adicione outros domínios se necessário, ex: 'http://localhost:5173'
 ];
@@ -33,20 +32,21 @@ header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header("Access-Control-Allow-Credentials: true");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
-session_set_cookie_params([
-    'lifetime' => 0,
-    'path'     => '/',
-    'domain'   => '.klubecash.com',
-    'secure'   => true,
-    'httponly' => true,
-    'samesite' => 'None'
-]);
-
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     exit(0);
 }
 
 if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'domain'   => '',
+        'secure'   => getenv('VERCEL') === '1'
+            || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https',
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
     session_start();
 }
 
@@ -117,12 +117,6 @@ function handleGetRequest($userId) {
     $action = $_GET['action'] ?? '';
     
     switch ($action) {
-
-        case 'sest_balance_details':
-        $result = ClientController::getSenatClientBalanceDetails($userId);
-        echo json_encode($result);
-        break;
-
 
         case 'balance_details':
             $result = ClientController::getClientBalanceDetails($userId);

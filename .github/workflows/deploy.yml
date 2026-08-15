@@ -26,3 +26,6 @@ jobs:
             .git*
             .github/**
             node_modules/**
+            database/**
+            logs/**
+            scripts/quality/**

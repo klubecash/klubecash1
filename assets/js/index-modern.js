@@ -48,7 +48,6 @@
             var label = isDark ? 'Ativar modo claro' : 'Ativar modo noturno';
             toggle.setAttribute('aria-pressed', String(isDark));
             toggle.setAttribute('aria-label', label);
-            toggle.setAttribute('title', label);
 
             var sunIcon = toggle.querySelector('.theme-icon-sun');
             var moonIcon = toggle.querySelector('.theme-icon-moon');
@@ -262,7 +261,7 @@
         menu.addEventListener('click', function (event) {
             var link = event.target.closest ? event.target.closest('a[href]') : null;
             if (link && menu.contains(link)) {
-                closeMenu(false);
+                closeMenu(true);
             }
         });
 
@@ -425,7 +424,8 @@
         dropdown.addEventListener('click', function (event) {
             var item = event.target.closest ? event.target.closest('a[href], button') : null;
             if (item && dropdown.contains(item)) {
-                closeDropdown(false);
+                var href = item.getAttribute('href') || '';
+                closeDropdown(href.charAt(0) === '#');
             }
         });
 
@@ -634,10 +634,12 @@
         if (menu) {
             menu.hidden = false;
             menu.removeAttribute('aria-hidden');
+            menu.classList.add('show');
+            menu.classList.add('is-open');
         }
 
         if (button) {
-            button.removeAttribute('aria-expanded');
+            button.setAttribute('aria-expanded', 'true');
         }
     }
 

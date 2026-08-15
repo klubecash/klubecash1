@@ -393,7 +393,7 @@ function getStatusBadge($status) {
         
         function exportTransaction(transactionId) {
             // Implementar exportação da transação
-            const url = '../../controllers/AdminController.php';
+            const url = '/admin/ajax/transactions';
             const params = new URLSearchParams({
                 action: 'export_transaction',
                 transaction_id: transactionId
@@ -408,7 +408,7 @@ function getStatusBadge($status) {
             
             const observacao = document.getElementById('modalObservacao').value;
             
-            fetch('../../controllers/AdminController.php', {
+            fetch('/admin/ajax/transactions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
