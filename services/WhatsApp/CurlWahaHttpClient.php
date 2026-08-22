@@ -14,7 +14,10 @@ final class CurlWahaHttpClient implements WahaHttpClient
         curl_close($handle);
         if ($response === false) {
             $kind = $errorNumber === CURLE_OPERATION_TIMEDOUT ? 'timeout' : 'network';
-            throw new WahaException("Falha transitoria de {$kind} no WAHA.", 503, true);
+            // Em um POST a conexao pode cair depois de o WAHA aceitar a mensagem.
+            // Marcar a entrega como incerta impede uma repeticao automatica indevida.
+            $deliveryUnknown = strtoupper($method) !== 'GET';
+            throw new WahaException("Falha transitoria de {$kind} no WAHA.", 503, true, $deliveryUnknown);
         }
         return ['status' => $status, 'body' => (string) $response];
     }

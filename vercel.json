@@ -19,6 +19,12 @@
       "entrypoint": "Dockerfile.vercel"
     }
   },
+  "crons": [
+    {
+      "path": "/api/internal/notifications",
+      "schedule": "15 5 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/assets/(.*)",

@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const phpBackendUrl = (
   process.env.PHP_BACKEND_URL ?? "http://127.0.0.1:8000"
@@ -21,6 +22,24 @@ function getSetCookies(headers: Headers): string[] {
     enhanced.getSetCookie?.() ??
     (headers.get("set-cookie") ? [headers.get("set-cookie") as string] : [])
   );
+}
+
+function scheduleBatchNotifications() {
+  const secret = process.env.CRON_SECRET?.trim();
+  if (!secret) return;
+
+  after(async () => {
+    try {
+      await fetch(`${phpBackendUrl}/api/internal/notifications?limit=10`, {
+        method: "GET",
+        headers: { authorization: `Bearer ${secret}` },
+        cache: "no-store",
+        signal: AbortSignal.timeout(240_000),
+      });
+    } catch {
+      // A fila persistente sera tentada novamente pelo cron diario.
+    }
+  });
 }
 
 async function proxy(
@@ -94,6 +113,13 @@ async function proxy(
     getSetCookies(backend.headers).forEach((cookie) =>
       response.headers.append("set-cookie", cookie),
     );
+    if (
+      backend.ok &&
+      request.method === "POST" &&
+      requestedPath === "v2/transactions/batch"
+    ) {
+      scheduleBatchNotifications();
+    }
     return response;
   } catch {
     return NextResponse.json(

@@ -14,10 +14,9 @@ final class WahaWebhookHandler
         if (!is_array($event) || ($event['session'] ?? null) !== $this->config->session) return ['status' => 403, 'body' => ['success' => false, 'error' => 'Sessao rejeitada.']];
         $type = (string) ($event['event'] ?? '');
         if (!in_array($type, self::EVENTS, true)) return ['status' => 200, 'body' => ['success' => true, 'ignored' => true]];
-        $eventId = trim((string) ($event['id'] ?? ($event['payload']['id'] ?? '')));
+        $eventId = $this->eventId($event, $rawBody);
         $idempotencyKey = trim($requestId) !== '' ? trim($requestId) : $eventId;
-        if ($idempotencyKey === '' || $eventId === '') return ['status' => 400, 'body' => ['success' => false, 'error' => 'Identificador ausente.']];
-        $fromMe = ($event['payload']['fromMe'] ?? false) === true;
+        $fromMe = ($event['payload']['fromMe'] ?? $event['payload']['key']['fromMe'] ?? $event['payload']['_data']['id']['fromMe'] ?? false) === true;
         $created = $this->store->enqueue($idempotencyKey, $eventId, $type, $rawBody, $fromMe);
         return ['status' => 200, 'body' => ['success' => true, 'duplicate' => !$created, 'ignored' => $fromMe && $type === 'message']];
     }
@@ -27,5 +26,28 @@ final class WahaWebhookHandler
         if (str_starts_with($signature, 'sha512=')) $signature = substr($signature, 7);
         $expected = hash_hmac('sha512', $rawBody, $this->config->webhookHmacKey);
         return strlen($signature) === strlen($expected) && hash_equals($expected, $signature);
+    }
+
+    /** @param array<string,mixed> $event */
+    private function eventId(array $event, string $rawBody): string
+    {
+        $candidates = [
+            $event['id'] ?? null,
+            $event['payload']['id'] ?? null,
+            $event['payload']['key']['id'] ?? null,
+            $event['payload']['_data']['id']['_serialized'] ?? null,
+        ];
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) || is_int($candidate)) {
+                $value = trim((string) $candidate);
+                if ($value !== '') {
+                    return substr($value, 0, 191);
+                }
+            }
+        }
+
+        // Alguns eventos do WAHA, como session.status, nao possuem id proprio.
+        // O hash do corpo permanece igual nas retentativas e preserva idempotencia.
+        return hash('sha256', $rawBody);
     }
 }

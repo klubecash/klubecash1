@@ -15,6 +15,5 @@ CREATE TABLE IF NOT EXISTS waha_webhook_events (
     UNIQUE KEY uk_waha_request_id (request_id),
     UNIQUE KEY uk_waha_event_id (event_id),
     KEY idx_waha_queue (status, available_at),
-    KEY idx_waha_user (associated_user_id),
-    CONSTRAINT fk_waha_event_user FOREIGN KEY (associated_user_id) REFERENCES usuarios(id) ON DELETE SET NULL
+    KEY idx_waha_user (associated_user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

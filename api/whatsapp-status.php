@@ -12,4 +12,7 @@ try {
 } catch (WahaException $exception) {
     http_response_code($exception->httpStatus);
     echo json_encode(['success' => false, 'error' => ['code' => 'WHATSAPP_UNAVAILABLE', 'message' => $exception->getMessage()]], JSON_UNESCAPED_UNICODE);
+} catch (Throwable) {
+    http_response_code(503);
+    echo json_encode(['success' => false, 'error' => ['code' => 'WHATSAPP_NOT_CONFIGURED', 'message' => 'A integracao do WhatsApp nao esta configurada.']], JSON_UNESCAPED_UNICODE);
 }

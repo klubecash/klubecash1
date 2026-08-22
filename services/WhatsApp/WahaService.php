@@ -20,6 +20,56 @@ final class WahaService
         $result = $this->request('POST', '/api/sendText', ['session' => $this->config->session, 'chatId' => self::normalizePhone($phone), 'text' => $text], false);
         return is_array($result) ? $result : [];
     }
+
+    /**
+     * Mantem o webhook desta aplicacao na configuracao da sessao sem remover
+     * webhooks que tenham sido cadastrados para outros consumidores.
+     *
+     * @return array{configured:bool,updated:bool,url:string}
+     */
+    public function ensureWebhook(string $url): array
+    {
+        $parts = parse_url($url);
+        if (!is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'https' || empty($parts['host'])) {
+            throw new InvalidArgumentException('A URL publica do webhook deve usar HTTPS.');
+        }
+
+        $session = $this->request('GET', '/api/sessions/' . rawurlencode($this->config->session), null, true);
+        if (!is_array($session)) {
+            throw new WahaException('A configuracao da sessao WAHA nao esta disponivel.', 503, true);
+        }
+
+        $sessionConfig = is_array($session['config'] ?? null) ? $session['config'] : [];
+        $webhooks = is_array($sessionConfig['webhooks'] ?? null) ? $sessionConfig['webhooks'] : [];
+        $kept = [];
+        foreach ($webhooks as $webhook) {
+            if (!is_array($webhook)) {
+                continue;
+            }
+            if ((string) ($webhook['url'] ?? '') === $url) {
+                // Atualizar uma sessao ativa reinicia o WhatsApp. Se este destino
+                // ja existe, nao tocar na sessao durante as execucoes diarias.
+                return ['configured' => true, 'updated' => false, 'url' => $url];
+            }
+            $kept[] = $webhook;
+        }
+        $kept[] = [
+            'url' => $url,
+            'events' => ['message', 'message.ack', 'session.status'],
+            'hmac' => ['key' => $this->config->webhookHmacKey],
+            'retries' => ['policy' => 'exponential', 'delaySeconds' => 2, 'attempts' => 8],
+        ];
+        $sessionConfig['webhooks'] = $kept;
+
+        $this->request(
+            'PUT',
+            '/api/sessions/' . rawurlencode($this->config->session),
+            ['name' => $this->config->session, 'config' => $sessionConfig],
+            false
+        );
+
+        return ['configured' => true, 'updated' => true, 'url' => $url];
+    }
     public static function normalizePhone(string $phone): string
     {
         $digits = preg_replace('/\D+/', '', $phone) ?? '';

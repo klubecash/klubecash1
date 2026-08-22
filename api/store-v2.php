@@ -11,6 +11,7 @@ use App\Services\Store\StoreManagementService;
 use App\Services\Store\StoreMoney;
 use App\Services\Store\StoreReadService;
 use App\Services\Store\StoreTransactionService;
+use App\Services\Store\StoreWhatsAppNotificationService;
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
@@ -28,6 +29,7 @@ require_once __DIR__ . '/../services/store/StoreTransactionService.php';
 require_once __DIR__ . '/../services/store/StoreReadService.php';
 require_once __DIR__ . '/../services/store/StoreCustomerService.php';
 require_once __DIR__ . '/../services/store/StoreManagementService.php';
+require_once __DIR__ . '/../services/store/StoreWhatsAppNotificationService.php';
 
 /** @param array<string, string[]> $errors */
 function storeV2Respond(int $httpStatus, bool $success, mixed $data = null, ?string $message = null, array $errors = []): never
@@ -112,6 +114,7 @@ $read = new StoreReadService($db);
 $customers = new StoreCustomerService($db);
 $transactions = new StoreTransactionService($db);
 $management = new StoreManagementService($db);
+$whatsAppNotifications = new StoreWhatsAppNotificationService($db);
 
 try {
     if ($method === 'GET' && $resource === 'context') {
@@ -171,7 +174,20 @@ try {
     }
     if ($method === 'POST' && $resource === 'transactions') {
         $key = (string) ($_SERVER['HTTP_X_IDEMPOTENCY_KEY'] ?? '');
-        storeV2Respond(201, true, $transactions->create($storeId, $userId, $payload, $key), 'Venda aprovada e cashback creditado.');
+        $sale = $transactions->create($storeId, $userId, $payload, $key);
+        try {
+            $sale['whatsappNotification'] = [
+                'status' => $whatsAppNotifications->queueAndProcess((int) $sale['id'], $storeId),
+            ];
+        } catch (Throwable $exception) {
+            // A notificacao nunca pode desfazer ou esconder uma venda ja aprovada.
+            Logger::warning('waha.sale_notification.queue_failed', [
+                'transaction_id' => (int) $sale['id'],
+                'exception' => get_class($exception),
+            ]);
+            $sale['whatsappNotification'] = ['status' => 'unavailable'];
+        }
+        storeV2Respond(201, true, $sale, 'Venda aprovada e cashback creditado.');
     }
     if ($method === 'POST' && $resource === 'transactions/batch') {
         $key = (string) ($_SERVER['HTTP_X_IDEMPOTENCY_KEY'] ?? '');
@@ -243,6 +259,14 @@ try {
                         'description' => (string) ($values['descricao'] ?? 'Importação em lote'),
                         'occurredAt' => (string) ($values['data_transacao'] ?? date(DATE_ATOM)),
                     ], $key . ':' . $record['line']);
+                    try {
+                        $whatsAppNotifications->queue((int) $sale['id'], $storeId);
+                    } catch (Throwable $exception) {
+                        Logger::warning('waha.sale_notification.queue_failed', [
+                            'transaction_id' => (int) $sale['id'],
+                            'exception' => get_class($exception),
+                        ]);
+                    }
                     $processed++;
                     $resultRows[] = ['line' => $record['line'], 'status' => 'success', 'transactionId' => $sale['id']];
                 } catch (StoreApiException $exception) {
@@ -257,6 +281,9 @@ try {
                 'items' => $resultRows,
                 'replayed' => false,
             ];
+            // O BFF dispara o processador depois de devolver a resposta. Assim um
+            // CSV grande nao fica aguardando chamadas externas ao WhatsApp.
+            $batchResponse['whatsappNotifications'] = ['status' => 'queued'];
             $idempotency->complete('store_batch', $storeId, $key, $batchResponse);
             storeV2Respond(200, true, $batchResponse, 'Processamento concluído.');
         } catch (Throwable $exception) {
