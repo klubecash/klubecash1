@@ -17,8 +17,30 @@ final class WahaService
     {
         $text = trim($text);
         if ($text === '') throw new InvalidArgumentException('A mensagem nao pode estar vazia.');
-        $result = $this->request('POST', '/api/sendText', ['session' => $this->config->session, 'chatId' => self::normalizePhone($phone), 'text' => $text], false);
+        $chatId = $this->resolveChatId($phone);
+        $result = $this->request('POST', '/api/sendText', ['session' => $this->config->session, 'chatId' => $chatId, 'text' => $text], false);
         return is_array($result) ? $result : [];
+    }
+
+    private function resolveChatId(string $phone): string
+    {
+        $normalized = self::normalizePhone($phone);
+        $digits = substr($normalized, 0, -strlen('@c.us'));
+        $query = http_build_query([
+            'phone' => $digits,
+            'session' => $this->config->session,
+        ], '', '&', PHP_QUERY_RFC3986);
+        $contact = $this->request('GET', '/api/contacts/check-exists?' . $query, null, true);
+
+        if (is_array($contact) && array_key_exists('numberExists', $contact) && $contact['numberExists'] === false) {
+            throw new InvalidArgumentException('O telefone informado nao possui WhatsApp.');
+        }
+
+        $resolved = is_array($contact) && is_scalar($contact['chatId'] ?? null)
+            ? trim((string) $contact['chatId'])
+            : '';
+
+        return $resolved !== '' ? $resolved : $normalized;
     }
 
     /**
