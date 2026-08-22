@@ -19,8 +19,24 @@ if (is_file($composerAutoload)) {
     spl_autoload_register(static function (string $class) use ($root): void {
         $servicePrefix = 'App\\Services\\';
         if (str_starts_with($class, $servicePrefix)) {
-            $file = $root . '/services/' . str_replace('\\', '/', substr($class, strlen($servicePrefix))) . '.php';
-            if (is_file($file)) require_once $file;
+            $relative = str_replace('\\', '/', substr($class, strlen($servicePrefix)));
+            $file = $root . '/services/' . $relative . '.php';
+            if (is_file($file)) {
+                require_once $file;
+                return;
+            }
+
+            // Os namespaces Store e Admin foram introduzidos sobre diretorios
+            // legados em minusculas (services/store e services/admin). Windows
+            // resolve essa diferenca de caixa, mas o Linux da producao nao.
+            // Preserve os caminhos existentes e aplique a compatibilidade no
+            // carregador central para todas as classes desses modulos.
+            $segments = explode('/', $relative);
+            $segments[0] = lcfirst($segments[0]);
+            $legacyFile = $root . '/services/' . implode('/', $segments) . '.php';
+            if (is_file($legacyFile)) {
+                require_once $legacyFile;
+            }
             return;
         }
         $prefix = 'App\\';
