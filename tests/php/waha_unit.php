@@ -34,6 +34,7 @@ $request=$http->requests[1]; $body=json_decode($request['body'],true); check($bo
 $http = new FakeHttp(); $http->responses[]=['status'=>200,'body'=>'{"lid":"9988@lid","pn":"5511999999999@c.us"}'];
 check((new WahaService($config,$http))->resolveSenderPhone('9988@lid')==='5511999999999@c.us','Resolucao de LID falhou.');
 check((new WahaService($config,new FakeHttp()))->resolveSenderPhone('5511999999999@c.us')==='5511999999999@c.us','Resolucao direta @c.us falhou.');
+check((new WahaService($config,new FakeHttp()))->resolveSenderPhone('5511999999999@s.whatsapp.net')==='5511999999999@c.us','Resolucao direta SenderAlt falhou.');
 check((new WahaService($config,new FakeHttp()))->resolveSenderPhone('120@g.us')===null,'Grupo foi aceito como telefone privado.');
 $http = new FakeHttp(); $http->responses[]=['status'=>200,'body'=>'{"numberExists":false,"chatId":null}']; throws(fn()=>(new WahaService($config,$http))->sendText('11999999999','Oi'),InvalidArgumentException::class);
 $http = new FakeHttp(); $http->responses[]=['status'=>200,'body'=>'{"numberExists":true,"chatId":"5511999999999@c.us"}']; $http->responses[]=['status'=>401,'body'=>'{}']; throws(fn()=>(new WahaService($config,$http))->sendText('11999999999','Oi'),WahaException::class);

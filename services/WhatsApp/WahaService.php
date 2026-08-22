@@ -25,9 +25,9 @@ final class WahaService
     public function resolveSenderPhone(string $chatId): ?string
     {
         $chatId = trim($chatId);
-        if (str_ends_with($chatId, '@c.us')) {
+        if (str_ends_with($chatId, '@c.us') || str_ends_with($chatId, '@s.whatsapp.net')) {
             try {
-                return self::normalizePhone(substr($chatId, 0, -strlen('@c.us')));
+                return self::normalizePhone(preg_replace('/@.+$/', '', $chatId) ?? '');
             } catch (InvalidArgumentException) {
                 return null;
             }

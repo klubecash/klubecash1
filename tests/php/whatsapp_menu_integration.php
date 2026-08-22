@@ -125,6 +125,29 @@ function waEvent(string $phone, string $body): array
     ];
 }
 
+/** @return array<string,mixed> */
+function waLidEvent(string $phone, string $body): array
+{
+    return [
+        'event' => 'message',
+        'session' => 'fixture',
+        'payload' => [
+            'id' => bin2hex(random_bytes(8)),
+            'from' => '123456789012345@lid',
+            'fromMe' => false,
+            'type' => 'chat',
+            'source' => 'app',
+            'body' => $body,
+            '_data' => [
+                'Info' => [
+                    'Sender' => '123456789012345@lid',
+                    'SenderAlt' => $phone . '@s.whatsapp.net',
+                ],
+            ],
+        ],
+    ];
+}
+
 $db = Database::getConnection();
 $runId = 'wa_menu_' . date('YmdHis') . '_' . bin2hex(random_bytes(4));
 $fixture = ['senderKeys' => []];
@@ -203,7 +226,7 @@ try {
     $menu->process(900001, waEvent('5511777777777', 'conversa comum'), $runId . ':ordinary');
     waExpect(count($http->requests) === $before, 'Mensagem comum ativou o bot sem /klube.');
 
-    $menu->process(900002, waEvent('55' . $clientPhone, '/klube'), $runId . ':menu');
+    $menu->process(900002, waLidEvent('55' . $clientPhone, '/klube'), $runId . ':menu');
     $menu->process(900003, waEvent('55' . $clientPhone, '1'), $runId . ':balance');
     $sentMessages = $http->messages();
     $balanceMessage = (string) end($sentMessages);

@@ -38,7 +38,7 @@ final class WhatsAppMenuService
         if ($chatId === null || $this->isNonPrivateChat($chatId)) {
             return null;
         }
-        $canonical = $this->waha->resolveSenderPhone($chatId);
+        $canonical = $this->canonicalPhone($event, $chatId, $fromMe);
         if ($canonical === null) {
             return null;
         }
@@ -753,6 +753,29 @@ final class WhatsAppMenuService
         if ($chatId === null || $this->isNonPrivateChat($chatId)) {
             return null;
         }
+        return $this->canonicalPhone($event, $chatId, false);
+    }
+
+    /** @param array<string,mixed> $event */
+    private function canonicalPhone(array $event, string $chatId, bool $fromMe): ?string
+    {
+        $payload = is_array($event['payload'] ?? null) ? $event['payload'] : [];
+        $info = is_array($payload['_data']['Info'] ?? null) ? $payload['_data']['Info'] : [];
+        $alternatives = $fromMe
+            ? [$info['RecipientAlt'] ?? null]
+            : [$info['SenderAlt'] ?? null];
+
+        foreach ($alternatives as $alternative) {
+            if (!is_scalar($alternative) || trim((string) $alternative) === '') {
+                continue;
+            }
+            try {
+                return WahaService::normalizePhone(preg_replace('/@.+$/', '', trim((string) $alternative)) ?? '');
+            } catch (Throwable) {
+                // Continua para a resolucao oficial do LID na WAHA.
+            }
+        }
+
         return $this->waha->resolveSenderPhone($chatId);
     }
 
