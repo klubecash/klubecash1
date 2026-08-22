@@ -26,7 +26,7 @@ session_set_cookie_params([
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-error_log("Sessão iniciada em " . $_SERVER['HTTP_HOST'] . " – ID: " . session_id());
+error_log('auth.login.session_started');
 // 1. VERIFICAR SE O UTILIZADOR JÁ ESTÁ LOGADO E REDIRECIONAR
 if (isset($_SESSION['user_id']) && !isset($_GET['force_login'])) {
     $userType = $_SESSION['user_type'] ?? '';

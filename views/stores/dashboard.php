@@ -8,7 +8,9 @@ require_once '../../controllers/TransactionController.php';
 require_once '../../utils/StoreHelper.php';
 
 // Iniciar sessão
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Verificação ultra-simples - substitui TODAS as verificações anteriores
 StoreHelper::requireStoreAccess();
@@ -39,7 +41,13 @@ $salesQuery = $db->prepare("
 ");
 $salesQuery->bindParam(':loja_id', $storeId);
 $salesQuery->execute();
-$salesStats = $salesQuery->fetch(PDO::FETCH_ASSOC);
+$salesStats = array_merge([
+    'total_vendas' => 0,
+    'valor_total_vendas' => 0,
+    'valor_total_cashback' => 0,
+    'valor_total_cliente' => 0,
+    'valor_total_admin' => 0,
+], $salesQuery->fetch(PDO::FETCH_ASSOC) ?: []);
 
 // 2. Comissões pendentes
 $pendingQuery = $db->prepare("
@@ -61,13 +69,18 @@ $paidQuery->bindParam(':loja_id', $storeId);
 $status = 'aprovado';
 $paidQuery->bindParam(':status', $status);
 $paidQuery->execute();
-$paidStats = $paidQuery->fetch(PDO::FETCH_ASSOC);
+$paidStats = array_merge(['total_pagas' => 0, 'valor_pago' => 0], $paidQuery->fetch(PDO::FETCH_ASSOC) ?: []);
 
 $pendingQuery->bindParam(':loja_id', $storeId);
 $status = 'pendente';
 $pendingQuery->bindParam(':status', $status);
 $pendingQuery->execute();
-$pendingStats = $pendingQuery->fetch(PDO::FETCH_ASSOC);
+$pendingStats = array_merge([
+    'total_pendentes' => 0,
+    'valor_pendente' => 0,
+    'valor_cliente_pendente' => 0,
+    'clientes_afetados' => 0,
+], $pendingQuery->fetch(PDO::FETCH_ASSOC) ?: []);
 
 // 4. Últimas transações
 $recentQuery = $db->prepare("

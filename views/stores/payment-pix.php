@@ -4,7 +4,9 @@ require_once '../../config/database.php';
 require_once '../../config/constants.php';
 require_once '../../controllers/AuthController.php';
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if (!AuthController::isAuthenticated() || !AuthController::hasStoreAccess()) {
     header("Location: " . LOGIN_URL . "?error=acesso_restrito");

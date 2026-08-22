@@ -7,7 +7,9 @@ require_once '../../utils/Validator.php';
 require_once '../../utils/Security.php';
 
 // Iniciar sessão
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 $activeMenu = 'perfil';
 
 // Verificar se o usuário está logado e é uma loja

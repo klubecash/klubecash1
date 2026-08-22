@@ -128,12 +128,17 @@ class Email {
      * Envia um email - MÉTODO PRINCIPAL CORRIGIDO
      */
     public static function send($to, $subject, $message, $toName = '', $attachments = []) {
+        $deliveryFlag = getenv('EMAIL_DELIVERY_ENABLED');
+        if ($deliveryFlag !== false && !filter_var((string) $deliveryFlag, FILTER_VALIDATE_BOOL)) {
+            error_log('email.delivery.disabled');
+            return false;
+        }
         if (!self::init()) {
             return false;
         }
         
         try {
-            error_log("🚀 Tentando enviar email para: $to - Assunto: $subject");
+            error_log('email.delivery.started');
             
             $mail = new PHPMailer(true);
             
@@ -161,16 +166,15 @@ class Email {
             $result = $mail->send();
             
             if ($result) {
-                error_log("✅ EMAIL ENVIADO COM SUCESSO para: $to");
+                error_log('email.delivery.succeeded');
                 return true;
             } else {
-                error_log("❌ FALHA ao enviar email para: $to - ErrorInfo: " . $mail->ErrorInfo);
+                error_log('email.delivery.failed provider_error=' . $mail->ErrorInfo);
                 return false;
             }
             
         } catch (\Throwable $e) {
-            error_log("🚨 EXCEÇÃO ao enviar email: " . $e->getMessage());
-            error_log("📍 Arquivo: " . $e->getFile() . " - Linha: " . $e->getLine());
+            error_log('email.delivery.exception type=' . get_class($e));
             return false;
         }
     }
@@ -179,7 +183,7 @@ class Email {
      * Envia email de recuperação de senha - MÉTODO ESPECÍFICO
      */
     public static function sendPasswordRecovery($to, $name, $token) {
-        error_log("🔐 Iniciando envio de email de recuperação para: $to");
+        error_log('email.password_recovery.started');
         
         $subject = 'Recuperação de Senha - Klube Cash';
         
@@ -205,12 +209,12 @@ class Email {
         <p>Atenciosamente,<br>Equipe Klube Cash</p>
         ";
         
-        $result = self::send($to, $subject, $message, $name);
+        $result = self::queueEmail($to, $subject, $message, $name);
         
         if ($result) {
-            error_log("✅ Email de recuperação ENVIADO para: $to");
+            error_log('email.password_recovery.queued');
         } else {
-            error_log("❌ Email de recuperação FALHOU para: $to");
+            error_log('email.password_recovery.queue_failed');
         }
         
         return $result;
@@ -468,7 +472,7 @@ class Email {
         $testEmail = $email ?: 'teste@example.com';
         $testToken = 'test_token_' . time();
         
-        error_log("🧪 Testando email de recuperação para: $testEmail");
+        error_log('email.password_recovery.test_started');
         
         $result = self::sendPasswordRecovery($testEmail, 'Usuário Teste', $testToken);
         

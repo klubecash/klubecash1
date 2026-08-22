@@ -1,23 +1,53 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": {
-    "api/vercel-router.php": {
-      "runtime": "vercel-php@0.9.0",
-      "maxDuration": 60
+  "services": {
+    "frontend": {
+      "root": "KlubeCashNew",
+      "framework": "nextjs",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "backend",
+          "format": "url",
+          "env": "PHP_BACKEND_URL"
+        }
+      ]
+    },
+    "backend": {
+      "root": ".",
+      "runtime": "container",
+      "entrypoint": "Dockerfile.vercel"
     }
   },
-  "routes": [
+  "headers": [
     {
-      "src": "/assets/(.*)",
-      "dest": "/assets/$1",
-      "headers": {
-        "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400"
-      }
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Cache-Control", "value": "public, max-age=3600, stale-while-revalidate=86400" }
+      ]
     },
     {
-      "src": "/(.*)",
-      "dest": "/api/vercel-router.php"
+      "source": "/uploads/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Cache-Control", "value": "public, max-age=3600, stale-while-revalidate=86400" }
+      ]
     }
+  ],
+  "rewrites": [
+    { "source": "/", "destination": { "service": "frontend" } },
+    { "source": "/login", "destination": { "service": "frontend" } },
+    { "source": "/registro", "destination": { "service": "frontend" } },
+    { "source": "/recuperar-senha", "destination": { "service": "frontend" } },
+    { "source": "/_next/(.*)", "destination": { "service": "frontend" } },
+    { "source": "/api/admin/(.*)", "destination": { "service": "frontend" } },
+    { "source": "/api/store/(.*)", "destination": { "service": "frontend" } },
+    { "source": "/api/auth/(.*)", "destination": { "service": "frontend" } },
+    { "source": "/admin", "destination": { "service": "frontend" } },
+    { "source": "/admin/(.*)", "destination": { "service": "frontend" } },
+    { "source": "/store", "destination": { "service": "frontend" } },
+    { "source": "/store/(.*)", "destination": { "service": "frontend" } },
+    { "source": "/(.*)", "destination": { "service": "backend" } }
   ]
 }

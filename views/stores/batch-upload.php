@@ -9,7 +9,9 @@
     require_once '../../models/CashbackBalance.php';
 
     // Iniciar sessão e verificar autenticação
+if (session_status() === PHP_SESSION_NONE) {
     session_start();
+}
 
     // Verificar se o usuário está logado
     if (!AuthController::isAuthenticated()) {

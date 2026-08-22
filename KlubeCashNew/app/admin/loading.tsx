@@ -1,0 +1,1 @@
+export default function AdminLoading() { return <div className="admin-page"><div className="admin-skeleton" style={{ height: 110 }} /><div className="admin-grid admin-grid-4">{Array.from({ length: 4 }, (_, index) => <div className="admin-skeleton" style={{ height: 137 }} key={index} />)}</div></div>; }

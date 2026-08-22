@@ -10,20 +10,9 @@ use App\Core\Kernel;
 $root = dirname(__DIR__);
 chdir($root);
 
-$canonicalUrl = rtrim(getenv('SITE_URL') ?: 'https://www.klubecash.com', '/');
-$canonicalHost = parse_url($canonicalUrl, PHP_URL_HOST);
-$requestHost = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? '');
-
-// Production must never leak deployment-specific *.vercel.app addresses.
-if (
-    getenv('VERCEL_ENV') === 'production'
-    && $canonicalHost
-    && $requestHost !== $canonicalHost
-    && str_ends_with($requestHost, '.vercel.app')
-) {
-    header('Location: ' . $canonicalUrl . ($_SERVER['REQUEST_URI'] ?? '/'), true, 308);
-    exit;
-}
+// Canonical host redirects belong to Vercel's public routing layer. This PHP
+// service is also reached through a private service binding whose Host may be
+// deployment-specific; redirecting here would break Next.js -> PHP requests.
 
 require_once $root . '/bootstrap/app.php';
 

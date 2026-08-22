@@ -9,6 +9,7 @@ header('X-Content-Type-Options: nosniff');
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/constants.php';
 require_once __DIR__ . '/../controllers/AuthController.php';
+require_once __DIR__ . '/../utils/Security.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -41,6 +42,16 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         'status' => false,
         'message' => 'Método não permitido.',
     ], 405);
+}
+
+// A nova interface sempre envia CSRF. Requisições legadas sem o cabeçalho
+// continuam aceitas temporariamente para preservar o rollback das views PHP.
+$csrfToken = (string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+if ($csrfToken !== '' && !Security::validateCSRFToken($csrfToken)) {
+    paymentsJsonResponse([
+        'status' => false,
+        'message' => 'Sessão de segurança expirada. Atualize a página.',
+    ], 419);
 }
 
 $payload = $_POST;

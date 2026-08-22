@@ -7,7 +7,9 @@ require_once '../../controllers/AuthController.php';
 require_once '../../controllers/TransactionController.php';
 
 // Iniciar sessão e verificar autenticação
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Verificar se o usuário está logado
 if (!AuthController::isAuthenticated()) {

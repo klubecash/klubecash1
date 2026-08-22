@@ -45,7 +45,7 @@ class StoreHelper {
         if (!isset($_SESSION['store_id']) || empty($_SESSION['store_id'])) {
             error_log("ERRO CRÍTICO: store_id não definido para usuário {$userId} tipo {$userType}");
             // Log adicional para debug
-            error_log("SESSION DEBUG: " . json_encode($_SESSION));
+            error_log('store.access.invalid_session_context');
 
             // CORREÇÃO: Destruir sessão completamente antes de redirecionar
             session_destroy();

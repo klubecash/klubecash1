@@ -1,5 +1,4 @@
 <?php
-error_log("DEBUG: register-transaction.php - INICIO");
 // views/stores/register-transaction.php
 // Incluir arquivos de configuração
 require_once '../../config/constants.php';
@@ -11,7 +10,9 @@ require_once '../../controllers/CommissionController.php';
 require_once '../../utils/StoreHelper.php';
 
 // Iniciar sessão
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 $activeMenu = 'nova-venda';
 
 // Verificação simplificada
@@ -102,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Debug: Log dos dados recebidos
-    error_log("FORM DEBUG: Dados POST recebidos: " . print_r($_POST, true));
+    error_log('store.transaction.form_received');
     
     // Obter dados do formulário
     $clientId = intval($_POST['cliente_id_hidden'] ?? 0);

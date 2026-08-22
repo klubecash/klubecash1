@@ -1,0 +1,435 @@
+.app {
+  --side: 270px;
+  min-height: 100vh;
+  background: var(--store-bg);
+  color: var(--store-text);
+}
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--side);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+  background: linear-gradient(180deg, #141414 0%, #0c0c0d 100%);
+  color: #fff;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  transition:
+    width 0.25s ease,
+    transform 0.25s ease;
+}
+.brand {
+  height: 45px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 6px;
+  margin-bottom: 22px;
+}
+.brandMark {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ff8a1f, #ff5c00);
+  color: #fff;
+  font-size: 23px;
+  font-weight: 900;
+  box-shadow: 0 8px 22px rgba(255, 106, 0, 0.28);
+}
+.brandText {
+  display: flex;
+  font-size: 20px;
+  letter-spacing: -0.7px;
+}
+.brandText span {
+  color: #ff7a00;
+}
+.brandText strong {
+  font-weight: 800;
+}
+.mobileClose {
+  display: none;
+  margin-left: auto;
+  background: none;
+  border: 0;
+  color: #fff;
+}
+.storeCard {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.045);
+  border-radius: 15px;
+  margin-bottom: 23px;
+  overflow: hidden;
+}
+.storeLogo {
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: #262627;
+  color: #ff8a1f;
+  overflow: hidden;
+}
+.storeLogo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.storeCard div:last-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.storeCard span {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #8f8f96;
+}
+.storeCard strong {
+  font-size: 13px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.navLabel {
+  padding: 0 12px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+  color: #77777f;
+}
+.navItem {
+  position: relative;
+  min-height: 45px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  color: #aaaab2;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background 0.18s,
+    color 0.18s,
+    transform 0.18s;
+}
+.navItem:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.065);
+}
+.navItem.active {
+  color: #fff;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 122, 0, 0.2),
+    rgba(255, 122, 0, 0.06)
+  );
+}
+.navItem.active:before {
+  content: "";
+  position: absolute;
+  left: -16px;
+  width: 3px;
+  height: 22px;
+  border-radius: 0 4px 4px 0;
+  background: #ff7a00;
+}
+.navItem.accent:not(.active) {
+  color: #ff9b42;
+}
+.navItem svg {
+  flex: 0 0 auto;
+}
+.sideFooter {
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.collapseButton {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  color: #787880;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.collapseButton:hover {
+  color: #fff;
+}
+.workspace {
+  min-height: 100vh;
+  margin-left: var(--side);
+  transition: margin 0.25s ease;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  height: 78px;
+  display: flex;
+  align-items: center;
+  padding: 0 clamp(20px, 3vw, 42px);
+  background: color-mix(in srgb, var(--store-bg) 86%, transparent);
+  border-bottom: 1px solid var(--store-border);
+  backdrop-filter: blur(18px);
+}
+.pageTitle span {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  color: #ff7a00;
+}
+.pageTitle h1 {
+  margin: 2px 0 0;
+  font-size: 20px;
+  letter-spacing: -0.45px;
+}
+.topActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+.iconButton,
+.mobileMenu {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--store-border);
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--store-card);
+  color: var(--store-muted);
+  cursor: pointer;
+}
+.mobileMenu {
+  display: none;
+}
+.userMenu {
+  position: relative;
+}
+.userButton {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 7px 4px 4px;
+  border: 1px solid var(--store-border);
+  border-radius: 14px;
+  background: var(--store-card);
+  color: var(--store-text);
+  cursor: pointer;
+}
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #ff8a1f, #ff5e00);
+  color: #fff;
+  font-weight: 800;
+}
+.userText {
+  display: flex;
+  min-width: 100px;
+  max-width: 150px;
+  flex-direction: column;
+  text-align: left;
+}
+.userText strong {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.userText small {
+  font-size: 10px;
+  color: var(--store-muted);
+  text-transform: capitalize;
+}
+.dropdown {
+  position: absolute;
+  right: 0;
+  top: 50px;
+  width: 205px;
+  padding: 8px;
+  background: var(--store-card);
+  border: 1px solid var(--store-border);
+  border-radius: 14px;
+  box-shadow: var(--store-shadow);
+}
+.dropdown a {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border-radius: 9px;
+  font-size: 13px;
+  color: var(--store-text);
+}
+.dropdown a:hover {
+  background: var(--store-soft);
+}
+.dropdown a:last-child {
+  color: #ef4444;
+}
+.main {
+  padding: clamp(22px, 3vw, 42px);
+  max-width: 1600px;
+  margin: auto;
+}
+.overlay {
+  display: none;
+}
+.collapsed {
+  --side: 82px;
+}
+.collapsed .brandText,
+.collapsed .storeCard div:last-child,
+.collapsed .navLabel,
+.collapsed .navItem span,
+.collapsed .collapseButton span {
+  display: none;
+}
+.collapsed .storeCard {
+  padding: 7px;
+  justify-content: center;
+}
+.collapsed .brand {
+  justify-content: center;
+  padding: 0;
+}
+.collapsed .navItem,
+.collapsed .collapseButton {
+  justify-content: center;
+  padding: 0;
+}
+.collapsed .sideFooter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+@media (max-width: 900px) {
+  .app {
+    --side: 0px;
+  }
+  .sidebar {
+    width: 280px;
+    transform: translateX(-105%);
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.35);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .collapsed .sidebar {
+    width: 280px;
+  }
+  .collapsed .brandText,
+  .collapsed .storeCard div:last-child,
+  .collapsed .navItem span,
+  .collapsed .collapseButton span {
+    display: flex;
+  }
+  .collapsed .navLabel {
+    display: block;
+  }
+  .collapsed .storeCard,
+  .collapsed .brand,
+  .collapsed .navItem,
+  .collapsed .collapseButton {
+    justify-content: flex-start;
+  }
+  .mobileClose,
+  .mobileMenu {
+    display: grid;
+  }
+  .mobileClose {
+    place-items: center;
+  }
+  .collapseButton {
+    display: none;
+  }
+  .overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    background: rgba(0, 0, 0, 0.52);
+    border: 0;
+  }
+  .workspace {
+    margin-left: 0;
+  }
+  .topbar {
+    padding: 0 17px;
+    height: 70px;
+  }
+  .mobileMenu {
+    margin-right: 12px;
+  }
+  .main {
+    padding: 20px;
+  }
+  .userText {
+    display: none;
+  }
+}
+@media (max-width: 520px) {
+  .pageTitle h1 {
+    font-size: 17px;
+  }
+  .pageTitle span {
+    display: none;
+  }
+  .topActions {
+    gap: 6px;
+  }
+  .main {
+    padding: 16px;
+  }
+  .topbar {
+    padding: 0 12px;
+  }
+  .userButton {
+    border: 0;
+    background: transparent;
+    padding: 2px;
+  }
+  .iconButton {
+    width: 38px;
+    height: 38px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .workspace,
+  .navItem {
+    transition: none;
+  }
+}

@@ -140,6 +140,14 @@ final class Kernel
         ) {
             http_response_code($status);
             header('Content-Type: application/json; charset=UTF-8');
+            if (str_starts_with($path, '/api/v2/store/')) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => $message,
+                    'requestId' => RequestContext::id(),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                return false;
+            }
             echo json_encode([
                 'status' => false,
                 'message' => $message,
@@ -183,6 +191,14 @@ final class Kernel
 
         if (str_starts_with($path, '/api/')) {
             header('Content-Type: application/json; charset=UTF-8');
+            if (str_starts_with($path, '/api/v2/store/')) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => $message,
+                    'requestId' => RequestContext::id(),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                return;
+            }
             echo json_encode([
                 'success' => false,
                 'error' => [

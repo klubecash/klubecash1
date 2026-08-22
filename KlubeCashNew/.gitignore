@@ -1,6 +1,10 @@
 node_modules/
 .next/
+.runtime/
 coverage/
+/test-results/
+/playwright-report/
+/blob-report/
 .env.local
 npm-debug.log*
 *.tsbuildinfo

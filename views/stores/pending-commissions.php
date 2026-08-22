@@ -8,7 +8,9 @@ require_once '../../controllers/AuthController.php';
 require_once '../../controllers/TransactionController.php';
 require_once '../../models/CashbackBalance.php';
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if (!AuthController::hasStoreAccess()) {
     header("Location: " . LOGIN_URL . "?error=acesso_restrito");

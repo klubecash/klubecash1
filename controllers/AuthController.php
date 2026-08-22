@@ -35,7 +35,7 @@ class AuthController {
  * Método de login COM LOGS FORÇADOS para debug
  */
  public static function login($email, $senha, $remember = false) {
-     error_log("=== LOGIN INICIADO === Email: {$email}");
+     error_log('auth.login.started');
 
     try {
         if (session_status() === PHP_SESSION_NONE) {
@@ -53,30 +53,30 @@ class AuthController {
         $stmt->execute([$email]);
 
         if ($stmt->rowCount() === 0) {
-            error_log("LOGIN ERRO: Usuário não encontrado - {$email}");
+            error_log('auth.login.invalid_credentials');
             return ['status' => false, 'message' => 'E-mail ou senha incorretos.'];
         }
 
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        error_log("LOGIN: Usuário encontrado - ID: {$user['id']}, Tipo: {$user['tipo']}");
+        error_log('auth.login.user_found');
 
         if (!password_verify($senha, $user['senha_hash'])) {
-            error_log("LOGIN ERRO: Senha incorreta para {$email}");
+            error_log('auth.login.invalid_credentials');
             return ['status' => false, 'message' => 'E-mail ou senha incorretos.'];
         }
 
         if (!session_regenerate_id(true)) {
-            error_log("LOGIN ERRO: Falha ao renovar a sessao para {$email}");
+            error_log('auth.login.session_regeneration_failed');
             return ['status' => false, 'message' => 'Nao foi possivel iniciar uma sessao segura. Tente novamente.'];
         }
 
         if ($user['status'] !== 'ativo') {
-            error_log("LOGIN ERRO: Conta inativa - {$email}");
+            error_log('auth.login.inactive_account');
             return ['status' => false, 'message' => 'Sua conta está inativa. Entre em contato com o suporte.'];
         }
 
-        error_log("LOGIN: Validações OK, configurando sessão...");
+        error_log('auth.login.validated');
 
         // Definir variáveis básicas da sessão
         $_SESSION['user_id'] = intval($user['id']);
@@ -85,11 +85,11 @@ class AuthController {
         $_SESSION['user_type'] = $user['tipo'];
         $_SESSION['last_activity'] = time();
 
-        error_log("LOGIN: Sessão básica definida - User ID: {$user['id']}");
+        error_log('auth.login.session_configured');
 
         // Lógica para loja
         if ($user['tipo'] === 'loja') {
-            error_log("LOGIN: ENTRANDO na configuração de LOJA para User ID: {$user['id']}");
+            error_log('auth.login.store_context_started');
 
             try {
                 $storeStmt = $db->prepare("SELECT * FROM lojas WHERE usuario_id = ? AND status = 'aprovado' ORDER BY id ASC LIMIT 1");
@@ -97,20 +97,20 @@ class AuthController {
                 $loja = $storeStmt->fetch(PDO::FETCH_ASSOC);
 
                 if ($loja) {
-                    error_log("LOGIN: LOJA ENCONTRADA - ID: {$loja['id']}, Nome: {$loja['nome_fantasia']}");
+                    error_log('auth.login.store_found');
 
                     $_SESSION['store_id'] = intval($loja['id']);
                     $_SESSION['store_name'] = $loja['nome_fantasia'];
                     $_SESSION['loja_vinculada_id'] = intval($loja['id']);
 
                     if (isset($_SESSION['store_id']) && $_SESSION['store_id'] > 0) {
-                        error_log("LOGIN: ✅ SUCESSO! store_id salvo corretamente: {$_SESSION['store_id']}");
+                        error_log('auth.login.store_context_ready');
                     } else {
-                        error_log("LOGIN: ❌ ERRO! store_id NÃO foi salvo");
+                        error_log('auth.login.store_context_failed');
                         return ['status' => false, 'message' => 'Erro ao salvar dados da loja na sessão.'];
                     }
                 } else {
-                    error_log("LOGIN: ❌ NENHUMA LOJA ENCONTRADA para User ID: {$user['id']}");
+                    error_log('auth.login.store_not_found');
                     return ['status' => false, 'message' => 'Nenhuma loja aprovada encontrada para sua conta.'];
                 }
             } catch (Exception $e) {
@@ -118,15 +118,15 @@ class AuthController {
                 return ['status' => false, 'message' => 'Erro ao configurar dados da loja: ' . $e->getMessage()];
             }
         } else {
-            error_log("LOGIN: Usuário NÃO é lojista, tipo: {$user['tipo']}");
+            error_log('auth.login.non_store_user');
         }
 
         // Lógica para funcionários
         if ($user['tipo'] === 'funcionario') {
-            error_log("LOGIN: CONFIGURANDO FUNCIONÁRIO - User ID: {$user['id']}");
+            error_log('auth.login.employee_context_started');
 
             if (empty($user['loja_vinculada_id'])) {
-                error_log("LOGIN ERRO: Funcionário {$user['id']} sem loja_vinculada_id");
+                error_log('auth.login.employee_without_store');
                 return ['status' => false, 'message' => 'Funcionário sem loja vinculada. Entre em contato com o suporte.'];
             }
 
@@ -135,7 +135,7 @@ class AuthController {
             $storeData = $storeStmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$storeData) {
-                error_log("LOGIN ERRO: Loja {$user['loja_vinculada_id']} não encontrada ou não aprovada");
+                error_log('auth.login.employee_store_unavailable');
                 return ['status' => false, 'message' => 'A loja vinculada não está ativa.'];
             }
 
@@ -147,18 +147,17 @@ class AuthController {
 
 
             if (!isset($_SESSION['store_id']) || empty($_SESSION['store_id']) || $_SESSION['store_id'] != $storeData['id']) {
-                error_log("LOGIN ERRO CRÍTICO: store_id não foi salvo corretamente para funcionário {$user['id']}");
-                error_log("Esperado: {$storeData['id']}, Atual: " . ($_SESSION['store_id'] ?? 'NULL'));
+                error_log('auth.login.employee_context_failed');
                 return ['status' => false, 'message' => 'Erro crítico ao configurar acesso à loja.'];
             }
 
-            error_log("LOGIN: FUNCIONÁRIO CONFIGURADO - Store ID: {$_SESSION['store_id']}, Nome: {$storeData['nome_fantasia']}");
+            error_log('auth.login.employee_context_ready');
         }
 
         // Atualizar último login
         $updateStmt = $db->prepare("UPDATE usuarios SET ultimo_login = NOW() WHERE id = ?");
         $updateStmt->execute([$user['id']]);
-        error_log("LOGIN: Último login atualizado");
+        error_log('auth.login.last_login_updated');
 
         // Geração do Token JWT
         $tokenPayload = [
@@ -168,7 +167,7 @@ class AuthController {
             'exp'  => time() + (60 * 60 * 24) // Token JWT válido por 24h
         ];
         $token = Security::generateJWT($tokenPayload);
-        error_log("LOGIN: Token JWT gerado para o usuário ID: {$user['id']}");
+        error_log('auth.login.token_generated');
 
         return [
             'status' => true,
@@ -197,13 +196,7 @@ public static function debugStoreAccess() {
     $userType = $_SESSION['user_type'] ?? null;
     $storeId = $_SESSION['store_id'] ?? null;
     
-    // Log detalhado
-    error_log("DEBUG STORE ACCESS: " . json_encode([
-        'user_type' => $userType,
-        'store_id' => $storeId,
-        'url' => $_SERVER['REQUEST_URI'] ?? 'unknown',
-        'method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown'
-    ]));
+    error_log('auth.store_access.checked');
     
     // Para funcionários, garantir acesso direto
     if ($userType === 'funcionario' && !empty($storeId)) {
@@ -354,7 +347,7 @@ public static function debugStoreAccess() {
             $tokenData = GoogleAuth::getAccessToken($code);
             
             if (!$tokenData || !isset($tokenData['access_token'])) {
-                error_log('Google OAuth Register: Erro ao obter token - ' . json_encode($tokenData));
+                error_log('auth.google.register.token_failed');
                 return ['status' => false, 'message' => 'Erro ao obter token do Google.'];
             }
             
@@ -362,12 +355,11 @@ public static function debugStoreAccess() {
             $userInfo = GoogleAuth::getUserInfo($tokenData['access_token']);
             
             if (!$userInfo || !isset($userInfo['email'])) {
-                error_log('Google OAuth Register: Erro ao obter dados do usuário - ' . json_encode($userInfo));
+                error_log('auth.google.register.profile_failed');
                 return ['status' => false, 'message' => 'Erro ao obter dados do usuário do Google.'];
             }
             
-            // Log para debug
-            error_log('Google OAuth Register: Dados do usuário recebidos - ' . json_encode($userInfo));
+            error_log('auth.google.register.profile_received');
             
             $db = Database::getConnection();
             
@@ -383,7 +375,7 @@ public static function debugStoreAccess() {
             
             if ($existingUser) {
                 // Para registro, usuário não deve existir
-                error_log('Google OAuth Register: Usuário já existe - ' . $userInfo['email']);
+            error_log('auth.google.register.user_exists');
                 return [
                     'status' => false, 
                     'message' => 'Uma conta com este email já existe. Faça login em vez de se registrar.',
@@ -402,7 +394,7 @@ public static function debugStoreAccess() {
             
             // Verificar se o email do Google está verificado
             if (!isset($userInfo['verified_email']) || !$userInfo['verified_email']) {
-                error_log('Google OAuth Register: Email não verificado no Google para ' . $userInfo['email']);
+                error_log('auth.google.register.email_not_verified');
                 // Continuar mesmo assim, mas marcar como não verificado
             }
             
@@ -433,7 +425,7 @@ public static function debugStoreAccess() {
             if ($stmt->execute()) {
                 $userId = $db->lastInsertId();
                 
-                error_log('Google OAuth Register: Novo usuário registrado - ID: ' . $userId);
+                error_log('auth.google.register.created');
                 
                 // Iniciar sessão automaticamente após registro
                 if (session_status() === PHP_SESSION_NONE) {
@@ -516,7 +508,7 @@ public static function debugStoreAccess() {
             $tokenData = GoogleAuth::getAccessToken($code);
             
             if (!$tokenData || !isset($tokenData['access_token'])) {
-                error_log('Google OAuth: Erro ao obter token - ' . json_encode($tokenData));
+                error_log('auth.google.login.token_failed');
                 return ['status' => false, 'message' => 'Erro ao obter token do Google.'];
             }
             
@@ -524,12 +516,11 @@ public static function debugStoreAccess() {
             $userInfo = GoogleAuth::getUserInfo($tokenData['access_token']);
             
             if (!$userInfo || !isset($userInfo['email'])) {
-                error_log('Google OAuth: Erro ao obter dados do usuário - ' . json_encode($userInfo));
+                error_log('auth.google.login.profile_failed');
                 return ['status' => false, 'message' => 'Erro ao obter dados do usuário do Google.'];
             }
             
-            // Log para debug
-            error_log('Google OAuth: Dados do usuário recebidos - ' . json_encode($userInfo));
+            error_log('auth.google.login.profile_received');
             
             $db = Database::getConnection();
             
@@ -569,7 +560,7 @@ public static function debugStoreAccess() {
                     return ['status' => false, 'message' => 'Sua conta está ' . $userStatus . '. Entre em contato com o suporte.'];
                 }
                 
-                error_log('Google OAuth: Usuário existente atualizado - ID: ' . $userId);
+                error_log('auth.google.login.user_updated');
                 
             } else {
                 // Criar novo usuário
@@ -598,7 +589,7 @@ public static function debugStoreAccess() {
                     $userName = $nome;
                     $userType = 'cliente';
                     
-                    error_log('Google OAuth: Novo usuário criado - ID: ' . $userId);
+                    error_log('auth.google.login.user_created');
                     
                     // Enviar email de boas-vindas
                     try {
@@ -627,7 +618,7 @@ public static function debugStoreAccess() {
             // Limpar state da sessão
             unset($_SESSION['google_oauth_state']);
             
-            error_log('Google OAuth: Login realizado com sucesso - User ID: ' . $userId);
+            error_log('auth.google.login.succeeded');
             
             return [
                 'status' => true,
@@ -886,7 +877,7 @@ public static function debugStoreAccess() {
             if (!Email::sendPasswordRecovery($user['email'], $user['nome'], $token)) {
                 $cleanupStmt = $db->prepare("DELETE FROM recuperacao_senha WHERE id = :id AND usuario_id = :user_id");
                 $cleanupStmt->execute([':id' => $recoveryId, ':user_id' => $user['id']]);
-                error_log('Falha ao enviar e-mail de recuperação para o usuário ID ' . $user['id']);
+                error_log('auth.password_recovery.delivery_failed');
                 return ['status' => true, 'message' => self::PASSWORD_RECOVERY_GENERIC_MESSAGE];
             }
 

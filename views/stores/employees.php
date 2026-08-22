@@ -200,7 +200,7 @@ $permissions = [
                         <i class="fas fa-user-tie"></i>
                     </div>
                     <div class="stat-content">
-                        <h3><?php echo number_format($statistics['total_funcionarios']); ?></h3>
+                        <h3><?php echo number_format((int) ($statistics['total_funcionarios'] ?? 0)); ?></h3>
                         <p>Total de Funcionários</p>
                     </div>
                 </div>
@@ -209,7 +209,7 @@ $permissions = [
                         <i class="fas fa-calculator"></i>
                     </div>
                     <div class="stat-content">
-                        <h3><?php echo number_format($statistics['total_financeiro']); ?></h3>
+                        <h3><?php echo number_format((int) ($statistics['total_financeiro'] ?? 0)); ?></h3>
                         <p>Financeiro</p>
                     </div>
                 </div>
@@ -218,7 +218,7 @@ $permissions = [
                         <i class="fas fa-user-shield"></i>
                     </div>
                     <div class="stat-content">
-                        <h3><?php echo number_format($statistics['total_gerente']); ?></h3>
+                        <h3><?php echo number_format((int) ($statistics['total_gerente'] ?? 0)); ?></h3>
                         <p>Gerentes</p>
                     </div>
                 </div>
@@ -227,7 +227,7 @@ $permissions = [
                         <i class="fas fa-handshake"></i>
                     </div>
                     <div class="stat-content">
-                        <h3><?php echo number_format($statistics['total_vendedor']); ?></h3>
+                        <h3><?php echo number_format((int) ($statistics['total_vendedor'] ?? 0)); ?></h3>
                         <p>Vendedores</p>
                     </div>
                 </div>

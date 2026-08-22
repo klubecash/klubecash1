@@ -13,6 +13,9 @@ $api = static fn (
 return [
     $api('/api/health', 'api/health.php', 'api.health', ['GET']),
     $api('/api/homepage-context', 'api/homepage-context.php', 'api.homepage-context', ['GET']),
+    $api('/api/v1/store-app', 'api/store-app.php', 'api.store-app', ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], ['api', 'store']),
+    $api('/api/v2/store/{resource:.+}', 'api/store-v2.php', 'api.store.v2', ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], ['api', 'store']),
+    $api('/api/v2/admin/{resource:.+}', 'api/admin-v2.php', 'api.admin.v2', ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], ['api', 'admin']),
     $api('/api/store-client-search', 'api/store-client-search.php', 'api.store-client-search', ['GET', 'POST', 'OPTIONS'], ['api', 'store']),
     $api('/api/mercadopago', 'api/mercadopago.php', 'api.mercadopago', ['GET', 'POST', 'OPTIONS'], ['api', 'store']),
     $api('/api/mercadopago-webhook', 'api/mercadopago-webhook.php', 'api.mercadopago.webhook', ['POST']),

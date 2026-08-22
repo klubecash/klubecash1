@@ -5,7 +5,9 @@ require_once '../controllers/AuthController.php';
 require_once '../controllers/TransactionController.php';
 
 header('Content-Type: application/json; charset=UTF-8');
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if (!AuthController::isAuthenticated() || !AuthController::hasStoreAccess()) {
     echo json_encode(['status' => false, 'message' => 'Acesso não autorizado']);

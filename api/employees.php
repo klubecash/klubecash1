@@ -14,7 +14,9 @@ require_once __DIR__ . '/../config/constants.php';
 require_once __DIR__ . '/../controllers/AuthController.php';
 require_once __DIR__ . '/../controllers/StoreController.php';
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // CORREÇÃO PRINCIPAL: Trocar isLoggedIn() por isAuthenticated()
 if (!AuthController::isAuthenticated() || !AuthController::canManageEmployees()) {

@@ -1,0 +1,18 @@
+FROM php:8.4-cli-alpine
+
+RUN apk add --no-cache icu-libs libcurl libstdc++ \
+    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS icu-dev curl-dev oniguruma-dev \
+    && docker-php-ext-install -j"$(nproc)" pdo_mysql mysqli mbstring intl curl opcache \
+    && apk del .build-deps \
+    && mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
+
+WORKDIR /app
+COPY . .
+
+RUN mkdir -p /app/logs /app/uploads \
+    && chmod -R 0755 /app/logs /app/uploads
+
+ENV PORT=80
+EXPOSE 80
+
+CMD ["sh", "-c", "php -d variables_order=EGPCS -S 0.0.0.0:${PORT:-80} router.php"]

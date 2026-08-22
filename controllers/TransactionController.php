@@ -7,6 +7,14 @@ require_once __DIR__ . '/../config/whatsapp.php';
 require_once __DIR__ . '/AuthController.php';
 require_once __DIR__ . '/StoreController.php';
 require_once __DIR__ . '/../utils/Validator.php';
+require_once __DIR__ . '/../services/store/StoreApiException.php';
+require_once __DIR__ . '/../services/store/StoreMoney.php';
+require_once __DIR__ . '/../services/store/StoreIdempotencyService.php';
+require_once __DIR__ . '/../services/store/StoreTransactionService.php';
+
+use App\Services\Store\StoreApiException;
+use App\Services\Store\StoreMoney;
+use App\Services\Store\StoreTransactionService;
 
 
 /**
@@ -421,7 +429,7 @@ class TransactionController {
             $user = $userStmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$user || empty($user['telefone'])) {
-                error_log("WhatsApp: Usu�rio {$userId} sem telefone cadastrado");
+                error_log('notification.whatsapp.missing_phone');
                 return ['status' => false, 'message' => 'Usu�rio sem telefone'];
             }
             
@@ -429,7 +437,7 @@ class TransactionController {
             $result = WhatsAppBot::sendNewTransactionNotification($user['telefone'], $transactionData);
             
             if ($result['success']) {
-                error_log("WhatsApp: Notifica��o de nova transa��o enviada para {$user['telefone']}");
+                error_log('notification.whatsapp.transaction_sent');
             }
             
             return $result;
@@ -950,7 +958,7 @@ class TransactionController {
     * @param array $data Dados da transa��o
     * @return array Resultado da opera��o
     */
-    public static function registerTransaction($data) {
+    public static function registerTransactionCommissionLegacy($data) {
         try {
             // Validar dados obrigat�rios
             $requiredFields = ['loja_id', 'usuario_id', 'valor_total', 'codigo_transacao'];
@@ -1491,7 +1499,86 @@ class TransactionController {
     /**
      * Vers�o limpa e funcional do registro de transa��es com funcionalidade MVP
      */
+    public static function registerTransaction($data) {
+        return self::registerTransactionFixed($data);
+    }
+
+    /**
+     * Registra qualquer nova venda no modelo de cashback financiado pela loja.
+     * Mantém o formato de resposta das telas PHP antigas e usa o mesmo serviço
+     * atômico e idempotente exposto pela API v2.
+     */
     public static function registerTransactionFixed($data) {
+        try {
+            if (!AuthController::isAuthenticated()) {
+                return ['status' => false, 'message' => 'Usuário não autenticado.'];
+            }
+            if (!AuthController::hasStoreAccess() && !AuthController::isAdmin()) {
+                return ['status' => false, 'message' => 'Acesso não autorizado.'];
+            }
+
+            $storeId = (int) ($data['loja_id'] ?? 0);
+            $actorId = (int) AuthController::getCurrentUserId();
+            if ($storeId <= 0 || $actorId <= 0) {
+                return ['status' => false, 'message' => 'Loja ou usuário inválido.'];
+            }
+            if (!AuthController::isAdmin() && !AuthController::canAccessStoreId($storeId)) {
+                return ['status' => false, 'message' => 'Acesso não autorizado a esta loja.'];
+            }
+
+            $code = strtoupper(trim((string) ($data['codigo_transacao'] ?? '')));
+            $headerKey = trim((string) (
+                $_SERVER['HTTP_X_IDEMPOTENCY_KEY']
+                ?? $_SERVER['HTTP_IDEMPOTENCY_KEY']
+                ?? ''
+            ));
+            $idempotencyKey = $headerKey !== ''
+                ? $headerKey
+                : 'legacy-sale:' . hash('sha256', $storeId . '|' . $code);
+
+            $result = (new StoreTransactionService(Database::getConnection()))->create(
+                $storeId,
+                $actorId,
+                [
+                    'customerId' => (int) ($data['usuario_id'] ?? 0),
+                    'grossAmountCents' => StoreMoney::toCents($data['valor_total'] ?? 0),
+                    'balanceUsedCents' => StoreMoney::toCents($data['valor_saldo_usado'] ?? 0),
+                    'code' => $code,
+                    'description' => trim((string) ($data['descricao'] ?? '')),
+                    'occurredAt' => (string) ($data['data_transacao'] ?? date('Y-m-d H:i:s')),
+                ],
+                $idempotencyKey
+            );
+
+            return [
+                'status' => true,
+                'message' => !empty($result['replayed'])
+                    ? 'Venda já registrada anteriormente.'
+                    : 'Venda registrada e cashback creditado com sucesso.',
+                'data' => [
+                    'transaction_id' => $result['id'],
+                    'status' => 'aprovado',
+                    'valor_total' => StoreMoney::decimal((int) $result['grossAmountCents']),
+                    'valor_pago' => StoreMoney::decimal((int) $result['paidAmountCents']),
+                    'valor_saldo_usado' => StoreMoney::decimal((int) $result['balanceUsedCents']),
+                    'valor_cashback' => StoreMoney::decimal((int) $result['cashbackGrantedCents']),
+                    'valor_cliente' => StoreMoney::decimal((int) $result['cashbackGrantedCents']),
+                    'valor_admin' => '0.00',
+                    'valor_loja' => '0.00',
+                    'financial_model' => 'subscription_cashback',
+                    'replayed' => (bool) ($result['replayed'] ?? false),
+                ],
+            ];
+        } catch (StoreApiException $exception) {
+            return ['status' => false, 'message' => $exception->getMessage()];
+        } catch (Throwable $exception) {
+            error_log('store.sale.failed request_id=' . bin2hex(random_bytes(8)));
+            return ['status' => false, 'message' => 'Não foi possível registrar a venda. Tente novamente.'];
+        }
+    }
+
+    /** @deprecated Mantido apenas para auditoria e rollback de código. */
+    public static function registerTransactionFixedCommissionLegacy($data) {
         try {
             // Validar dados obrigat�rios
             $requiredFields = ['loja_id', 'usuario_id', 'valor_total', 'codigo_transacao'];
@@ -3542,10 +3629,6 @@ if (basename($_SERVER['PHP_SELF']) === 'TransactionController.php') {
             
         case 'register_payment':
             // Debug da sess�o
-            error_log("Session data: " . print_r($_SESSION, true));
-            error_log("Auth check: " . (AuthController::isAuthenticated() ? 'true' : 'false'));
-            error_log("Store check: " . (AuthController::isStore() ? 'true' : 'false'));
-            
             $data = $_POST;
             $result = TransactionController::registerPayment($data);
             echo json_encode($result);

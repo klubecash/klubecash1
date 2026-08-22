@@ -12,7 +12,9 @@ require_once '../../controllers/StoreBalancePaymentController.php';
 require_once '../../models/CashbackBalance.php';
 
 // Iniciar sessão
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Verificar se o usuário está logado e é uma loja
 if (!AuthController::hasStoreAccess()) {

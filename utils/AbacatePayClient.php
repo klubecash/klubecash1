@@ -178,7 +178,7 @@ class AbacatePayClient {
      * @return array Resposta decodificada
      * @throws Exception
      */
-    private function makeRequest(string $method, string $url, array $data = null) {
+    private function makeRequest(string $method, string $url, ?array $data = null) {
         $ch = curl_init();
 
         $headers = [

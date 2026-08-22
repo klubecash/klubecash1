@@ -62,8 +62,7 @@ class Security {
      * @return object|false Os dados do payload se o token for válido, ou false caso contrário.
      */
     public static function validateJWT(string $jwt) {
-        // Log inicial
-        error_log("KlubeCash Debug (validateJWT) - Iniciando validação para token: " . substr($jwt, 0, 10) . "..."); 
+        error_log('auth.jwt.validation_started');
 
         $tokenParts = explode('.', $jwt);
         if (count($tokenParts) !== 3) {
@@ -92,11 +91,7 @@ class Security {
             $currentTime = time();
             $isExpired = $expirationTime < $currentTime;
 
-            error_log("KlubeCash Debug (validateJWT) - Verificando Expiração:");
-            error_log("  -> Tempo de Expiração (exp timestamp): " . $expirationTime . " | Data Formatada: " . date('Y-m-d H:i:s', $expirationTime));
-            error_log("  -> Hora Atual Servidor (time() timestamp): " . $currentTime . " | Data Formatada: " . date('Y-m-d H:i:s', $currentTime));
-            error_log("  -> Fuso Horário do PHP: " . date_default_timezone_get());
-            error_log("  -> Token Expirado? (exp < time()): " . ($isExpired ? 'SIM' : 'NÃO'));
+            error_log('auth.jwt.expiration_checked result=' . ($isExpired ? 'expired' : 'valid'));
 
             if ($isExpired) {
                 return false; // Token expirado
@@ -112,10 +107,7 @@ class Security {
         $base64UrlSignature = self::base64UrlEncode($signature);
 
         $signatureValid = hash_equals($base64UrlSignature, $signatureProvided);
-        error_log("KlubeCash Debug (validateJWT) - Verificando Assinatura:");
-        // error_log("  -> Assinatura Esperada: " . $base64UrlSignature); // Descomente se precisar comparar as strings
-        // error_log("  -> Assinatura Fornecida: " . $signatureProvided);
-        error_log("  -> Assinatura Válida? " . ($signatureValid ? 'SIM' : 'NÃO'));
+        error_log('auth.jwt.signature_checked result=' . ($signatureValid ? 'valid' : 'invalid'));
 
         if ($signatureValid) {
             error_log("KlubeCash Debug (validateJWT) - SUCESSO: Token válido.");

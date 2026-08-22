@@ -51,6 +51,15 @@ final class Bootstrap
                 if (headers_sent() === false) {
                     header('Content-Type: application/json; charset=UTF-8');
                 }
+                if (str_starts_with($path, '/api/v2/store/') || str_starts_with($path, '/api/v2/admin/')) {
+                    echo json_encode([
+                        'status' => 'error',
+                        'message' => 'Não foi possível concluir a solicitação.',
+                        'requestId' => RequestContext::id(),
+                        'generatedAt' => date(DATE_ATOM),
+                    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                    return;
+                }
                 echo json_encode([
                     'success' => false,
                     'error' => [

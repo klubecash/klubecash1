@@ -61,7 +61,7 @@ final class Logger
 
     private static function write(string $level, string $event, array $context): void
     {
-        unset($context['password'], $context['senha'], $context['token'], $context['secret']);
+        $context = self::sanitize($context);
 
         error_log((string) json_encode([
             'timestamp' => gmdate('c'),
@@ -70,9 +70,41 @@ final class Logger
             'request_id' => RequestContext::id(),
             'method' => $_SERVER['REQUEST_METHOD'] ?? null,
             'path' => parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH),
-            'user_id' => $_SESSION['user_id'] ?? null,
             'duration_ms' => RequestContext::durationMs(),
             'context' => $context,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private static function sanitize(array $context): array
+    {
+        $sensitiveKeys = [
+            'password', 'senha', 'token', 'secret', 'email', 'telefone',
+            'phone', 'cpf', 'cnpj', 'session', 'session_id', 'user_id',
+            'user_name', 'name',
+        ];
+        foreach ($context as $key => $value) {
+            $normalizedKey = strtolower((string) $key);
+            if (in_array($normalizedKey, $sensitiveKeys, true)) {
+                $context[$key] = '[redacted]';
+                continue;
+            }
+            if (is_array($value)) {
+                $context[$key] = self::sanitize($value);
+                continue;
+            }
+            if (is_string($value)) {
+                $value = preg_replace(
+                    '/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i',
+                    '[redacted-email]',
+                    $value
+                ) ?? $value;
+                $context[$key] = preg_replace(
+                    '/\b(?:\+?55\s*)?(?:\(?\d{2}\)?[\s.-]*)?\d{4,5}[\s.-]*\d{4}\b/',
+                    '[redacted-phone]',
+                    $value
+                ) ?? $value;
+            }
+        }
+        return $context;
     }
 }

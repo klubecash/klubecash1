@@ -80,6 +80,18 @@ define('USER_TYPE_ADMIN', 'admin');
 define('USER_TYPE_STORE', 'loja');
 define('USER_TYPE_EMPLOYEE', 'funcionario');
 
+define('EMPLOYEE_TYPE_MANAGER', 'gerente');
+define('EMPLOYEE_TYPE_FINANCIAL', 'financeiro');
+define('EMPLOYEE_TYPE_SALESPERSON', 'vendedor');
+define('EMPLOYEE_SUBTYPES', [
+    'funcionario' => 'Funcionário',
+    EMPLOYEE_TYPE_MANAGER => 'Gerente',
+    'coordenador' => 'Coordenador',
+    'assistente' => 'Assistente',
+    EMPLOYEE_TYPE_FINANCIAL => 'Financeiro',
+    EMPLOYEE_TYPE_SALESPERSON => 'Vendedor',
+]);
+
 
 // === AUTENTICAÇÃO (ADIÇÃO) ===
 define('JWT_SECRET', getenv('JWT_SECRET') ?: '');

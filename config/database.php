@@ -85,6 +85,11 @@ class Database
                 PDO::MYSQL_ATTR_SSL_CA => DB_SSL_CA,
             ];
 
+            $persistentSetting = getenv('DB_PERSISTENT');
+            $options[PDO::ATTR_PERSISTENT] = $persistentSetting === false
+                ? PHP_SAPI !== 'cli'
+                : filter_var((string) $persistentSetting, FILTER_VALIDATE_BOOL);
+
             // Cria conexão
             self::$connection = new PDO(
                 $dsn,
@@ -103,27 +108,13 @@ class Database
 
         } catch (PDOException $e) {
 
-            error_log(
-                'Erro de conexão com banco de dados: ' .
-                $e->getMessage()
-            );
-
-            die(
-                'Não foi possível conectar ao banco de dados. ' .
-                'Por favor, tente novamente mais tarde.'
-            );
+            error_log('database.connection.failed type=' . get_class($e));
+            throw new RuntimeException('Não foi possível conectar ao banco de dados.', 0, $e);
 
         } catch (Exception $e) {
 
-            error_log(
-                'Erro de configuração do banco de dados: ' .
-                $e->getMessage()
-            );
-
-            die(
-                'Erro na configuração do banco de dados. ' .
-                'Verifique o certificado SSL.'
-            );
+            error_log('database.configuration.failed type=' . get_class($e));
+            throw new RuntimeException('Erro na configuração do banco de dados.', 0, $e);
         }
     }
 

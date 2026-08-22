@@ -10,6 +10,7 @@ vendor
 **_IGNORE_**
 # end managed by open-wa
 .vercel
+.runtime/
 
 # Local runtime logs
 logs/*.log
