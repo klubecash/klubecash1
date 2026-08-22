@@ -14,6 +14,9 @@ use InvalidArgumentException;
 use PDO;
 use Throwable;
 
+require_once __DIR__ . '/StoreMoney.php';
+require_once __DIR__ . '/StoreWhatsAppMessageFormatter.php';
+
 final class StoreWhatsAppNotificationService
 {
     private const MAX_ATTEMPTS = 5;
@@ -104,7 +107,14 @@ final class StoreWhatsAppNotificationService
 
         $details = $this->db->prepare(
             'SELECT d.attempts,t.codigo_transacao,t.valor_total,t.valor_cliente,
-                    u.nome customer_name,u.telefone customer_phone,l.nome_fantasia store_name
+                    u.nome customer_name,u.telefone customer_phone,l.nome_fantasia store_name,
+                    COALESCE((SELECT SUM(tsu.valor_usado)
+                              FROM transacoes_saldo_usado tsu
+                              WHERE tsu.transacao_id=t.id),0) balance_used,
+                    COALESCE((SELECT cs.saldo_disponivel
+                              FROM cashback_saldos cs
+                              WHERE cs.usuario_id=t.usuario_id AND cs.loja_id=t.loja_id
+                              ORDER BY cs.id DESC LIMIT 1),0) current_balance
              FROM store_whatsapp_deliveries d
              JOIN transacoes_cashback t ON t.id=d.transaction_id AND t.loja_id=d.loja_id
              JOIN usuarios u ON u.id=t.usuario_id
@@ -125,7 +135,15 @@ final class StoreWhatsAppNotificationService
         }
 
         try {
-            $message = $this->message($row);
+            $message = (new StoreWhatsAppMessageFormatter())->format(
+                (string) ($row['customer_name'] ?? ''),
+                (string) ($row['store_name'] ?? ''),
+                (string) ($row['codigo_transacao'] ?? ''),
+                StoreMoney::toCents($row['valor_total'] ?? 0),
+                StoreMoney::toCents($row['balance_used'] ?? 0),
+                StoreMoney::toCents($row['valor_cliente'] ?? 0),
+                StoreMoney::toCents($row['current_balance'] ?? 0)
+            );
             $response = (new WahaService(WahaConfig::fromEnvironment(), new CurlWahaHttpClient()))
                 ->sendText($phone, $message);
             $providerId = $this->providerMessageId($response);
@@ -166,22 +184,6 @@ final class StoreWhatsAppNotificationService
             ]);
             return 'failed';
         }
-    }
-
-    /** @param array<string,mixed> $row */
-    private function message(array $row): string
-    {
-        $name = trim((string) $row['customer_name']);
-        $store = trim((string) $row['store_name']);
-        $code = trim((string) $row['codigo_transacao']);
-        $purchase = number_format((float) $row['valor_total'], 2, ',', '.');
-        $cashback = number_format((float) $row['valor_cliente'], 2, ',', '.');
-
-        return "Olá, {$name}! Sua compra na {$store} foi aprovada.\n\n"
-            . "Código: {$code}\n"
-            . "Valor da compra: R$ {$purchase}\n"
-            . "Cashback creditado: R$ {$cashback}\n\n"
-            . 'Obrigado por usar o Klube Cash.';
     }
 
     /** @param array<string,mixed> $response */
