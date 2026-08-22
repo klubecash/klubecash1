@@ -36,4 +36,11 @@ check($handler->handle($raw,$sig,'req-1')['status']===200,'Webhook valido rejeit
 $other=$event; $other['id']='evt-2'; $other['session']='other'; $otherRaw=json_encode($other); check($handler->handle($otherRaw,hash_hmac('sha512',$otherRaw,'test-hmac'),'req-2')['status']===403,'Outra sessao aceita.');
 $mine=$event; $mine['id']='evt-3'; $mine['payload']['id']='msg-3'; $mine['payload']['fromMe']=true; $mineRaw=json_encode($mine); $mineResult=$handler->handle($mineRaw,hash_hmac('sha512',$mineRaw,'test-hmac'),'req-3'); check($mineResult['body']['ignored']===true && end($store->events)['fromMe']===true,'Prevencao de loop falhou.');
 check($handler->handle($raw,str_repeat('0',128),'req-4')['status']===401,'HMAC incorreto aceito.');
+$sendRoute = null;
+foreach (require dirname(__DIR__, 2) . '/routes/api.php' as $route) {
+    if ($route['path'] === '/api/whatsapp/send-text') { $sendRoute = $route; break; }
+}
+check(is_array($sendRoute), 'Endpoint de envio administrativo ausente.');
+check($sendRoute['methods'] === ['POST'], 'Endpoint de envio aceita metodo indevido.');
+check(in_array('admin', $sendRoute['middleware'], true), 'Endpoint de envio nao exige administrador.');
 echo "OK: testes WAHA concluidos sem chamadas externas.\n";

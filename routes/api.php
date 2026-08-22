@@ -13,6 +13,7 @@ $api = static fn (
 return [
     $api('/api/health', 'api/health.php', 'api.health', ['GET']),
     $api('/api/whatsapp/status', 'api/whatsapp-status.php', 'api.whatsapp.status', ['GET'], ['api', 'admin']),
+    $api('/api/whatsapp/send-text', 'api/whatsapp-send-text.php', 'api.whatsapp.send-text', ['POST'], ['api', 'admin']),
     $api('/api/webhooks/waha', 'api/waha-webhook.php', 'api.waha.webhook', ['POST']),
     $api('/api/homepage-context', 'api/homepage-context.php', 'api.homepage-context', ['GET']),
     $api('/api/v1/store-app', 'api/store-app.php', 'api.store-app', ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], ['api', 'store']),
