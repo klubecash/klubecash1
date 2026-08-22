@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS waha_webhook_events (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    request_id VARCHAR(191) NOT NULL,
+    event_id VARCHAR(191) NOT NULL,
+    event_type ENUM('message','message.ack','session.status') NOT NULL,
+    payload_json JSON NOT NULL,
+    from_me TINYINT(1) NOT NULL DEFAULT 0,
+    associated_user_id INT NULL,
+    status ENUM('pending','processing','processed','ignored','failed') NOT NULL DEFAULT 'pending',
+    attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    available_at DATETIME NOT NULL,
+    processed_at DATETIME NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_waha_request_id (request_id),
+    UNIQUE KEY uk_waha_event_id (event_id),
+    KEY idx_waha_queue (status, available_at),
+    KEY idx_waha_user (associated_user_id),
+    CONSTRAINT fk_waha_event_user FOREIGN KEY (associated_user_id) REFERENCES usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

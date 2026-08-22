@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Core;
 
+use App\Services\WhatsApp\WahaConfig;
 use Throwable;
 
 final class Bootstrap
@@ -31,6 +32,10 @@ final class Bootstrap
 
         require_once $root . '/config/constants.php';
         require_once $root . '/config/database.php';
+
+        if (PHP_SAPI !== 'cli') {
+            WahaConfig::fromEnvironment();
+        }
 
         self::configureSession();
 
