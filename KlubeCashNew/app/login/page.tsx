@@ -23,6 +23,18 @@ function successMessage(value: string | undefined) {
   return value ?? null;
 }
 
+function safeReturnTo(value: string | undefined) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
+  try {
+    const parsed = new URL(value, "https://www.klubecash.com");
+    return parsed.origin === "https://www.klubecash.com"
+      ? `${parsed.pathname}${parsed.search}${parsed.hash}`
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -30,10 +42,11 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const forceLogin = firstValue(params.force_login) === "1";
+  const returnTo = safeReturnTo(firstValue(params.returnTo));
   const context = await getHomeContext();
 
   if (context.authenticated && context.user && !forceLogin) {
-    redirect(context.user.dashboardUrl);
+    redirect(returnTo ?? context.user.dashboardUrl);
   }
 
   return (
@@ -41,6 +54,7 @@ export default async function LoginPage({
       initialError={firstValue(params.error) ?? null}
       initialSuccess={successMessage(firstValue(params.success))}
       forceLogin={forceLogin}
+      returnTo={returnTo}
     />
   );
 }

@@ -22,6 +22,39 @@ final class WahaService
         return is_array($result) ? $result : [];
     }
 
+    public function resolveSenderPhone(string $chatId): ?string
+    {
+        $chatId = trim($chatId);
+        if (str_ends_with($chatId, '@c.us')) {
+            try {
+                return self::normalizePhone(substr($chatId, 0, -strlen('@c.us')));
+            } catch (InvalidArgumentException) {
+                return null;
+            }
+        }
+        if (!str_ends_with($chatId, '@lid')) {
+            return null;
+        }
+
+        $mapping = $this->request(
+            'GET',
+            '/api/' . rawurlencode($this->config->session) . '/lids/' . rawurlencode($chatId),
+            null,
+            true
+        );
+        $phone = is_array($mapping) && is_scalar($mapping['pn'] ?? null)
+            ? (string) $mapping['pn']
+            : '';
+        if ($phone === '') {
+            return null;
+        }
+        try {
+            return self::normalizePhone(preg_replace('/@.+$/', '', $phone) ?? '');
+        } catch (InvalidArgumentException) {
+            return null;
+        }
+    }
+
     private function resolveChatId(string $phone): string
     {
         $normalized = self::normalizePhone($phone);

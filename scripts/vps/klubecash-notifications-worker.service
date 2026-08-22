@@ -1,0 +1,19 @@
+[Unit]
+Description=Klube Cash WhatsApp notification recovery worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+EnvironmentFile=/etc/klubecash-worker.env
+ExecStart=/opt/klubecash/klubecash-notifications-worker.sh
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

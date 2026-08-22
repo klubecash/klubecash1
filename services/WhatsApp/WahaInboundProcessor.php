@@ -10,17 +10,21 @@ use Throwable;
 
 final class WahaInboundProcessor
 {
-    public function __construct(private PDO $db)
+    private WhatsAppMenuConfig $menuConfig;
+    private ?WahaService $waha;
+
+    public function __construct(private PDO $db, ?WahaService $waha = null, ?WhatsAppMenuConfig $menuConfig = null)
     {
+        $this->menuConfig = $menuConfig ?? WhatsAppMenuConfig::fromEnvironment();
+        $this->waha = $waha;
     }
 
     /** @return array{available:int,processed:int,matched:int,failed:int} */
     public function processPending(int $limit = 50): array
     {
-        (new WahaSchemaManager($this->db))->migrate();
         $limit = max(1, min(100, $limit));
         $events = $this->db->query(
-            "SELECT id,event_type,payload_json,attempts FROM waha_webhook_events
+            "SELECT id,request_id,event_type,payload_json,attempts FROM waha_webhook_events
              WHERE status='pending' AND available_at<=NOW() ORDER BY id LIMIT {$limit}"
         )->fetchAll(PDO::FETCH_ASSOC);
         $stats = ['available' => count($events), 'processed' => 0, 'matched' => 0, 'failed' => 0];
@@ -37,12 +41,28 @@ final class WahaInboundProcessor
 
             try {
                 $event = json_decode((string) $item['payload_json'], true, 512, JSON_THROW_ON_ERROR);
-                $userId = $item['event_type'] === 'message' ? $this->matchUser($event) : null;
+                $userId = null;
+                if ($item['event_type'] === 'message') {
+                    if ($this->menuConfig->menuEnabled) {
+                        $waha = $this->waha ??= new WahaService(
+                            WahaConfig::fromEnvironment(),
+                            new CurlWahaHttpClient()
+                        );
+                        $userId = (new WhatsAppMenuService($this->db, $waha, $this->menuConfig))->process(
+                            (int) $item['id'],
+                            $event,
+                            (string) ($item['request_id'] ?? '')
+                        );
+                    } else {
+                        $userId = $this->matchUser($event);
+                    }
+                }
                 $done = $this->db->prepare(
                     "UPDATE waha_webhook_events
-                     SET status='processed',associated_user_id=:user_id,processed_at=NOW() WHERE id=:id"
+                     SET status='processed',associated_user_id=:user_id,payload_json=:payload,processed_at=NOW() WHERE id=:id"
                 );
                 $done->bindValue(':user_id', $userId, $userId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+                $done->bindValue(':payload', $this->sanitizedPayload($event));
                 $done->bindValue(':id', (int) $item['id'], PDO::PARAM_INT);
                 $done->execute();
                 $stats['processed']++;
@@ -64,6 +84,10 @@ final class WahaInboundProcessor
                     'exception' => get_class($exception),
                 ]);
             }
+        }
+
+        if ($this->menuConfig->menuEnabled) {
+            (new WhatsAppMenuStore($this->db, $this->menuConfig))->purge();
         }
 
         return $stats;
@@ -88,12 +112,30 @@ final class WahaInboundProcessor
         $national = str_starts_with($full, '55') ? substr($full, 2) : $full;
         $statement = $this->db->prepare(
             "SELECT id FROM usuarios
-             WHERE status='ativo' AND telefone IS NOT NULL AND telefone<>''
+             WHERE tipo='cliente' AND status='ativo' AND telefone IS NOT NULL AND telefone<>''
                AND REGEXP_REPLACE(telefone,'[^0-9]','') IN (:full,:national)
-             LIMIT 1"
+             ORDER BY id LIMIT 2"
         );
         $statement->execute([':full' => $full, ':national' => $national]);
-        $id = (int) ($statement->fetchColumn() ?: 0);
-        return $id > 0 ? $id : null;
+        $ids = $statement->fetchAll(PDO::FETCH_COLUMN);
+        return count($ids) === 1 ? (int) $ids[0] : null;
+    }
+
+    /** @param array<string,mixed> $event */
+    private function sanitizedPayload(array $event): string
+    {
+        $payload = is_array($event['payload'] ?? null) ? $event['payload'] : [];
+        $minimal = [
+            'event' => $event['event'] ?? null,
+            'session' => $event['session'] ?? null,
+            'payload' => [
+                'id' => is_scalar($payload['id'] ?? null) ? (string) $payload['id'] : null,
+                'fromMe' => ($payload['fromMe'] ?? $payload['key']['fromMe'] ?? false) === true,
+                'source' => is_scalar($payload['source'] ?? null) ? (string) $payload['source'] : null,
+                'type' => is_scalar($payload['type'] ?? null) ? (string) $payload['type'] : null,
+                'body' => '[redacted]',
+            ],
+        ];
+        return json_encode($minimal, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     }
 }

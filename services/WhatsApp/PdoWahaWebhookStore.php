@@ -10,7 +10,9 @@ final class PdoWahaWebhookStore implements WahaWebhookStore
     {
         try {
             $statement = $this->db->prepare("INSERT INTO waha_webhook_events (request_id,event_id,event_type,payload_json,from_me,status,available_at) VALUES (:request_id,:event_id,:event_type,:payload,:from_me,:status,NOW())");
-            $statement->execute([':request_id' => $requestId, ':event_id' => $eventId, ':event_type' => $eventType, ':payload' => $payloadJson, ':from_me' => $fromMe ? 1 : 0, ':status' => $fromMe && $eventType === 'message' ? 'ignored' : 'pending']);
+            // Mensagens fromMe tambem entram na fila: o processador diferencia
+            // mensagens da API de uma resposta humana e pausa o bot quando necessario.
+            $statement->execute([':request_id' => $requestId, ':event_id' => $eventId, ':event_type' => $eventType, ':payload' => $payloadJson, ':from_me' => $fromMe ? 1 : 0, ':status' => 'pending']);
             return true;
         } catch (PDOException $exception) {
             if ((string) $exception->getCode() === '23000') return false;

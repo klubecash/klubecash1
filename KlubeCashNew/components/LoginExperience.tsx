@@ -12,6 +12,7 @@ type LoginExperienceProps = {
   initialError: string | null;
   initialSuccess: string | null;
   forceLogin: boolean;
+  returnTo?: string | null;
 };
 
 type LoginResponse = {
@@ -39,6 +40,7 @@ export default function LoginExperience({
   initialError,
   initialSuccess,
   forceLogin,
+  returnTo = null,
 }: LoginExperienceProps) {
   const [theme, setTheme] = useState<Theme>(() =>
     typeof document !== "undefined" && document.documentElement.dataset.theme === "dark"
@@ -153,7 +155,7 @@ export default function LoginExperience({
 
       setFeedback({ type: "success", message: payload.message ?? "Login efetuado com sucesso." });
       window.setTimeout(() => {
-        window.location.assign(payload.redirect ?? "/");
+        window.location.assign(returnTo ?? payload.redirect ?? "/");
       }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 350);
     } catch {
       setFeedback({ type: "error", message: "Erro de comunicação. Tente novamente." });

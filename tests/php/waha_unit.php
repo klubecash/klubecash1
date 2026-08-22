@@ -7,6 +7,7 @@ use App\Services\WhatsApp\WahaHttpClient;
 use App\Services\WhatsApp\WahaService;
 use App\Services\WhatsApp\WahaWebhookHandler;
 use App\Services\WhatsApp\WahaWebhookStore;
+use App\Services\WhatsApp\WhatsAppMenuConfig;
 final class FakeHttp implements WahaHttpClient {
     public array $requests = []; public array $responses = [];
     public function request(string $method,string $url,array $headers,?string $body,int $timeoutSeconds): array { $this->requests[] = compact('method','url','headers','body','timeoutSeconds'); $next = array_shift($this->responses); if ($next instanceof Throwable) throw $next; return $next; }
@@ -30,6 +31,10 @@ $service=new WahaService($config,$http); $sent=$service->sendText('11999999999',
 check($sent['id']==='msg-1' && count($http->requests)===2,'Envio mock falhou.');
 $lookup=$http->requests[0]; check($lookup['method']==='GET' && str_contains($lookup['url'],'/api/contacts/check-exists?'),'Consulta do chatId ausente.');
 $request=$http->requests[1]; $body=json_decode($request['body'],true); check($body['chatId']==='5511999999999@lid' && $body['session']==='klubecash','Payload WAHA incorreto.'); check($request['timeoutSeconds']===15,'Timeout incorreto.'); check(str_contains(implode('|',$request['headers']),'X-Api-Key: test-api-key'),'Header ausente.');
+$http = new FakeHttp(); $http->responses[]=['status'=>200,'body'=>'{"lid":"9988@lid","pn":"5511999999999@c.us"}'];
+check((new WahaService($config,$http))->resolveSenderPhone('9988@lid')==='5511999999999@c.us','Resolucao de LID falhou.');
+check((new WahaService($config,new FakeHttp()))->resolveSenderPhone('5511999999999@c.us')==='5511999999999@c.us','Resolucao direta @c.us falhou.');
+check((new WahaService($config,new FakeHttp()))->resolveSenderPhone('120@g.us')===null,'Grupo foi aceito como telefone privado.');
 $http = new FakeHttp(); $http->responses[]=['status'=>200,'body'=>'{"numberExists":false,"chatId":null}']; throws(fn()=>(new WahaService($config,$http))->sendText('11999999999','Oi'),InvalidArgumentException::class);
 $http = new FakeHttp(); $http->responses[]=['status'=>200,'body'=>'{"numberExists":true,"chatId":"5511999999999@c.us"}']; $http->responses[]=['status'=>401,'body'=>'{}']; throws(fn()=>(new WahaService($config,$http))->sendText('11999999999','Oi'),WahaException::class);
 $http = new FakeHttp(); $http->responses[]=['status'=>200,'body'=>'{"numberExists":true,"chatId":"5511999999999@c.us"}']; $http->responses[] = new WahaException('timeout',503,true,true); throws(fn()=>(new WahaService($config,$http))->sendText('11999999999','Oi'),WahaException::class); check(count($http->requests)===2,'Envio foi repetido e pode duplicar mensagem.');
@@ -64,6 +69,11 @@ $arrayIdEvent=['event'=>'message.ack','session'=>'klubecash','payload'=>['id'=>[
 $arrayIdRaw=json_encode($arrayIdEvent); $arrayIdSig=hash_hmac('sha512',$arrayIdRaw,'test-hmac');
 check($handler->handle($arrayIdRaw,$arrayIdSig,'req-array-id')['status']===200,'ID composto do WAHA causou falha.');
 check($handler->handle($raw,str_repeat('0',128),'req-4')['status']===401,'HMAC incorreto aceito.');
+$menuConfig = new WhatsAppMenuConfig(true, true, true, str_repeat('k', 32), 'https://www.klubecash.com', '5538999999999');
+$protected = $menuConfig->encrypt(['phone' => '5538999999999', 'name' => 'Pessoa']);
+check(!str_contains($protected, 'Pessoa'),'Estado sensivel foi armazenado em texto puro.');
+check($menuConfig->decrypt($protected)['phone']==='5538999999999','Estado criptografado nao foi recuperado.');
+check($menuConfig->senderKey('5538999999999@c.us')!==$menuConfig->senderKey('5538988888888@c.us'),'Identidades diferentes geraram a mesma chave.');
 $sendRoute = null;
 foreach (require dirname(__DIR__, 2) . '/routes/api.php' as $route) {
     if ($route['path'] === '/api/whatsapp/send-text') { $sendRoute = $route; break; }

@@ -50,6 +50,8 @@
     { "source": "/api/admin/(.*)", "destination": { "service": "frontend" } },
     { "source": "/api/store/(.*)", "destination": { "service": "frontend" } },
     { "source": "/api/auth/(.*)", "destination": { "service": "frontend" } },
+    { "source": "/api/whatsapp/auth/(.*)", "destination": { "service": "frontend" } },
+    { "source": "/whatsapp/autenticar", "destination": { "service": "frontend" } },
     { "source": "/admin", "destination": { "service": "frontend" } },
     { "source": "/admin/(.*)", "destination": { "service": "frontend" } },
     { "source": "/store", "destination": { "service": "frontend" } },

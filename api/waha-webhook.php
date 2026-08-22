@@ -3,6 +3,10 @@ declare(strict_types=1);
 use App\Core\Logger;
 use App\Services\WhatsApp\PdoWahaWebhookStore;
 use App\Services\WhatsApp\WahaConfig;
+use App\Services\WhatsApp\CurlWahaHttpClient;
+use App\Services\WhatsApp\WahaInboundProcessor;
+use App\Services\WhatsApp\WhatsAppMenuConfig;
+use App\Services\WhatsApp\WahaService;
 use App\Services\WhatsApp\WahaWebhookHandler;
 use App\Services\WhatsApp\WahaSchemaManager;
 header('Content-Type: application/json; charset=UTF-8');
@@ -14,6 +18,11 @@ try {
     (new WahaSchemaManager($db))->migrate();
     $handler = new WahaWebhookHandler(WahaConfig::fromEnvironment(), new PdoWahaWebhookStore($db));
     $response = $handler->handle($rawBody, $signature, $requestId);
+    $menuConfig = WhatsAppMenuConfig::fromEnvironment();
+    if ($response['status'] === 200 && $menuConfig->menuEnabled && empty($response['body']['duplicate'])) {
+        $waha = new WahaService(WahaConfig::fromEnvironment(), new CurlWahaHttpClient());
+        (new WahaInboundProcessor($db, $waha, $menuConfig))->processPending(10);
+    }
     http_response_code($response['status']);
     echo json_encode($response['body'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (Throwable $exception) {
