@@ -18,6 +18,9 @@ export default async function StoreLayout({
     if (error instanceof StoreApiError && error.status === 401) {
       redirect("/login?redirect=%2Fstore%2Fdashboard");
     }
+    if (error instanceof StoreApiError && error.status === 403) {
+      redirect("/?error=store-access-denied");
+    }
     throw error;
   }
   return (
