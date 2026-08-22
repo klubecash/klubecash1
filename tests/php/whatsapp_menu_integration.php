@@ -216,6 +216,17 @@ try {
         ':customer_second' => $fixture['customerId'],
         ':store' => $fixture['storeId'],
     ]);
+    $visitorAlias = $db->prepare(
+        "INSERT INTO usuarios (nome,email,telefone,senha_hash,tipo,tipo_cliente,status,provider,email_verified,loja_criadora_id) "
+        . "VALUES (:name,:email,:phone,:password,'cliente','visitante','ativo','local',1,:store)"
+    );
+    $visitorAlias->execute([
+        ':name' => 'Cadastro Antigo Sem Saldo',
+        ':email' => $runId . '.alias@klubecash.test',
+        ':phone' => substr($clientPhone, 0, 2) . substr($clientPhone, 3),
+        ':password' => password_hash('Fixture123!', PASSWORD_DEFAULT),
+        ':store' => $fixture['storeId'],
+    ]);
 
     $http = new WhatsAppMenuFakeHttp();
     $waha = new WahaService(new WahaConfig('https://waha.fixture.test', 'fixture-key', 'fixture', 'fixture-hmac'), $http);
@@ -231,7 +242,9 @@ try {
     waExpect(count($http->requests) === $before, 'Mensagem comum ativou o bot sem /klube.');
 
     $menu->process(900002, waLidEvent('55' . $clientPhone, '/klube'), $runId . ':menu');
+    $menu->processPendingReplies(10, $config->senderKey($clientCanonical), 900002);
     $menu->process(900003, waEvent('55' . $clientPhone, '1'), $runId . ':balance');
+    $menu->processPendingReplies(10, $config->senderKey($clientCanonical), 900003);
     $sentMessages = $http->messages();
     $balanceMessage = (string) end($sentMessages);
     waExpect(str_contains($balanceMessage, 'R$ 50,00') && str_contains($balanceMessage, 'R$ 5,00'), 'Saldos separados por loja nao foram exibidos.');
@@ -244,6 +257,22 @@ try {
     $authResult = $auth->approve($token, $fixture['ownerId'], $fixture['storeId'], $runId . ':auth');
     waExpect($authResult['authorized'] === true, 'Autorizacao lojista falhou.');
 
+    $menu->process(900006, waEvent('55' . $ownerPhone, '2'), $runId . ':lookup-menu');
+    $menu->processPendingReplies(10, $config->senderKey($ownerCanonical), 900006);
+    $menu->process(900007, waEvent('55' . $ownerPhone, $clientPhone), $runId . ':lookup-customer');
+    $lookupConversation = $menuStore->conversation($config->senderKey($ownerCanonical));
+    waExpect(($lookupConversation['state'] ?? '') === 'merchant_menu', 'Consulta do cliente nao retornou ao menu lojista.');
+    $menu->processPendingReplies(10, $config->senderKey($ownerCanonical), 900007);
+    $lookupMessages = $http->messages();
+    $lookupMessage = (string) end($lookupMessages);
+    waExpect(str_contains($lookupMessage, 'Cliente encontrado') && str_contains($lookupMessage, 'R$ 50,00'), 'Consulta do cliente nao exibiu o saldo da loja autenticada.');
+
+    $menu->process(900008, waEvent('55' . $ownerPhone, '3'), $runId . ':recent-sales');
+    $menu->processPendingReplies(10, $config->senderKey($ownerCanonical), 900008);
+    $recentMessages = $http->messages();
+    $recentMessage = (string) end($recentMessages);
+    waExpect(str_contains($recentMessage, 'Ultimas vendas') && str_contains($recentMessage, 'Nenhuma venda encontrada'), 'Ultimas vendas nao respondeu ao lojista.');
+
     // O servico real de notificacao da venda fica desabilitado na fixture.
     $originalWahaBase = getenv('WAHA_BASE_URL');
     putenv('WAHA_BASE_URL=');
@@ -255,6 +284,7 @@ try {
     $draft = $config->decrypt((string) $conversation['state_payload']);
     waExpect(($conversation['state'] ?? '') === 'sale_confirm' && !empty($draft['confirmation']), 'Previa da venda nao chegou a confirmacao.');
     $menu->process(900014, waEvent('55' . $ownerPhone, 'CONFIRMAR ' . $draft['confirmation']), $runId . ':sale-confirm');
+    $menu->processPendingReplies(50, $config->senderKey($ownerCanonical));
     if ($originalWahaBase !== false) { putenv('WAHA_BASE_URL=' . $originalWahaBase); }
 
     $transaction = $db->prepare(
@@ -269,6 +299,15 @@ try {
     waExpect((float) $sale['valor_admin'] === 0.0 && (float) $sale['valor_loja'] === 0.0, 'Venda do WhatsApp criou comissao.');
     waExpect((int) waScalar($db, 'SELECT COUNT(*) FROM pagamentos_comissao WHERE loja_id=:store', [':store' => $fixture['storeId']]) === 0, 'Venda do WhatsApp criou pagamento de comissao.');
     waExpect((int) waScalar($db, 'SELECT COUNT(*) FROM whatsapp_action_audit WHERE loja_id=:store AND action=\'sale.create\'', [':store' => $fixture['storeId']]) === 1, 'Venda do WhatsApp nao foi auditada uma unica vez.');
+
+    $menu->process(900020, waEvent('55' . $clientPhone, '/klube'), $runId . ':duplicate-menu');
+    $menu->processPendingReplies(10, $config->senderKey($clientCanonical), 900020);
+    $menu->process(900021, waEvent('55' . $clientPhone, '1'), $runId . ':duplicate-balance');
+    $menu->processPendingReplies(10, $config->senderKey($clientCanonical), 900021);
+    $duplicateBalanceMessages = $http->messages();
+    $duplicateBalanceMessage = (string) end($duplicateBalanceMessages);
+    waExpect(!str_contains($duplicateBalanceMessage, 'mais de uma conta'), 'Alias visitante seguro bloqueou a consulta de saldo.');
+    waExpect(str_contains($duplicateBalanceMessage, 'R$ 36,00'), 'Alias visitante nao preservou os saldos da identidade principal.');
 
     waCleanup($db, $fixture);
     $cleaned = true;

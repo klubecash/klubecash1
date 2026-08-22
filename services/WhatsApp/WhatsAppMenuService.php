@@ -109,13 +109,34 @@ final class WhatsAppMenuService
             $this->store->incrementInvalid($senderKey);
             $this->reply($canonical, $senderKey, $eventId, 'validation', "Nao foi possivel concluir: " . $exception->getMessage() . "\n\nEnvie */cancelar* para voltar.");
             return isset($conversation['authenticated_user_id']) ? (int) $conversation['authenticated_user_id'] : null;
+        } catch (Throwable $exception) {
+            Logger::error('waha.menu.action_failed', [
+                'event_id' => $eventId,
+                'state' => $state,
+                'exception' => get_class($exception),
+            ]);
+            try {
+                $this->reply(
+                    $canonical,
+                    $senderKey,
+                    $eventId,
+                    'unexpected-error',
+                    "Nao foi possivel concluir esta opcao agora. Nenhuma venda ou saldo foi alterado por esta tentativa.\n\nTente novamente ou envie */cancelar* para voltar."
+                );
+            } catch (Throwable $replyException) {
+                Logger::error('waha.menu.error_reply_failed', [
+                    'event_id' => $eventId,
+                    'exception' => get_class($replyException),
+                ]);
+            }
+            return isset($conversation['authenticated_user_id']) ? (int) $conversation['authenticated_user_id'] : null;
         }
     }
 
     /** @return array{available:int,sent:int,pending:int,failed:int} */
-    public function processPendingReplies(int $limit = 20): array
+    public function processPendingReplies(int $limit = 20, ?string $senderKey = null, ?int $sourceEventId = null): array
     {
-        $items = $this->store->pendingBotMessages($limit);
+        $items = $this->store->pendingBotMessages($limit, $senderKey, $sourceEventId);
         $stats = ['available' => count($items), 'sent' => 0, 'pending' => 0, 'failed' => 0];
         foreach ($items as $item) {
             try {
@@ -133,6 +154,17 @@ final class WhatsAppMenuService
                     $this->store->finishBotMessage($item['actionKey'], 'failed', null, 'provider_rejected');
                     $stats['failed']++;
                 }
+            } catch (Throwable $exception) {
+                Logger::warning('waha.menu.reply_failed', [
+                    'action_key_hash' => hash('sha256', (string) $item['actionKey']),
+                    'exception' => get_class($exception),
+                ]);
+                try {
+                    $this->store->finishBotMessage($item['actionKey'], 'pending', null, 'unexpected_transport_error');
+                } catch (Throwable) {
+                    // A fila permanece pendente para a proxima execucao.
+                }
+                $stats['pending']++;
             }
         }
         return $stats;
@@ -216,7 +248,8 @@ final class WhatsAppMenuService
                 $this->store->audit($senderKey, 'balance.lookup', 'not_found', requestId: $requestId, actionKey: 'balance:' . $eventId);
                 return null;
             }
-            $this->reply($canonical, $senderKey, $eventId, 'balance', $this->balanceMessage((int) $client['id']));
+            $identityIds = array_map('intval', $client['ids'] ?? [(int) $client['id']]);
+            $this->reply($canonical, $senderKey, $eventId, 'balance', $this->balanceMessage($identityIds));
             $this->store->audit($senderKey, 'balance.lookup', 'success', (int) $client['id'], requestId: $requestId, actionKey: 'balance:' . $eventId);
             return (int) $client['id'];
         }
@@ -360,11 +393,12 @@ final class WhatsAppMenuService
             return $merchant['userId'];
         }
         $customers = $this->customersByPhone($phone, $merchant['storeId']);
-        if (count($customers) > 1) {
+        $customer = $this->storeCustomer($customers, $merchant['storeId']);
+        if (($customer['status'] ?? '') === 'duplicate') {
             $this->reply($canonical, $senderKey, $eventId, 'customer-duplicate', 'Existem cadastros duplicados com esse telefone. Nenhum cliente foi selecionado; corrija o cadastro antes de continuar.');
             return $merchant['userId'];
         }
-        if ($customers === []) {
+        if (($customer['status'] ?? '') === 'not_found') {
             if (($payload['mode'] ?? '') !== 'sale') {
                 $this->store->setState($senderKey, 'merchant_menu');
                 $this->reply($canonical, $senderKey, $eventId, 'customer-empty', "Cliente nao encontrado.\n\n" . $this->merchantMenu($merchant['storeName']));
@@ -374,7 +408,7 @@ final class WhatsAppMenuService
             $this->reply($canonical, $senderKey, $eventId, 'visitor-offer', "Cliente nao encontrado.\n\n1️⃣ Cadastrar como visitante\n0️⃣ Voltar");
             return $merchant['userId'];
         }
-        $customer = $customers[0];
+        $customer = $customer['customer'];
         $summary = "👤 *Cliente encontrado*\n" . $this->maskedName((string) $customer['name'])
             . "\nSaldo nesta loja: *" . $this->money((int) $customer['balanceCents']) . '*';
         if (($payload['mode'] ?? '') === 'lookup') {
@@ -622,34 +656,93 @@ final class WhatsAppMenuService
         ];
     }
 
-    /** @return array{id?:int,status:string} */
+    /** @return array{id?:int,ids?:list<int>,status:string} */
     private function matchUniqueClient(?string $canonical): array
     {
         if ($canonical === null) {
             return ['status' => 'not_found'];
         }
-        $full = $this->phoneDigits($canonical);
-        $national = str_starts_with($full, '55') ? substr($full, 2) : $full;
+        $variants = $this->phoneVariants($canonical);
         $statement = $this->db->prepare(
-            "SELECT id FROM usuarios WHERE tipo='cliente' AND status='ativo' AND telefone IS NOT NULL AND telefone<>'' "
-            . "AND REGEXP_REPLACE(telefone,'[^0-9]','') IN (:full,:national) ORDER BY id LIMIT 2"
+            "SELECT id,nome,loja_criadora_id FROM usuarios WHERE tipo='cliente' AND status='ativo' "
+            . "AND telefone IS NOT NULL AND telefone<>'' AND REGEXP_REPLACE(telefone,'[^0-9]','') "
+            . "IN (:full,:national,:legacy_full,:legacy_national) ORDER BY id LIMIT 25"
         );
-        $statement->execute([':full' => $full, ':national' => $national]);
-        $ids = array_map('intval', $statement->fetchAll(PDO::FETCH_COLUMN));
-        if (count($ids) > 1) {
+        $statement->execute($variants);
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        if ($rows === []) {
+            return ['status' => 'not_found'];
+        }
+        if (count($rows) === 1) {
+            $id = (int) $rows[0]['id'];
+            return ['status' => 'ready', 'id' => $id, 'ids' => [$id]];
+        }
+
+        $allIds = array_map(static fn (array $row): int => (int) $row['id'], $rows);
+        $allPlaceholders = implode(',', array_fill(0, count($allIds), '?'));
+        $linkedStatement = $this->db->prepare(
+            "SELECT DISTINCT usuario_id FROM cashback_saldos WHERE usuario_id IN ({$allPlaceholders}) ORDER BY usuario_id"
+        );
+        $linkedStatement->execute($allIds);
+        $linkedIds = array_map('intval', $linkedStatement->fetchAll(PDO::FETCH_COLUMN));
+        if (count($linkedIds) <= 1) {
+            // Um alias sem qualquer saldo nao deve bloquear a unica conta que
+            // possui o vinculo financeiro. Se nenhuma possui saldo, nao existe
+            // informacao financeira de outra pessoa a ser exposta.
+            $representative = $linkedIds[0] ?? $allIds[0];
+            return [
+                'status' => 'ready',
+                'id' => $representative,
+                'ids' => $linkedIds === [] ? $allIds : [$representative],
+            ];
+        }
+
+        // Cadastros visitantes sao historicamente separados por loja. Eles so
+        // podem formar uma mesma identidade quando o nome coincide, cada loja
+        // criadora aparece uma unica vez e nao ha dois saldos para a mesma loja.
+        $names = array_unique(array_map(fn (array $row): string => $this->identityName((string) $row['nome']), $rows));
+        $creatorStores = array_values(array_filter(array_map(
+            static fn (array $row): ?int => $row['loja_criadora_id'] === null ? null : (int) $row['loja_criadora_id'],
+            $rows
+        ), static fn (?int $value): bool => $value !== null));
+        $primaryCount = count($rows) - count($creatorStores);
+        if (count($names) !== 1 || (string) reset($names) === '' || $primaryCount > 1 || count($creatorStores) !== count(array_unique($creatorStores))) {
             return ['status' => 'duplicate'];
         }
-        return $ids === [] ? ['status' => 'not_found'] : ['status' => 'ready', 'id' => $ids[0]];
+        $ids = $allIds;
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $balanceStatement = $this->db->prepare(
+            "SELECT loja_id,COUNT(DISTINCT usuario_id) identities FROM cashback_saldos "
+            . "WHERE usuario_id IN ({$placeholders}) GROUP BY loja_id HAVING COUNT(DISTINCT usuario_id)>1 LIMIT 1"
+        );
+        $balanceStatement->execute($ids);
+        if ($balanceStatement->fetchColumn() !== false) {
+            return ['status' => 'duplicate'];
+        }
+        $representative = (int) $rows[0]['id'];
+        foreach ($rows as $row) {
+            if ($row['loja_criadora_id'] === null) {
+                $representative = (int) $row['id'];
+                break;
+            }
+        }
+        return ['status' => 'ready', 'id' => $representative, 'ids' => $ids];
     }
 
-    private function balanceMessage(int $userId): string
+    /** @param list<int> $userIds */
+    private function balanceMessage(array $userIds): string
     {
+        $userIds = array_values(array_unique(array_filter(array_map('intval', $userIds), static fn (int $id): bool => $id > 0)));
+        if ($userIds === []) {
+            return "ðŸ’° *Seus saldos por loja*\n\nVoce ainda nao possui saldo registrado em nenhuma loja.\n\nCada saldo pertence exclusivamente a respectiva loja.";
+        }
+        $placeholders = implode(',', array_fill(0, count($userIds), '?'));
         $statement = $this->db->prepare(
             'SELECT l.nome_fantasia,l.status,cs.saldo_disponivel FROM cashback_saldos cs '
-            . 'JOIN lojas l ON l.id=cs.loja_id WHERE cs.usuario_id=:user '
+            . "JOIN lojas l ON l.id=cs.loja_id WHERE cs.usuario_id IN ({$placeholders}) "
             . 'ORDER BY (l.status=\'aprovado\') DESC,cs.saldo_disponivel DESC,l.nome_fantasia'
         );
-        $statement->execute([':user' => $userId]);
+        $statement->execute($userIds);
         $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
         if ($rows === []) {
             return "💰 *Seus saldos por loja*\n\nVoce ainda nao possui saldo registrado em nenhuma loja.\n\nCada saldo pertence exclusivamente a respectiva loja.";
@@ -667,23 +760,54 @@ final class WhatsAppMenuService
         return implode("\n", $lines);
     }
 
-    /** @return list<array{id:int,name:string,balanceCents:int}> */
+    /** @return list<array{id:int,name:string,balanceCents:int,creatorStoreId:?int,hasStoreBalance:bool}> */
     private function customersByPhone(string $canonical, int $storeId): array
     {
-        $full = $this->phoneDigits($canonical);
-        $national = str_starts_with($full, '55') ? substr($full, 2) : $full;
+        $variants = $this->phoneVariants($canonical);
         $statement = $this->db->prepare(
-            "SELECT u.id,u.nome,COALESCE(cs.saldo_disponivel,0) balance FROM usuarios u "
+            "SELECT u.id,u.nome,u.loja_criadora_id,COALESCE(cs.saldo_disponivel,0) balance,"
+            . "CASE WHEN cs.usuario_id IS NULL THEN 0 ELSE 1 END has_store_balance FROM usuarios u "
             . 'LEFT JOIN cashback_saldos cs ON cs.usuario_id=u.id AND cs.loja_id=:store '
-            . "WHERE u.tipo='cliente' AND u.status='ativo' AND REGEXP_REPLACE(u.telefone,'[^0-9]','') IN (:full,:national) "
-            . 'ORDER BY (u.loja_criadora_id=:priority) DESC,u.id LIMIT 2'
+            . "WHERE u.tipo='cliente' AND u.status='ativo' AND REGEXP_REPLACE(u.telefone,'[^0-9]','') "
+            . "IN (:full,:national,:legacy_full,:legacy_national) "
+            . 'ORDER BY (u.loja_criadora_id=:priority) DESC,(cs.usuario_id IS NOT NULL) DESC,u.id LIMIT 25'
         );
-        $statement->execute([':store' => $storeId, ':full' => $full, ':national' => $national, ':priority' => $storeId]);
+        $statement->execute([':store' => $storeId, ':priority' => $storeId, ...$variants]);
         return array_map(static fn (array $row): array => [
             'id' => (int) $row['id'],
             'name' => (string) $row['nome'],
             'balanceCents' => StoreMoney::toCents($row['balance']),
+            'creatorStoreId' => $row['loja_criadora_id'] === null ? null : (int) $row['loja_criadora_id'],
+            'hasStoreBalance' => (int) $row['has_store_balance'] === 1,
         ], $statement->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /**
+     * @param list<array{id:int,name:string,balanceCents:int,creatorStoreId:?int,hasStoreBalance:bool}> $customers
+     * @return array{status:string,customer?:array{id:int,name:string,balanceCents:int,creatorStoreId:?int,hasStoreBalance:bool}}
+     */
+    private function storeCustomer(array $customers, int $storeId): array
+    {
+        if ($customers === []) {
+            return ['status' => 'not_found'];
+        }
+        if (count($customers) === 1) {
+            return ['status' => 'ready', 'customer' => $customers[0]];
+        }
+        $priorities = [
+            array_values(array_filter($customers, static fn (array $row): bool => $row['hasStoreBalance'])),
+            array_values(array_filter($customers, static fn (array $row): bool => $row['creatorStoreId'] === $storeId)),
+            array_values(array_filter($customers, static fn (array $row): bool => $row['creatorStoreId'] === null)),
+        ];
+        foreach ($priorities as $matches) {
+            if (count($matches) === 1) {
+                return ['status' => 'ready', 'customer' => $matches[0]];
+            }
+            if (count($matches) > 1) {
+                return ['status' => 'duplicate'];
+            }
+        }
+        return ['status' => 'duplicate'];
     }
 
     /** @param array<string,mixed> $event */
@@ -727,13 +851,9 @@ final class WhatsAppMenuService
         } else {
             $this->store->finishBotMessage($actionKey, 'pending', null, null);
         }
-        try {
-            $response = $this->waha->sendText($this->phoneDigits($canonical), $message);
-            $this->store->finishBotMessage($actionKey, 'sent', $this->providerMessageId($response), null);
-        } catch (WahaException $exception) {
-            $status = $exception->deliveryUnknown ? 'delivery_unknown' : ($exception->transient ? 'pending' : 'failed');
-            $this->store->finishBotMessage($actionKey, $status, null, $exception->transient ? 'provider_unavailable' : 'provider_rejected');
-        }
+        // A resposta fica persistida antes do envio. O processador entrega a
+        // fila somente depois que a mudanca de estado foi concluida, evitando
+        // que uma falha da WAHA deixe a conversa presa no passo anterior.
     }
 
     private function mainMenu(): string
@@ -880,6 +1000,27 @@ final class WhatsAppMenuService
     {
         $digits = $this->phoneDigits($canonical);
         return str_starts_with($digits, '55') ? substr($digits, 2) : $digits;
+    }
+
+    /** @return array{full:string,national:string,legacy_full:string,legacy_national:string} */
+    private function phoneVariants(string $canonical): array
+    {
+        $full = $this->phoneDigits($canonical);
+        $national = str_starts_with($full, '55') ? substr($full, 2) : $full;
+        $legacyNational = strlen($national) === 11 && ($national[2] ?? '') === '9'
+            ? substr($national, 0, 2) . substr($national, 3)
+            : $national;
+        return [
+            ':full' => $full,
+            ':national' => $national,
+            ':legacy_full' => '55' . $legacyNational,
+            ':legacy_national' => $legacyNational,
+        ];
+    }
+
+    private function identityName(string $name): string
+    {
+        return mb_strtolower(trim(preg_replace('/\s+/u', ' ', $name) ?? $name), 'UTF-8');
     }
 
     /** @param array<string,mixed> $payload */

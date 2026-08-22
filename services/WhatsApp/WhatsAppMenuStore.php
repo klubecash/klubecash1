@@ -214,13 +214,20 @@ final class WhatsAppMenuStore
     }
 
     /** @return list<array{actionKey:string,phone:string,message:string}> */
-    public function pendingBotMessages(int $limit = 20): array
+    public function pendingBotMessages(int $limit = 20, ?string $senderKey = null, ?int $sourceEventId = null): array
     {
         $limit = max(1, min(100, $limit));
-        $rows = $this->db->query(
+        $statement = $this->db->prepare(
             "SELECT action_key,delivery_payload FROM whatsapp_bot_messages WHERE status='pending' "
-            . "AND delivery_payload IS NOT NULL ORDER BY id LIMIT {$limit}"
-        )->fetchAll(PDO::FETCH_ASSOC);
+            . "AND delivery_payload IS NOT NULL AND (:sender IS NULL OR sender_key=:sender_key) "
+            . "AND (:event IS NULL OR source_event_id=:event_id) ORDER BY id LIMIT {$limit}"
+        );
+        $statement->bindValue(':sender', $senderKey, $senderKey === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        $statement->bindValue(':sender_key', $senderKey, $senderKey === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        $statement->bindValue(':event', $sourceEventId, $sourceEventId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        $statement->bindValue(':event_id', $sourceEventId, $sourceEventId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        $statement->execute();
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
         $result = [];
         foreach ($rows as $row) {
             $payload = $this->config->decrypt((string) $row['delivery_payload']);

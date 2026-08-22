@@ -24,13 +24,22 @@ final class WahaInboundProcessor
     {
         $limit = max(1, min(100, $limit));
         $preferredEventId = max(0, (int) $preferredEventId);
+        $this->expireStaleMessages();
         $events = $this->db->query(
             "SELECT id,request_id,event_type,payload_json,attempts FROM waha_webhook_events
              WHERE status='pending' AND available_at<=NOW()
-             ORDER BY CASE WHEN id={$preferredEventId} THEN 0 WHEN event_type='message' THEN 1 ELSE 2 END,id DESC
+             ORDER BY CASE WHEN id={$preferredEventId} THEN 0 ELSE 1 END,id ASC
              LIMIT {$limit}"
         )->fetchAll(PDO::FETCH_ASSOC);
         $stats = ['available' => count($events), 'processed' => 0, 'matched' => 0, 'failed' => 0];
+        $menuService = null;
+        if ($this->menuConfig->menuEnabled) {
+            $waha = $this->waha ??= new WahaService(
+                WahaConfig::fromEnvironment(),
+                new CurlWahaHttpClient()
+            );
+            $menuService = new WhatsAppMenuService($this->db, $waha, $this->menuConfig);
+        }
 
         foreach ($events as $item) {
             $claim = $this->db->prepare(
@@ -46,12 +55,8 @@ final class WahaInboundProcessor
                 $event = json_decode((string) $item['payload_json'], true, 512, JSON_THROW_ON_ERROR);
                 $userId = null;
                 if ($item['event_type'] === 'message') {
-                    if ($this->menuConfig->menuEnabled) {
-                        $waha = $this->waha ??= new WahaService(
-                            WahaConfig::fromEnvironment(),
-                            new CurlWahaHttpClient()
-                        );
-                        $userId = (new WhatsAppMenuService($this->db, $waha, $this->menuConfig))->process(
+                    if ($menuService !== null) {
+                        $userId = $menuService->process(
                             (int) $item['id'],
                             $event,
                             (string) ($item['request_id'] ?? '')
@@ -72,17 +77,42 @@ final class WahaInboundProcessor
                 if ($userId !== null) {
                     $stats['matched']++;
                 }
+                if ($menuService !== null && $item['event_type'] === 'message') {
+                    $menuService->processPendingReplies(10, sourceEventId: (int) $item['id']);
+                }
             } catch (Throwable $exception) {
                 $attempts = (int) $item['attempts'] + 1;
-                $status = $attempts >= 5 ? 'failed' : 'pending';
+                // Mensagens do menu sao stateful. Reexecuta-las minutos depois,
+                // apos o usuario ja ter enviado outra entrada, corrompe o fluxo.
+                // Falhas inesperadas de mensagem sao encerradas e sanitizadas;
+                // ACKs e status tecnicos continuam elegiveis para nova tentativa.
+                $isStatefulMessage = (string) $item['event_type'] === 'message';
+                $status = $isStatefulMessage || $attempts >= 5 ? 'failed' : 'pending';
                 $delay = min(60, 2 ** $attempts);
                 $failure = $this->db->prepare(
                     "UPDATE waha_webhook_events
-                     SET status=:status,available_at=DATE_ADD(NOW(),INTERVAL {$delay} MINUTE) WHERE id=:id"
+                     SET status=:status,available_at=DATE_ADD(NOW(),INTERVAL {$delay} MINUTE),"
+                    . "payload_json=IF(:redact=1,:payload,payload_json),processed_at=IF(:redact_done=1,NOW(),processed_at) WHERE id=:id"
                 );
-                $failure->execute([':status' => $status, ':id' => $item['id']]);
+                $redactedPayload = '{}';
+                try {
+                    $failedEvent = isset($event) && is_array($event)
+                        ? $event
+                        : json_decode((string) $item['payload_json'], true, 512, JSON_THROW_ON_ERROR);
+                    $redactedPayload = $this->sanitizedPayload($failedEvent);
+                } catch (Throwable) {
+                    // JSON invalido tambem deve perder o conteudo bruto.
+                }
+                $failure->execute([
+                    ':status' => $status,
+                    ':redact' => $isStatefulMessage ? 1 : 0,
+                    ':payload' => $redactedPayload,
+                    ':redact_done' => $isStatefulMessage ? 1 : 0,
+                    ':id' => $item['id'],
+                ]);
                 $stats['failed']++;
                 Logger::warning('waha.webhook.processing_failed', [
+                    'event_id' => (int) $item['id'],
                     'event_type' => $item['event_type'],
                     'exception' => get_class($exception),
                 ]);
@@ -94,6 +124,33 @@ final class WahaInboundProcessor
         }
 
         return $stats;
+    }
+
+    private function expireStaleMessages(): void
+    {
+        $statement = $this->db->query(
+            "SELECT id,payload_json FROM waha_webhook_events WHERE event_type='message' "
+            . "AND status IN ('pending','processing') AND created_at<DATE_SUB(NOW(),INTERVAL 10 MINUTE) LIMIT 100"
+        );
+        $update = $this->db->prepare(
+            "UPDATE waha_webhook_events SET status='failed',payload_json=:payload,processed_at=NOW() WHERE id=:id"
+        );
+        $discardReplies = $this->menuConfig->menuEnabled
+            ? $this->db->prepare(
+                "UPDATE whatsapp_bot_messages SET status='failed',last_error_code='source_event_expired',delivery_payload=NULL "
+                . "WHERE source_event_id=:id AND status='pending'"
+            )
+            : null;
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $item) {
+            try {
+                $event = json_decode((string) $item['payload_json'], true, 512, JSON_THROW_ON_ERROR);
+                $payload = $this->sanitizedPayload($event);
+            } catch (Throwable) {
+                $payload = '{}';
+            }
+            $update->execute([':payload' => $payload, ':id' => (int) $item['id']]);
+            $discardReplies?->execute([':id' => (int) $item['id']]);
+        }
     }
 
     /** @param array<string,mixed> $event */
