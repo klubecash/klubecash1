@@ -20,12 +20,15 @@ final class WahaInboundProcessor
     }
 
     /** @return array{available:int,processed:int,matched:int,failed:int} */
-    public function processPending(int $limit = 50): array
+    public function processPending(int $limit = 50, ?int $preferredEventId = null): array
     {
         $limit = max(1, min(100, $limit));
+        $preferredEventId = max(0, (int) $preferredEventId);
         $events = $this->db->query(
             "SELECT id,request_id,event_type,payload_json,attempts FROM waha_webhook_events
-             WHERE status='pending' AND available_at<=NOW() ORDER BY id LIMIT {$limit}"
+             WHERE status='pending' AND available_at<=NOW()
+             ORDER BY CASE WHEN id={$preferredEventId} THEN 0 WHEN event_type='message' THEN 1 ELSE 2 END,id DESC
+             LIMIT {$limit}"
         )->fetchAll(PDO::FETCH_ASSOC);
         $stats = ['available' => count($events), 'processed' => 0, 'matched' => 0, 'failed' => 0];
 

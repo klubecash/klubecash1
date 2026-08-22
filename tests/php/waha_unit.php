@@ -14,7 +14,7 @@ final class FakeHttp implements WahaHttpClient {
 }
 final class FakeStore implements WahaWebhookStore {
     public array $keys=[]; public array $events=[];
-    public function enqueue(string $requestId,string $eventId,string $eventType,string $payloadJson,bool $fromMe): bool { if(isset($this->keys[$requestId]) || isset($this->keys[$eventId])) return false; $this->keys[$requestId]=true; $this->keys[$eventId]=true; $this->events[]=compact('requestId','eventId','eventType','payloadJson','fromMe'); return true; }
+    public function enqueue(string $requestId,string $eventId,string $eventType,string $payloadJson,bool $fromMe): int|false { if(isset($this->keys[$requestId]) || isset($this->keys[$eventId])) return false; $this->keys[$requestId]=true; $this->keys[$eventId]=true; $this->events[]=compact('requestId','eventId','eventType','payloadJson','fromMe'); return count($this->events); }
 }
 function check(bool $condition,string $message): void { if(!$condition) throw new RuntimeException($message); }
 function throws(callable $callable,string $class): void { try{$callable();}catch(Throwable $e){check($e instanceof $class,"Excecao inesperada: ".get_class($e));return;}throw new RuntimeException('Excecao esperada nao ocorreu.'); }

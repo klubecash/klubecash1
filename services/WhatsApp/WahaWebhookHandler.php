@@ -17,8 +17,13 @@ final class WahaWebhookHandler
         $eventId = $this->eventId($event, $rawBody);
         $idempotencyKey = trim($requestId) !== '' ? trim($requestId) : $eventId;
         $fromMe = ($event['payload']['fromMe'] ?? $event['payload']['key']['fromMe'] ?? $event['payload']['_data']['id']['fromMe'] ?? false) === true;
-        $created = $this->store->enqueue($idempotencyKey, $eventId, $type, $rawBody, $fromMe);
-        return ['status' => 200, 'body' => ['success' => true, 'duplicate' => !$created, 'ignored' => $fromMe && $type === 'message']];
+        $queueId = $this->store->enqueue($idempotencyKey, $eventId, $type, $rawBody, $fromMe);
+        return ['status' => 200, 'body' => [
+            'success' => true,
+            'duplicate' => $queueId === false,
+            'ignored' => $fromMe && $type === 'message',
+            '_queueId' => $queueId === false ? null : $queueId,
+        ]];
     }
     public function validSignature(string $rawBody, string $signature): bool
     {

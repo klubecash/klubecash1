@@ -8,6 +8,11 @@ header('Cache-Control: no-store');
 $startedAt = microtime(true);
 $databaseStatus = 'unavailable';
 $httpStatus = 503;
+$whatsAppMenu = [
+    'menu' => false,
+    'merchantAuth' => false,
+    'sales' => false,
+];
 
 try {
     require_once __DIR__ . '/../config/database.php';
@@ -15,6 +20,14 @@ try {
     $db->query('SELECT 1')->fetchColumn();
     $databaseStatus = 'ok';
     $httpStatus = 200;
+    if (class_exists(\App\Services\WhatsApp\WhatsAppMenuConfig::class)) {
+        $menuConfig = \App\Services\WhatsApp\WhatsAppMenuConfig::fromEnvironment();
+        $whatsAppMenu = [
+            'menu' => $menuConfig->menuEnabled,
+            'merchantAuth' => $menuConfig->merchantAuthEnabled,
+            'sales' => $menuConfig->salesEnabled,
+        ];
+    }
 } catch (Throwable $exception) {
     error_log(json_encode([
         'event' => 'health.database_failed',
@@ -31,6 +44,7 @@ echo json_encode([
     'environment' => getenv('VERCEL_ENV') ?: 'local',
     'checks' => [
         'database' => $databaseStatus,
+        'whatsappMenu' => $whatsAppMenu,
     ],
     'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
 ], JSON_UNESCAPED_SLASHES);

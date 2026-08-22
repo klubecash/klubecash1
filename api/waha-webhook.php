@@ -19,9 +19,12 @@ try {
     $handler = new WahaWebhookHandler(WahaConfig::fromEnvironment(), new PdoWahaWebhookStore($db));
     $response = $handler->handle($rawBody, $signature, $requestId);
     $menuConfig = WhatsAppMenuConfig::fromEnvironment();
-    if ($response['status'] === 200 && $menuConfig->menuEnabled && empty($response['body']['duplicate'])) {
+    $queueId = (int) ($response['body']['_queueId'] ?? 0);
+    unset($response['body']['_queueId']);
+    if ($response['status'] === 200 && $menuConfig->menuEnabled && $queueId > 0) {
         $waha = new WahaService(WahaConfig::fromEnvironment(), new CurlWahaHttpClient());
-        (new WahaInboundProcessor($db, $waha, $menuConfig))->processPending(10);
+        // O comando recem-recebido nao pode ficar atras de eventos ACK antigos.
+        (new WahaInboundProcessor($db, $waha, $menuConfig))->processPending(1, $queueId);
     }
     http_response_code($response['status']);
     echo json_encode($response['body'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
