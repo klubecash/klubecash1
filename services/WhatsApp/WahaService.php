@@ -135,6 +135,13 @@ final class WahaService
             throw new InvalidArgumentException('Telefone brasileiro deve conter DDI 55, DDD e numero valido.');
         }
         $national = substr($digits, 2);
+        // O WhatsApp ainda pode devolver o JID historico de celulares brasileiros
+        // sem o nono digito. O SenderAlt/LID e vinculado pela propria WAHA, entao
+        // normalizamos esse formato antes de comparar com o cadastro atual.
+        if (strlen($national) === 10 && in_array($national[2] ?? '', ['6', '7', '8', '9'], true)) {
+            $national = substr($national, 0, 2) . '9' . substr($national, 2);
+            $digits = '55' . $national;
+        }
         if (!in_array(strlen($national), [10, 11], true)) throw new InvalidArgumentException('Telefone brasileiro deve conter DDD e 10 ou 11 digitos.');
         $ddd = (int) substr($national, 0, 2);
         $invalidDdds = [20,23,25,26,29,30,36,39,40,50,52,56,57,58,59,60,70,72,76,78,80,90];

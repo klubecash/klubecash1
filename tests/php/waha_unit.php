@@ -21,6 +21,7 @@ function throws(callable $callable,string $class): void { try{$callable();}catch
 $config = new WahaConfig('https://waha.example.test','test-api-key','klubecash','test-hmac');
 check(WahaService::normalizePhone('(11) 99999-9999')==='5511999999999@c.us','Falha celular local.');
 check(WahaService::normalizePhone('+55 11 99999-9999')==='5511999999999@c.us','Falha celular com DDI.');
+check(WahaService::normalizePhone('553891045205')==='5538991045205@c.us','Falha ao normalizar JID movel legado sem nono digito.');
 check(WahaService::normalizePhone('(55) 3333-4444')==='555533334444@c.us','Falha DDD 55.');
 throws(fn()=>WahaService::normalizePhone('10999999999'),InvalidArgumentException::class);
 throws(fn()=>(new WahaService($config,new FakeHttp()))->sendText('11999999999','  '),InvalidArgumentException::class);

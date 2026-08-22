@@ -128,6 +128,10 @@ function waEvent(string $phone, string $body): array
 /** @return array<string,mixed> */
 function waLidEvent(string $phone, string $body): array
 {
+    $national = str_starts_with($phone, '55') ? substr($phone, 2) : $phone;
+    $legacyPhone = strlen($national) === 11
+        ? '55' . substr($national, 0, 2) . substr($national, 3)
+        : $phone;
     return [
         'event' => 'message',
         'session' => 'fixture',
@@ -141,7 +145,7 @@ function waLidEvent(string $phone, string $body): array
             '_data' => [
                 'Info' => [
                     'Sender' => '123456789012345@lid',
-                    'SenderAlt' => $phone . '@s.whatsapp.net',
+                    'SenderAlt' => $legacyPhone . '@s.whatsapp.net',
                 ],
             ],
         ],
