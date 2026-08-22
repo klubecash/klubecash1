@@ -114,6 +114,8 @@ final class WhatsAppMenuService
                 'event_id' => $eventId,
                 'state' => $state,
                 'exception' => get_class($exception),
+                'exception_file' => basename($exception->getFile()),
+                'exception_line' => $exception->getLine(),
             ]);
             try {
                 $this->reply(
@@ -697,36 +699,10 @@ final class WhatsAppMenuService
             ];
         }
 
-        // Cadastros visitantes sao historicamente separados por loja. Eles so
-        // podem formar uma mesma identidade quando o nome coincide, cada loja
-        // criadora aparece uma unica vez e nao ha dois saldos para a mesma loja.
-        $names = array_unique(array_map(fn (array $row): string => $this->identityName((string) $row['nome']), $rows));
-        $creatorStores = array_values(array_filter(array_map(
-            static fn (array $row): ?int => $row['loja_criadora_id'] === null ? null : (int) $row['loja_criadora_id'],
-            $rows
-        ), static fn (?int $value): bool => $value !== null));
-        $primaryCount = count($rows) - count($creatorStores);
-        if (count($names) !== 1 || (string) reset($names) === '' || $primaryCount > 1 || count($creatorStores) !== count(array_unique($creatorStores))) {
-            return ['status' => 'duplicate'];
-        }
-        $ids = $allIds;
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $balanceStatement = $this->db->prepare(
-            "SELECT loja_id,COUNT(DISTINCT usuario_id) identities FROM cashback_saldos "
-            . "WHERE usuario_id IN ({$placeholders}) GROUP BY loja_id HAVING COUNT(DISTINCT usuario_id)>1 LIMIT 1"
-        );
-        $balanceStatement->execute($ids);
-        if ($balanceStatement->fetchColumn() !== false) {
-            return ['status' => 'duplicate'];
-        }
-        $representative = (int) $rows[0]['id'];
-        foreach ($rows as $row) {
-            if ($row['loja_criadora_id'] === null) {
-                $representative = (int) $row['id'];
-                break;
-            }
-        }
-        return ['status' => 'ready', 'id' => $representative, 'ids' => $ids];
+        // Dois cadastros diferentes com vinculo financeiro nunca podem ser
+        // reconciliados automaticamente. A consulta permanece bloqueada ate a
+        // correcao cadastral, evitando misturar saldos de pessoas ou lojas.
+        return ['status' => 'duplicate'];
     }
 
     /** @param list<int> $userIds */
@@ -1016,11 +992,6 @@ final class WhatsAppMenuService
             ':legacy_full' => '55' . $legacyNational,
             ':legacy_national' => $legacyNational,
         ];
-    }
-
-    private function identityName(string $name): string
-    {
-        return mb_strtolower(trim(preg_replace('/\s+/u', ' ', $name) ?? $name), 'UTF-8');
     }
 
     /** @param array<string,mixed> $payload */
