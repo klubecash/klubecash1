@@ -1,6 +1,6 @@
 FROM php:8.4-cli-alpine
 
-RUN apk add --no-cache icu-libs libcurl libstdc++ \
+RUN apk add --no-cache ca-certificates icu-libs libcurl libstdc++ \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS icu-dev curl-dev oniguruma-dev \
     && docker-php-ext-install -j"$(nproc)" pdo_mysql mysqli mbstring intl curl opcache \
     && apk del .build-deps \

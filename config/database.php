@@ -36,7 +36,19 @@ define('DB_PASS', $env('DB_PASSWORD', $env('DB_PASS', '')));
 define('DB_SSL_MODE', strtolower($env('DB_SSL_MODE', 'required')));
 $sslCa = getenv('DB_SSL_CA');
 if ($sslCa === false || trim((string) $sslCa) === '') {
-    $sslCa = str_contains(DB_HOST, 'aivencloud.com') ? __DIR__ . '/ca.pem' : '';
+    if (str_contains(DB_HOST, 'aivencloud.com')) {
+        $sslCa = __DIR__ . '/ca.pem';
+    } else {
+        // O Coolify usa certificado próprio; o bundle local apenas habilita
+        // a negociação TLS enquanto DB_SSL_VERIFY permanece desativado.
+        foreach (['/etc/ssl/cert.pem', '/etc/ssl/certs/ca-certificates.crt'] as $candidate) {
+            if (file_exists($candidate)) {
+                $sslCa = $candidate;
+                break;
+            }
+        }
+        $sslCa ??= '';
+    }
 }
 define('DB_SSL_CA', (string) $sslCa);
 $sslVerify = getenv('DB_SSL_VERIFY');
