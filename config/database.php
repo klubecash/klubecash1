@@ -7,31 +7,42 @@ date_default_timezone_set('America/Sao_Paulo');
  * Klube Cash - Sistema de Cashback
  *
  * Banco de dados:
- * Aiven MySQL 8.4
+ * MySQL gerenciado pelo Coolify (rede interna)
  */
 
 // ======================================================
-// CONFIGURAÇÕES DO BANCO AIVEN
+// CONFIGURAÇÕES DO BANCO COOLIFY
 // ======================================================
 
-define('DB_HOST', 'mysql-2829cd07-klubecash.e.aivencloud.com');
-define('DB_PORT', 24053);
-define('DB_NAME', 'defaultdb');
-define('DB_USER', 'avnadmin');
+$envValue = static function (array $names, string $default = ''): string {
+    foreach ($names as $name) {
+        $value = getenv($name);
+        if ($value !== false && trim((string) $value) !== '') {
+            return trim((string) $value);
+        }
+    }
+    return $default;
+};
 
-// COLOQUE AQUI A NOVA SENHA DO AIVEN
-$password = getenv('DB_PASS');
-define('DB_PASS', $password === false ? '' : $password);
+$connectionUrl = $envValue(['DATABASE_URL', 'MYSQL_URL']);
+$urlParts = $connectionUrl !== '' ? parse_url($connectionUrl) : [];
+$urlParts = is_array($urlParts) ? $urlParts : [];
+$urlValue = static function (string $key, string $default = '') use ($urlParts): string {
+    $value = $urlParts[$key] ?? '';
+    return is_scalar($value) && trim((string) $value) !== '' ? urldecode((string) $value) : $default;
+};
 
-// Certificado SSL do Aiven.
-// Baixe o arquivo CA Certificate no painel do Aiven
-// e salve como "ca.pem" dentro da pasta config.
-define('DB_SSL_CA', __DIR__ . '/ca.pem');
+define('DB_HOST', $envValue(['DB_HOST', 'MYSQL_HOST'], $urlValue('host', 'mysql-database-9rnzmfh5g7y53xijjhc3ct7h')));
+define('DB_PORT', (int) $envValue(['DB_PORT', 'MYSQL_PORT'], $urlValue('port', '3306')));
+define('DB_NAME', $envValue(['DB_DATABASE', 'DB_NAME', 'MYSQL_DATABASE'], ltrim($urlValue('path', '/default'), '/')));
+define('DB_USER', $envValue(['DB_USERNAME', 'DB_USER', 'MYSQL_USER'], $urlValue('user', 'mysql')));
+$configuredPassword = $envValue(['DB_PASSWORD', 'MYSQL_PASSWORD']);
+define('DB_PASS', $configuredPassword !== '' ? $configuredPassword : ($urlValue('pass') !== '' ? $urlValue('pass') : $envValue(['DB_PASS'])));
 
 
 /**
  * Classe Database
- * Gerencia a conexão PDO com o MySQL do Aiven.
+ * Gerencia a conexão PDO com o MySQL do Coolify.
  */
 class Database
 {
@@ -50,19 +61,12 @@ class Database
         }
 
         if (DB_PASS === '') {
-            throw new RuntimeException('Variável de ambiente DB_PASS não configurada.');
+            throw new RuntimeException('Variável de ambiente DB_PASSWORD (ou DB_PASS) não configurada.');
         }
 
         try {
 
-            // Verifica se o certificado SSL existe.
-            if (!file_exists(DB_SSL_CA)) {
-                throw new Exception(
-                    'Certificado SSL do banco não encontrado em: ' . DB_SSL_CA
-                );
-            }
-
-            // DSN de conexão com o MySQL Aiven
+            // O MySQL do Coolify está na rede interna; SSL não é necessário.
             $dsn = sprintf(
                 'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
                 DB_HOST,
@@ -81,8 +85,6 @@ class Database
                 // Usa prepared statements reais
                 PDO::ATTR_EMULATE_PREPARES => false,
 
-                // SSL obrigatório
-                PDO::MYSQL_ATTR_SSL_CA => DB_SSL_CA,
             ];
 
             $persistentSetting = getenv('DB_PERSISTENT');
