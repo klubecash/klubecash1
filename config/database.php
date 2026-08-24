@@ -7,31 +7,50 @@ date_default_timezone_set('America/Sao_Paulo');
  * Klube Cash - Sistema de Cashback
  *
  * Banco de dados:
- * Aiven MySQL 8.4
+ * MySQL configurável por ambiente (Coolify em produção; Aiven como fallback)
  */
 
 // ======================================================
-// CONFIGURAÇÕES DO BANCO AIVEN
+// CONFIGURAÇÕES DO BANCO
 // ======================================================
 
-define('DB_HOST', 'mysql-2829cd07-klubecash.e.aivencloud.com');
-define('DB_PORT', 24053);
-define('DB_NAME', 'defaultdb');
-define('DB_USER', 'avnadmin');
+$env = static function (string $name, ?string $fallback = null): ?string {
+    $value = getenv($name);
+    if ($value === false || trim((string) $value) === '') {
+        return $fallback;
+    }
+    return (string) $value;
+};
 
-// COLOQUE AQUI A NOVA SENHA DO AIVEN
-$password = getenv('DB_PASS');
-define('DB_PASS', $password === false ? '' : $password);
+// Os nomes novos (DB_DATABASE/DB_USERNAME/DB_PASSWORD) são usados pelo
+// Coolify. Os aliases antigos continuam funcionando para não quebrar o
+// ambiente Aiven durante a transição.
+define('DB_HOST', $env('DB_HOST', 'mysql-2829cd07-klubecash.e.aivencloud.com'));
+define('DB_PORT', (int) $env('DB_PORT', '24053'));
+define('DB_NAME', $env('DB_DATABASE', $env('DB_NAME', 'defaultdb')));
+define('DB_USER', $env('DB_USERNAME', $env('DB_USER', 'avnadmin')));
+define('DB_PASS', $env('DB_PASSWORD', $env('DB_PASS', '')));
 
-// Certificado SSL do Aiven.
-// Baixe o arquivo CA Certificate no painel do Aiven
-// e salve como "ca.pem" dentro da pasta config.
-define('DB_SSL_CA', __DIR__ . '/ca.pem');
+// Coolify gera um certificado próprio. Quando DB_SSL_CA não for informado,
+// exigimos TLS sem validação de CA; somente o fallback Aiven usa config/ca.pem.
+define('DB_SSL_MODE', strtolower($env('DB_SSL_MODE', 'required')));
+$sslCa = getenv('DB_SSL_CA');
+if ($sslCa === false || trim((string) $sslCa) === '') {
+    $sslCa = str_contains(DB_HOST, 'aivencloud.com') ? __DIR__ . '/ca.pem' : '';
+}
+define('DB_SSL_CA', (string) $sslCa);
+$sslVerify = getenv('DB_SSL_VERIFY');
+define(
+    'DB_SSL_VERIFY',
+    $sslVerify === false
+        ? str_contains(DB_HOST, 'aivencloud.com')
+        : filter_var($sslVerify, FILTER_VALIDATE_BOOL)
+);
 
 
 /**
  * Classe Database
- * Gerencia a conexão PDO com o MySQL do Aiven.
+ * Gerencia a conexão PDO com o MySQL.
  */
 class Database
 {
@@ -55,14 +74,7 @@ class Database
 
         try {
 
-            // Verifica se o certificado SSL existe.
-            if (!file_exists(DB_SSL_CA)) {
-                throw new Exception(
-                    'Certificado SSL do banco não encontrado em: ' . DB_SSL_CA
-                );
-            }
-
-            // DSN de conexão com o MySQL Aiven
+            // DSN de conexão com o MySQL
             $dsn = sprintf(
                 'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
                 DB_HOST,
@@ -81,9 +93,16 @@ class Database
                 // Usa prepared statements reais
                 PDO::ATTR_EMULATE_PREPARES => false,
 
-                // SSL obrigatório
-                PDO::MYSQL_ATTR_SSL_CA => DB_SSL_CA,
             ];
+
+            if (DB_SSL_MODE !== 'disable' && DB_SSL_MODE !== 'disabled' && DB_SSL_MODE !== 'off') {
+                if (DB_SSL_CA !== '' && file_exists(DB_SSL_CA)) {
+                    $options[PDO::MYSQL_ATTR_SSL_CA] = DB_SSL_CA;
+                }
+                // O proxy TLS do Coolify usa certificado próprio. A validação
+                // pode ser ativada quando uma CA confiável for fornecida.
+                $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = DB_SSL_VERIFY;
+            }
 
             $persistentSetting = getenv('DB_PERSISTENT');
             $options[PDO::ATTR_PERSISTENT] = $persistentSetting === false
