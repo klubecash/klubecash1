@@ -50,7 +50,7 @@ services:
       SESSION_NAME: KLCSESSID
       SESSION_COOKIE_SECURE: "true"
       JWT_SECRET: ${KLUBCASH_JWT_SECRET:?Defina o segredo JWT existente}
-      DB_HOST: mysql-database-9rnzmfh5g7y53xijjhc3ct7h
+      DB_HOST: 9rnzmfh5g7y53xijjhc3ct7h
       DB_PORT: "3306"
       DB_DATABASE: default
       DB_USERNAME: mysql
