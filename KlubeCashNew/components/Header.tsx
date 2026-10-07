@@ -12,7 +12,7 @@ export function Header({ authenticated, user, links }: HeaderProps) {
           <Link href="/" className="brand-logo">
             <Image
               src="/assets/images/logolaranja.png"
-              alt="Klube Cash"
+              alt="KlubeCash"
               className="logo-image"
               width={791}
               height={247}
@@ -22,6 +22,7 @@ export function Header({ authenticated, user, links }: HeaderProps) {
 
           <ul className="desktop-menu">
             <li><a href="#como-funciona" className="nav-link">Como Funciona</a></li>
+            <li><a href="#klubinho" className="nav-link">Klubinho</a></li>
             <li><a href="#vantagens" className="nav-link">Vantagens</a></li>
             <li><a href="#parceiros" className="nav-link">Parceiros</a></li>
             <li><a href="#sobre" className="nav-link">Sobre</a></li>
@@ -90,6 +91,7 @@ export function Header({ authenticated, user, links }: HeaderProps) {
       <div className="mobile-menu" id="mobileMenu" aria-hidden="true">
         <ul className="mobile-nav-list">
           <li><a href="#como-funciona" className="mobile-nav-link">Como Funciona</a></li>
+          <li><a href="#klubinho" className="mobile-nav-link">Klubinho</a></li>
           <li><a href="#vantagens" className="mobile-nav-link">Vantagens</a></li>
           <li><a href="#parceiros" className="mobile-nav-link">Parceiros</a></li>
           <li><a href="#sobre" className="mobile-nav-link">Sobre</a></li>

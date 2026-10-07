@@ -117,6 +117,11 @@
 .storyPanel::before { position: absolute; inset: 0; background-image: radial-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px); background-size: 24px 24px; mask-image: linear-gradient(to bottom left, black, transparent 73%); content: ""; opacity: 0.55; }
 .storyContent { position: relative; z-index: 2; display: flex; flex-direction: column; width: 100%; }
 .whiteLogo { width: 155px; height: auto; }
+.mascotSpotlight { display: flex; align-items: flex-end; min-height: 132px; margin: 12px -10px 0 -18px; }
+.authKlubinho { flex: 0 0 165px; width: 165px; margin-bottom: -30px; }
+.mascotCopy { align-self: center; max-width: 145px; margin: 0 0 18px -4px; }
+.mascotCopy span { display: block; color: rgba(255, 255, 255, 0.68); font-size: 0.58rem; font-weight: 800; letter-spacing: 0.1em; }
+.mascotCopy p { margin: 7px 0 0; color: rgba(255, 255, 255, 0.9); font-size: 0.74rem; font-weight: 650; line-height: 1.45; }
 .processSteps, .securityTips { margin-top: auto; margin-bottom: auto; padding: 42px 0; }
 .storyEyebrow { color: rgba(255, 255, 255, 0.7); font-size: 0.66rem; font-weight: 750; letter-spacing: 0.1em; }
 .processSteps h2, .securityTips h2 { margin: 12px 0 28px; color: #fff; font-size: clamp(2rem, 3.6vw, 2.8rem); font-weight: 800; letter-spacing: -0.05em; line-height: 1.04; }
@@ -152,6 +157,9 @@
   .storyPanel { grid-row: 1; min-height: 285px; padding: 37px 42px; }
   .storyContent { display: grid; grid-template-columns: 150px 1fr; align-items: center; gap: 30px; }
   .whiteLogo { width: 145px; }
+  .mascotSpotlight { min-height: 110px; margin: 4px -4px 0 -12px; }
+  .authKlubinho { flex-basis: 135px; width: 135px; margin-bottom: -24px; }
+  .mascotCopy { margin-bottom: 12px; }
   .processSteps, .securityTips { margin: 0; padding: 0; }
   .processSteps h2, .securityTips h2 { margin: 9px 0 18px; font-size: 2rem; }
   .processSteps ol { grid-template-columns: 1fr 1fr; gap: 11px 18px; }
@@ -172,6 +180,11 @@
   .storyPanel { min-height: 235px; padding: 29px 27px; }
   .storyContent { display: flex; gap: 0; }
   .whiteLogo { width: 130px; margin-bottom: 28px; }
+  .mascotSpotlight { min-height: 100px; margin: 0 -4px 4px -10px; }
+  .authKlubinho { flex-basis: 120px; width: 120px; margin-bottom: -20px; }
+  .mascotCopy { max-width: 125px; margin-bottom: 8px; }
+  .mascotCopy span { font-size: 0.52rem; }
+  .mascotCopy p { font-size: 0.68rem; }
   .processSteps h2, .securityTips h2 { margin: 7px 0 15px; font-size: 1.8rem; }
   .processSteps ol { gap: 8px; }
   .processSteps li:nth-child(n+3) { display: none; }
@@ -189,6 +202,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .recoveryCard, .spinner, .contextLoading span { animation-duration: 1ms; animation-iteration-count: 1; }
+  .recoveryCard, .spinner, .contextLoading span, :global(.klubinho-float) { animation-duration: 1ms; animation-iteration-count: 1; }
   .submitButton, .themeToggle, .themeToggle svg, .strengthTrack span { transition-duration: 1ms; }
 }

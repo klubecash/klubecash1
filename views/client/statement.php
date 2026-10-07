@@ -8,6 +8,7 @@ require_once '../../config/database.php';
 require_once '../../config/constants.php';
 require_once '../../controllers/AuthController.php';
 require_once '../../controllers/ClientController.php';
+require_once __DIR__ . '/../../services/Giftback/GiftbackClientReadService.php';
 
 // Iniciar sessão
 session_start();
@@ -60,6 +61,8 @@ $statementData = $hasError ? [] : $result['data'];
 
 try {
     $db = Database::getConnection();
+    $giftbackFilterStoreId = max(0, (int) ($filters['loja_id'] ?? $_GET['loja_id'] ?? 0)) ?: null;
+    $giftbackCredits = (new \App\Services\Giftback\GiftbackClientReadService($db))->credits((int) $userId, $giftbackFilterStoreId, max(1, (int) ($_GET['giftback_page'] ?? 1)));
     
     // Obter estatísticas de saldo para o período filtrado
     $saldoStatQuery = "
@@ -110,6 +113,8 @@ try {
     }
 } catch (Exception $e) {
     error_log('Erro ao carregar estatísticas de saldo: ' . $e->getMessage());
+    $giftbackCredits = ['items' => [], 'total' => 0];
+    $giftbackError = 'Não foi possível atualizar os créditos e vencimentos. Tente novamente em instantes.';
     $saldoEstatisticas = [
         'total_creditado' => 0,
         'total_usado' => 0,
@@ -397,6 +402,7 @@ try {
             <?php endif; ?>
         </div>
         
+        <?php if (isset($giftbackError)): ?><p role="alert"><?= htmlspecialchars($giftbackError) ?></p><?php else: require __DIR__ . '/../components/giftback-credits.php'; endif; ?>
         <!-- Informações educativas sobre saldo -->
         <?php if (!empty($saldoEstatisticas['qtd_usos']) && $saldoEstatisticas['qtd_usos'] > 0): ?>
         <div class="education-section">

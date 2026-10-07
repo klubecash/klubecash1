@@ -15,6 +15,12 @@ use App\Services\WhatsApp\WhatsAppMenuService;
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: private, no-store');
 
+if (getenv('VPS_WORKERS_ENABLED') === 'false') {
+    http_response_code(503);
+    echo json_encode(['success' => false, 'error' => 'Processador desativado neste ambiente.']);
+    exit;
+}
+
 $secret = trim((string) getenv('CRON_SECRET'));
 $authorization = trim((string) ($_SERVER['HTTP_AUTHORIZATION'] ?? ''));
 if ($secret === '') {
@@ -39,7 +45,9 @@ try {
     $waha = new WahaService(WahaConfig::fromEnvironment(), new CurlWahaHttpClient());
     $connection = $waha->connectionStatus();
     $siteUrl = rtrim((string) (getenv('SITE_URL') ?: (defined('SITE_URL') ? SITE_URL : 'https://www.klubecash.com')), '/');
-    $webhook = $waha->ensureWebhook($siteUrl . '/api/webhooks/waha');
+    $webhook = getenv('WAHA_MANAGE_WEBHOOK') === 'false'
+        ? ['managed' => false]
+        : $waha->ensureWebhook($siteUrl . '/api/webhooks/waha');
     $outbound = (new StoreWhatsAppNotificationService($db))->processPending($limit);
     $menuConfig = WhatsAppMenuConfig::fromEnvironment();
     $menuService = new WhatsAppMenuService($db, $waha, $menuConfig);

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/app/registro/register.module.css";
+import { Klubinho } from "./Klubinho";
 
 type Theme = "light" | "dark";
 type Feedback = { type: "error" | "success"; message: string } | null;
@@ -24,7 +25,7 @@ type RegisterResponse = {
 const minimumPasswordLength = 8;
 
 const benefits = [
-  { label: "Cashback real", icon: "cash" },
+  { label: "Giftback real", icon: "cash" },
   { label: "Processo rápido e seguro", icon: "bolt" },
   { label: "Muitas de lojas parceiras", icon: "target" },
 ] as const;
@@ -227,8 +228,8 @@ export default function RegisterExperience({ initialError, initialSuccess }: Reg
       <div className={styles.background} aria-hidden="true"><span /><span /><span /></div>
 
       <header className={styles.topbar}>
-        <Link href="/" className={styles.brandLink} aria-label="Klube Cash - página inicial">
-          <Image src="/assets/images/logolaranja.png" alt="Klube Cash" width={991} height={383} unoptimized priority />
+        <Link href="/" className={styles.brandLink} aria-label="KlubeCash - página inicial">
+          <Image src="/assets/images/logolaranja.png" alt="KlubeCash" width={991} height={383} unoptimized priority />
         </Link>
         <div className={styles.topbarActions}>
           <Link href="/" className={styles.backLink}>
@@ -333,20 +334,27 @@ export default function RegisterExperience({ initialError, initialSuccess }: Reg
               </button>
             </form>
 
-            <p className={styles.privacyNote}>Cadastro seguro e gratuito. Seus dados são usados apenas para sua experiência no Klube Cash.</p>
+            <p className={styles.privacyNote}>Cadastro seguro e gratuito. Seus dados são usados apenas para sua experiência no KlubeCash.</p>
           </div>
         </div>
 
         <aside className={styles.brandPanel}>
           <div className={styles.brandContent}>
-            <span className={styles.brandBadge}>SEU CASHBACK COMEÇA AQUI</span>
-            <Image src="/assets/images/logobranco.png" alt="Klube Cash" className={styles.whiteLogo} width={991} height={383} unoptimized priority />
+            <span className={styles.brandBadge}>SEU GIFTBACK COMEÇA AQUI</span>
+            <Image src="/assets/images/logobranco.png" alt="KlubeCash" className={styles.whiteLogo} width={991} height={383} unoptimized priority />
             <div className={styles.brandCopy}>
               <h2>Comprar bem é receber de volta.</h2>
               <p>Uma conta. Muitas lojas. Mais valor em cada compra.</p>
             </div>
+            <div className={styles.mascotSpotlight}>
+              <div className={styles.mascotCopy}>
+                <span>SEU GIFTBACK COMEÇA AQUI</span>
+                <p>O Klubinho já está comemorando com você.</p>
+              </div>
+              <Klubinho pose="comemora" size={225} className={styles.authKlubinho} priority />
+            </div>
             <div className={styles.benefits}>
-              <h3>Por que escolher o Klube Cash?</h3>
+              <h3>Por que escolher a KlubeCash?</h3>
               <ul>{benefits.map((benefit) => <li key={benefit.label}><span><BenefitIcon icon={benefit.icon} /></span><strong>{benefit.label}</strong></li>)}</ul>
             </div>
           </div>

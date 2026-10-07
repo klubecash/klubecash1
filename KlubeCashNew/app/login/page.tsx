@@ -6,8 +6,8 @@ import { getHomeContext } from "@/lib/home-context";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Entrar - Klube Cash",
-  description: "Entre na sua conta Klube Cash.",
+  title: "Entrar - KlubeCash",
+  description: "Entre na sua conta KlubeCash.",
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;

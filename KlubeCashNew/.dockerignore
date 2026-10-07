@@ -1,0 +1,9 @@
+node_modules
+.next
+.runtime
+test-results
+tests
+.env
+.env.*
+!.env.local.example
+*.log

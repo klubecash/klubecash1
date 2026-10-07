@@ -14,6 +14,7 @@ const legacyAdminRoutes = (process.env.ADMIN_LEGACY_ROUTES ?? "")
   .filter(Boolean);
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   agentRules: false,
   turbopack: {
     root: process.cwd(),

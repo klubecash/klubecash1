@@ -6,8 +6,22 @@
 
 require_once __DIR__ . '/../config/constants.php';
 require_once __DIR__ . '/FeatureGate.php';
+require_once __DIR__ . '/../services/billing/BillingFeatureFlags.php';
+require_once __DIR__ . '/../services/billing/SubscriptionService.php';
 
 class StoreHelper {
+
+    public static function canRegisterSales(int $storeId): bool {
+        if (!\App\Services\Billing\BillingFeatureFlags::commercialSalesGateEnabled()) {
+            return true;
+        }
+        try {
+            $db = Database::getConnection();
+            return (bool) ((new \App\Services\Billing\SubscriptionService($db))->commercialAccess($storeId)['canRegisterSales'] ?? false);
+        } catch (Throwable) {
+            return false;
+        }
+    }
 
     /**
      * Verificação obrigatória para páginas da loja - USA EM TODOS OS ARQUIVOS
@@ -56,37 +70,9 @@ class StoreHelper {
             exit;
         }
 
-        // === NOVO: CONTROLE DE ACESSO POR PLANO ATIVO ===
-        $lojaId = $_SESSION['store_id'];
-
-        // Verificar se o plano está ativo
-        if (!FeatureGate::isActive($lojaId)) {
-            // Páginas permitidas SEM plano ativo:
-            // 1. Registro de vendas (para continuar gerando receita)
-            // 2. Página de assinatura (para ver plano e pagar)
-            // 3. Página de pagamento PIX (para pagar faturas)
-            $allowedPages = [
-                '/store/registrar-transacao',
-                '/store/meu-plano',
-                '/store/fatura-pix',
-                '/store/pagamento-pix'
-            ];
-
-            // PHP_SELF identifica o roteador na Vercel. Use sempre a rota
-            // canonica realmente solicitada para decidir o feature gate.
-            $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-            $currentPage = '/' . trim($requestPath, '/');
-
-            // Verificar se a página atual está na lista de permitidas
-            $isAllowed = in_array($currentPage, $allowedPages, true);
-
-            if (!$isAllowed) {
-                // Redirecionar para página de assinatura com mensagem
-                $subscriptionUrl = defined('STORE_SUBSCRIPTION_URL') ? STORE_SUBSCRIPTION_URL : '/views/stores/subscription.php';
-                header("Location: {$subscriptionUrl}?error=" . urlencode("Você precisa de um plano ativo para acessar esta funcionalidade"));
-                exit;
-            }
-        }
+        // A assinatura controla apenas a criação de novas vendas. Leitura,
+        // clientes, histórico, perfil e faturas continuam acessíveis para
+        // permitir a regularização e preservar os dados da loja.
 
     }
     

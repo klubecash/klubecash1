@@ -1546,6 +1546,7 @@ class TransactionController {
                     'code' => $code,
                     'description' => trim((string) ($data['descricao'] ?? '')),
                     'occurredAt' => (string) ($data['data_transacao'] ?? date('Y-m-d H:i:s')),
+                    'sellerId' => (int) ($data['vendedor_id'] ?? $actorId),
                 ],
                 $idempotencyKey
             );
@@ -2721,7 +2722,7 @@ class TransactionController {
             // Buscar dados do pagamento
             $stmt = $db->prepare("
                 SELECT * FROM pagamentos_comissao 
-                WHERE id = ? AND status IN ('pendente', 'pix_aguardando')
+                WHERE id = ? AND status IN ('pendente', 'pix_aguardando') FOR UPDATE
             ");
             $stmt->execute([$paymentId]);
             $payment = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -2783,66 +2784,16 @@ class TransactionController {
                 $cashbackValue = $transaction['valor_cliente'];
                 $totalCashbackLiberado += $cashbackValue;
                 
-                // Verificar se o saldo j� existe
-                $saldoCheckStmt = $db->prepare("
-                    SELECT id FROM cashback_saldos 
-                    WHERE usuario_id = ? AND loja_id = ?
-                ");
-                $saldoCheckStmt->execute([$transaction['usuario_id'], $transaction['loja_id']]);
-                
-                if ($saldoCheckStmt->rowCount() > 0) {
-                    // Atualizar saldo existente
-                    $updateSaldoStmt = $db->prepare("
-                        UPDATE cashback_saldos 
-                        SET saldo_disponivel = saldo_disponivel + ?,
-                            total_creditado = total_creditado + ?,
-                            ultima_atualizacao = NOW()
-                        WHERE usuario_id = ? AND loja_id = ?
-                    ");
-                    $updateSaldoStmt->execute([
-                        $cashbackValue, 
-                        $cashbackValue, 
-                        $transaction['usuario_id'], 
-                        $transaction['loja_id']
-                    ]);
-                } else {
-                    // Criar novo saldo
-                    $insertSaldoStmt = $db->prepare("
-                        INSERT INTO cashback_saldos 
-                        (usuario_id, loja_id, saldo_disponivel, total_creditado) 
-                        VALUES (?, ?, ?, ?)
-                    ");
-                    $insertSaldoStmt->execute([
-                        $transaction['usuario_id'], 
-                        $transaction['loja_id'], 
-                        $cashbackValue, 
-                        $cashbackValue
-                    ]);
+                require_once __DIR__ . '/../services/Giftback/GiftbackLedger.php';
+                $ledger = new \App\Services\Giftback\GiftbackLedger($db);
+                $creditResult = $cashbackValue > 0 ? $ledger->credit(
+                    (int) $transaction['usuario_id'], (int) $transaction['loja_id'],
+                    \App\Services\Giftback\GiftbackLedger::cents($cashbackValue),
+                    'Cashback liberado - Pagamento aprovado automaticamente', (int) $transaction['id']
+                ) : null;
+                if ($creditResult && !$creditResult['replayed']) {
+                    $db->prepare('UPDATE cashback_movimentacoes SET pagamento_id=? WHERE id=?')->execute([$paymentId, $creditResult['movementId']]);
                 }
-                
-                // Registrar movimenta��o de cashback
-                $insertMovStmt = $db->prepare("
-                    INSERT INTO cashback_movimentacoes 
-                    (usuario_id, loja_id, tipo_operacao, valor, saldo_anterior, saldo_atual, 
-                    descricao, transacao_origem_id, pagamento_id) 
-                    VALUES (?, ?, 'credito', ?, 
-                            COALESCE((SELECT saldo_disponivel FROM cashback_saldos WHERE usuario_id = ? AND loja_id = ? LIMIT 1), 0) - ?,
-                            COALESCE((SELECT saldo_disponivel FROM cashback_saldos WHERE usuario_id = ? AND loja_id = ? LIMIT 1), 0),
-                            ?, ?, ?)
-                ");
-                $insertMovStmt->execute([
-                    $transaction['usuario_id'],
-                    $transaction['loja_id'],
-                    $cashbackValue,
-                    $transaction['usuario_id'],
-                    $transaction['loja_id'],
-                    $cashbackValue,
-                    $transaction['usuario_id'],
-                    $transaction['loja_id'],
-                    'Cashback liberado - Pagamento aprovado automaticamente',
-                    $transaction['id'],
-                    $paymentId
-                ]);
                 
                 // Atualizar saldo do admin
                 self::updateAdminBalance($cashbackValue, 'credito', "Comiss�o recebida - Transa��o {$transaction['id']}");

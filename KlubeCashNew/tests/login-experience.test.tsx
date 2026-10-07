@@ -30,7 +30,7 @@ describe("experiência de login", () => {
     render(<LoginExperience initialError={null} initialSuccess={null} forceLogin={false} />);
 
     expect(screen.getByRole("heading", { name: "Bem-vindo de volta!" })).toBeInTheDocument();
-    expect(screen.getByText("Cashback real")).toBeInTheDocument();
+    expect(screen.getByText("Giftback real")).toBeInTheDocument();
     expect(screen.getByText("Muitas lojas parceiras")).toBeInTheDocument();
     expect(screen.getByText("Sem taxas ou anuidades")).toBeInTheDocument();
     expect(screen.getByText("Utilize em lojas que ele foi gerado")).toBeInTheDocument();

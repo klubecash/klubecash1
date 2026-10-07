@@ -1,0 +1,98 @@
+services:
+  web:
+    image: ghcr.io/klubecash/klubecash1-next:${KLUBCASH_IMAGE_TAG:?Defina o SHA da imagem validada}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PHP_BACKEND_URL: http://legacy-http:8080
+      SITE_URL: https://vps.klubecash.com
+      STORE_UI_MODE: next
+      ADMIN_UI_MODE: next
+    expose:
+      - "3000"
+    networks:
+      - app-internal
+      - coolify
+    depends_on:
+      legacy-http:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+
+  legacy-http:
+    image: ghcr.io/klubecash/klubecash1-nginx:${KLUBCASH_IMAGE_TAG:?Defina o SHA da imagem validada}
+    restart: unless-stopped
+    volumes:
+      - uploads-data:/app/uploads:ro
+    expose:
+      - "8080"
+    networks:
+      - app-internal
+    depends_on:
+      php:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/internal-health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  php:
+    image: ghcr.io/klubecash/klubecash1-php:${KLUBCASH_IMAGE_TAG:?Defina o SHA da imagem validada}
+    restart: unless-stopped
+    environment:
+      SITE_URL: https://vps.klubecash.com
+      SESSION_DRIVER: database
+      SESSION_NAME: KLCSESSID
+      SESSION_COOKIE_SECURE: "true"
+      DB_HOST: mysql-database-9rnzmfh5g7y53xijjhc3ct7h
+      DB_PORT: "3306"
+      DB_DATABASE: default
+      DB_USERNAME: mysql
+      DB_PASSWORD: ${KLUBCASH_DB_PASSWORD:?Defina a senha do MySQL existente}
+      DB_SSL_MODE: required
+      DB_SSL_VERIFY: "false"
+      SMTP_HOST: ${KLUBCASH_SMTP_HOST:?Defina o host SMTP}
+      SMTP_PORT: ${KLUBCASH_SMTP_PORT:-465}
+      SMTP_USERNAME: ${KLUBCASH_SMTP_USERNAME:?Defina o usuário SMTP}
+      SMTP_PASSWORD: ${KLUBCASH_SMTP_PASSWORD:?Defina a senha SMTP}
+      SMTP_FROM_EMAIL: ${KLUBCASH_SMTP_FROM_EMAIL:?Defina o remetente SMTP}
+      SMTP_FROM_NAME: Klube Cash
+      SMTP_ENCRYPTION: smtps
+      MP_PUBLIC_KEY: ${KLUBCASH_MP_PUBLIC_KEY:-}
+      MP_ACCESS_TOKEN: ${KLUBCASH_MP_ACCESS_TOKEN:-}
+      MP_WEBHOOK_SECRET: ${KLUBCASH_MP_WEBHOOK_SECRET:-}
+      BILLING_WRITES_ENABLED: "false"
+      WAHA_BASE_URL: ${KLUBCASH_WAHA_BASE_URL:-}
+      WAHA_API_KEY: ${KLUBCASH_WAHA_API_KEY:-}
+      WAHA_SESSION: ${KLUBCASH_WAHA_SESSION:-}
+      WAHA_WEBHOOK_HMAC_KEY: ${KLUBCASH_WAHA_WEBHOOK_HMAC_KEY:-}
+      WHATSAPP_MENU_HASH_KEY: ${KLUBCASH_WHATSAPP_MENU_HASH_KEY:-}
+      WAHA_MANAGE_WEBHOOK: "false"
+      VPS_WORKERS_ENABLED: "false"
+      CRON_SECRET: ${KLUBCASH_VPS_CRON_SECRET:-}
+    volumes:
+      - uploads-data:/app/uploads
+      - logs-data:/app/logs
+    networks:
+      - app-internal
+      - coolify
+    healthcheck:
+      test: ["CMD", "php-fpm", "-t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  uploads-data:
+  logs-data:
+
+networks:
+  app-internal:
+    internal: true
+  coolify:
+    external: true

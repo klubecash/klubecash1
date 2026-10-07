@@ -21,11 +21,23 @@
   },
   "crons": [
     {
+      "path": "/api/internal/giftback-expiration",
+      "schedule": "5 3 * * *"
+    },
+    {
       "path": "/api/internal/notifications",
       "schedule": "15 5 * * *"
     }
   ],
   "headers": [
+    {
+      "source": "/saldo/(.*)",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Cache-Control", "value": "private, no-store, no-cache, must-revalidate, max-age=0" }
+      ]
+    },
     {
       "source": "/assets/(.*)",
       "headers": [
@@ -46,8 +58,11 @@
     { "source": "/login", "destination": { "service": "frontend" } },
     { "source": "/registro", "destination": { "service": "frontend" } },
     { "source": "/recuperar-senha", "destination": { "service": "frontend" } },
+    { "source": "/mascote/(.*)", "destination": { "service": "frontend" } },
+    { "source": "/brand/(.*)", "destination": { "service": "frontend" } },
     { "source": "/_next/(.*)", "destination": { "service": "frontend" } },
     { "source": "/api/admin/(.*)", "destination": { "service": "frontend" } },
+    { "source": "/api/wallet-link/(.*)", "destination": { "service": "frontend" } },
     { "source": "/api/store/(.*)", "destination": { "service": "frontend" } },
     { "source": "/api/auth/(.*)", "destination": { "service": "frontend" } },
     { "source": "/api/whatsapp/auth/(.*)", "destination": { "service": "frontend" } },
@@ -56,6 +71,7 @@
     { "source": "/admin/(.*)", "destination": { "service": "frontend" } },
     { "source": "/store", "destination": { "service": "frontend" } },
     { "source": "/store/(.*)", "destination": { "service": "frontend" } },
+    { "source": "/saldo/(.*)", "destination": { "service": "frontend" } },
     { "source": "/(.*)", "destination": { "service": "backend" } }
   ]
 }

@@ -1,6 +1,6 @@
 # Migração incremental do KlubeCash
 
-Este diretório é a fonte oficial de acompanhamento da migração do KlubeCash para uma arquitetura PHP centralizada em Vercel + Aiven.
+Este diretório é a fonte oficial de acompanhamento da migração do KlubeCash para uma arquitetura PHP centralizada, com MySQL gerenciado pelo Coolify.
 
 ## Estados
 
@@ -20,13 +20,13 @@ Este diretório é a fonte oficial de acompanhamento da migração do KlubeCash 
 | Deploy inicial | `dpl_GvSasfR1R8VNRYVZ9hmCpU95ngcR` |
 | Domínio oficial | `https://www.klubecash.com` |
 | Domínio apex | `https://klubecash.com` |
-| Infraestrutura | Vercel + Aiven MySQL |
+| Infraestrutura | Vercel/Coolify + MySQL Coolify |
 | PHP | Runtime comunitário PHP 8.5 na Vercel |
 | Entradas PHP encontradas | 144 |
 | Views PHP | 60 |
 | APIs PHP de primeiro nível | 25 |
 
-Variáveis existentes no início: `SITE_URL` e `DB_PASS` em Production/Preview. Valores nunca devem ser registrados nesta documentação.
+Variáveis de banco: `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME` e `DB_PASSWORD`. Valores nunca devem ser registrados nesta documentação.
 
 ## Decisões fixadas
 

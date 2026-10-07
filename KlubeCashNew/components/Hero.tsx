@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { HomeContext } from "@/types/home";
+import { Klubinho } from "./Klubinho";
 
 type HeroProps = Pick<HomeContext, "authenticated" | "user" | "links">;
 
@@ -21,7 +22,7 @@ export function Hero({ authenticated, user, links }: HeroProps) {
                       <p>Gerencie as operações da sua loja com eficiência através do painel administrativo.</p>
                     </>
                   ) : (
-                    <p>Continue economizando com inteligência. Explore suas oportunidades de cashback e descubra novas formas de economizar.</p>
+                    <p>Continue economizando com inteligência. Explore suas oportunidades de giftback e descubra novas formas de economizar.</p>
                   )}
                 </div>
 
@@ -33,7 +34,7 @@ export function Hero({ authenticated, user, links }: HeroProps) {
             ) : (
               <>
                 <h1 id="hero-title">Transforme suas compras em dinheiro de volta</h1>
-                <p>O programa de cashback mais inteligente do Brasil. Cadastre-se gratuitamente e comece a receber dinheiro de volta em todas as suas compras.</p>
+                <p>O programa de giftback mais inteligente do Brasil. Cadastre-se gratuitamente e comece a receber dinheiro de volta em todas as suas compras.</p>
                 <div className="hero-actions">
                   <a href={links.register} className="btn btn-primary">Começar Agora - É Grátis</a>
                   <a href="#como-funciona" className="btn btn-ghost">Como Funciona?</a>
@@ -68,6 +69,7 @@ export function Hero({ authenticated, user, links }: HeroProps) {
               <span className="data-line data-line-short" />
               <span className="data-line data-line-long" />
             </div>
+            <Klubinho pose="aceno" size={235} className="hero-klubinho" />
           </div>
         </div>
       </div>

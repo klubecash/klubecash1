@@ -99,7 +99,8 @@ final class Bootstrap
         $cookieDomain = '';
 
         $forwardedProtocol = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
-        $secureCookie = $cookieDomain !== ''
+        $secureCookie = getenv('SESSION_COOKIE_SECURE') === 'true'
+            || $cookieDomain !== ''
             || $forwardedProtocol === 'https'
             || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
             || getenv('VERCEL') === '1';

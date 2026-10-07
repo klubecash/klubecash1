@@ -109,7 +109,7 @@ try {
     }
 } catch (Exception $e) {
     error_log('Erro na API de saldo: ' . $e->getMessage());
-    http_response_code(500);
+    http_response_code($e instanceof \App\Services\Giftback\GiftbackException ? $e->httpStatus : 500);
     echo json_encode(['status' => false, 'message' => 'Erro interno do servidor']);
 }
 
@@ -117,6 +117,29 @@ function handleGetRequest($userId) {
     $action = $_GET['action'] ?? '';
     
     switch ($action) {
+
+        case 'credits':
+        case 'credit_detail':
+            if (!AuthController::isClient()) {
+                http_response_code(403);
+                echo json_encode(['status' => false, 'message' => 'Acesso restrito a clientes.']);
+                return;
+            }
+            $reader = new \App\Services\Giftback\GiftbackClientReadService(Database::getConnection());
+            if ($action === 'credit_detail') {
+                $creditId = max(0, (int) ($_GET['credit_id'] ?? 0));
+                if ($creditId === 0) {
+                    http_response_code(422);
+                    echo json_encode(['status' => false, 'message' => 'Crédito inválido.']);
+                    return;
+                }
+                $data = $reader->detail($creditId, (int) $userId);
+            } else {
+                $storeId = max(0, (int) ($_GET['store_id'] ?? 0)) ?: null;
+                $data = $reader->credits((int) $userId, $storeId, max(1, (int) ($_GET['page'] ?? 1)));
+            }
+            echo json_encode(['status' => true, 'data' => $data]);
+            break;
 
         case 'balance_details':
             $result = ClientController::getClientBalanceDetails($userId);

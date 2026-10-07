@@ -12,6 +12,7 @@ header('Cache-Control: no-cache, must-revalidate');
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/constants.php';
 require_once __DIR__ . '/AuthController.php';
+require_once __DIR__ . '/../services/Giftback/GiftbackLedger.php';
 
 // Verificar autenticação
 if (!AuthController::isAuthenticated() || !AuthController::isAdmin()) {
@@ -42,6 +43,7 @@ try {
             }
             
             $db = Database::getConnection();
+            (new \App\Services\Giftback\GiftbackLedger($db))->settleStore($storeId);
             
             // QUERY CORRIGIDA - Qualificação adequada das colunas
             $stmt = $db->prepare("

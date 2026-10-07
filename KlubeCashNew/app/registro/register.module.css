@@ -247,6 +247,11 @@
 .brandCopy { margin-top: 35px; }
 .brandCopy h2 { max-width: 390px; margin: 0; color: #fff; font-size: clamp(2.2rem, 3.7vw, 3.25rem); font-weight: 800; letter-spacing: -0.055em; line-height: 1.01; }
 .brandCopy p { max-width: 330px; margin: 17px 0 0; color: rgba(255, 255, 255, 0.76); font-size: 0.9rem; line-height: 1.7; }
+.mascotSpotlight { position: relative; display: flex; align-items: flex-end; min-height: 150px; margin: 16px -18px 0 0; overflow: hidden; }
+.mascotCopy { position: relative; z-index: 2; align-self: center; max-width: 145px; margin-left: 2px; }
+.mascotCopy span { display: block; color: rgba(255, 255, 255, 0.68); font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em; }
+.mascotCopy p { margin: 7px 0 0; color: rgba(255, 255, 255, 0.9); font-size: 0.76rem; font-weight: 650; line-height: 1.45; }
+.authKlubinho { position: absolute; right: -16px; bottom: -30px; width: 220px; }
 .benefits { margin-top: auto; padding-top: 48px; }
 .benefits h3 { margin: 0 0 17px; color: rgba(255, 255, 255, 0.73); font-size: 0.68rem; font-weight: 750; letter-spacing: 0.09em; text-transform: uppercase; }
 .benefits ul { display: grid; gap: 11px; margin: 0; padding: 0; list-style: none; }
@@ -308,6 +313,8 @@
   .brandContent { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 15px 34px; }
   .brandBadge { grid-column: 1 / -1; }
   .whiteLogo { width: 145px; margin-top: 18px; }
+  .mascotSpotlight { min-height: 124px; margin-top: 8px; }
+  .authKlubinho { width: 180px; right: -10px; bottom: -25px; }
   .brandCopy { margin-top: 4px; }
   .brandCopy h2 { font-size: 2.2rem; }
   .brandCopy p { margin-top: 10px; }
@@ -326,6 +333,11 @@
   .brandContent { display: flex; gap: 0; }
   .brandBadge { margin-bottom: 27px; }
   .whiteLogo { width: 130px; margin: 0 0 22px; }
+  .mascotSpotlight { min-height: 108px; margin: 2px -7px 0 0; }
+  .mascotCopy { max-width: 120px; }
+  .mascotCopy span { font-size: 0.52rem; }
+  .mascotCopy p { font-size: 0.68rem; }
+  .authKlubinho { width: 152px; right: -12px; bottom: -21px; }
   .brandCopy { margin: 0; }
   .brandCopy h2 { font-size: 2rem; }
   .brandCopy p { font-size: 0.84rem; }
@@ -346,6 +358,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .registerShell, .toast, .spinner { animation-duration: 1ms; animation-iteration-count: 1; }
+  .registerShell, .toast, .spinner, :global(.klubinho-float) { animation-duration: 1ms; animation-iteration-count: 1; }
   .submitButton, .submitButton svg, .themeToggle, .themeToggle svg, .progress span, .strengthTrack span { transition-duration: 1ms; }
 }

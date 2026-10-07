@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/constants.php';
 require_once __DIR__ . '/../config/email.php';
 require_once __DIR__ . '/../utils/Validator.php';
 require_once __DIR__ . '/AuthController.php';
+require_once __DIR__ . '/../services/Giftback/GiftbackClientReadService.php';
 
 /**
  * Controlador do Cliente
@@ -23,16 +24,17 @@ class ClientController {
             }
             
             $db = Database::getConnection();
+            $giftback = (new \App\Services\Giftback\GiftbackClientReadService($db))->wallet((int) $userId, (int) $lojaId);
+            $networkStores = (new \App\Services\Store\StoreNetworkAccess($db))->walletStores((int) $lojaId);
+            $storeList = implode(',', array_map('intval', $networkStores));
             
             // Verificar se a loja existe
             $storeStmt = $db->prepare("
                 SELECT id, nome_fantasia, categoria, porcentagem_cashback, website, descricao, logo
                 FROM lojas 
-                WHERE id = :loja_id AND status = :status
+                WHERE id = :loja_id
             ");
             $storeStmt->bindParam(':loja_id', $lojaId);
-            $status = STORE_APPROVED;
-            $storeStmt->bindParam(':status', $status);
             $storeStmt->execute();
             $loja = $storeStmt->fetch(PDO::FETCH_ASSOC);
             
@@ -67,6 +69,10 @@ class ClientController {
                 ];
             }
             
+            $saldo['saldo_origem'] = $saldo['saldo_disponivel'];
+            $saldo['saldo_disponivel'] = $giftback['availableCents'] / 100;
+            $saldo['escopo'] = $giftback['scope'];
+
             // Obter movimentações recentes (últimas 10)
             $movimentacoesStmt = $db->prepare("
                 SELECT 
@@ -78,14 +84,15 @@ class ClientController {
                     descricao,
                     data_operacao,
                     transacao_origem_id,
-                    transacao_uso_id
+                    transacao_uso_id,
+                    loja_id,
+                    redemption_store_id
                 FROM cashback_movimentacoes 
-                WHERE usuario_id = :user_id AND loja_id = :loja_id
+                WHERE usuario_id = :user_id AND loja_id IN ($storeList)
                 ORDER BY data_operacao DESC
                 LIMIT 10
             ");
             $movimentacoesStmt->bindParam(':user_id', $userId);
-            $movimentacoesStmt->bindParam(':loja_id', $lojaId);
             $movimentacoesStmt->execute();
             $movimentacoes = $movimentacoesStmt->fetchAll(PDO::FETCH_ASSOC);
             
@@ -99,10 +106,9 @@ class ClientController {
                     MIN(data_operacao) as primeira_movimentacao,
                     MAX(data_operacao) as ultima_movimentacao
                 FROM cashback_movimentacoes 
-                WHERE usuario_id = :user_id AND loja_id = :loja_id
+                WHERE usuario_id = :user_id AND loja_id IN ($storeList)
             ");
             $estatisticasStmt->bindParam(':user_id', $userId);
-            $estatisticasStmt->bindParam(':loja_id', $lojaId);
             $estatisticasStmt->execute();
             $estatisticas = $estatisticasStmt->fetch(PDO::FETCH_ASSOC);
             
@@ -114,13 +120,12 @@ class ClientController {
                     SUM(CASE WHEN tipo_operacao = 'uso' THEN valor ELSE 0 END) as usos,
                     SUM(CASE WHEN tipo_operacao = 'estorno' THEN valor ELSE 0 END) as estornos
                 FROM cashback_movimentacoes
-                WHERE usuario_id = :user_id AND loja_id = :loja_id
+                WHERE usuario_id = :user_id AND loja_id IN ($storeList)
                 AND data_operacao >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
                 GROUP BY DATE_FORMAT(data_operacao, '%Y-%m')
                 ORDER BY mes ASC
             ");
             $dadosMensaisStmt->bindParam(':user_id', $userId);
-            $dadosMensaisStmt->bindParam(':loja_id', $lojaId);
             $dadosMensaisStmt->execute();
             $dadosMensais = $dadosMensaisStmt->fetchAll(PDO::FETCH_ASSOC);
             
@@ -129,13 +134,14 @@ class ClientController {
                 'data' => [
                     'loja' => $loja,
                     'saldo' => $saldo,
-                    'movimentacoes' => $movimentacoes,
+                    'movimentacoes' => array_map([\App\Services\Giftback\GiftbackClientReadService::class, 'publicMovement'], $movimentacoes),
+                    'giftback' => $giftback,
                     'estatisticas' => $estatisticas,
                     'dados_mensais' => $dadosMensais
                 ]
             ];
             
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
             error_log('Erro ao obter detalhes do saldo da loja: ' . $e->getMessage());
             return ['status' => false, 'message' => 'Erro ao carregar detalhes da loja.'];
         }
@@ -180,6 +186,7 @@ class ClientController {
             }
             
             $db = Database::getConnection();
+            (new \App\Services\Giftback\GiftbackLedger($db))->settleWallet((int) $userId, (int) $lojaId);
             
             // Obter saldo atual
             $saldoStmt = $db->prepare("
@@ -211,7 +218,7 @@ class ClientController {
                 ]
             ];
             
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
             error_log('Erro ao simular uso de saldo: ' . $e->getMessage());
             return ['status' => false, 'message' => 'Erro ao processar simulação.'];
         }
@@ -230,6 +237,7 @@ class ClientController {
             }
             
             $db = Database::getConnection();
+            (new \App\Services\Giftback\GiftbackLedger($db))->settleUser((int) $userId);
 
             // Verificar e criar tabelas necessárias
             self::createFavoritesTableIfNotExists($db);
@@ -249,13 +257,12 @@ class ClientController {
 
             // Obter saldo total de cashback
             $balanceStmt = $db->prepare("
-                SELECT SUM(valor_cashback) as saldo_total
-                FROM transacoes_cashback
-                WHERE usuario_id = :user_id AND status = :status
+                SELECT SUM(saldo_disponivel) as saldo_total
+                FROM cashback_saldos
+                WHERE usuario_id = :user_id
             ");
             $balanceStmt->bindParam(':user_id', $userId);
             $status = TRANSACTION_APPROVED;
-            $balanceStmt->bindParam(':status', $status);
             $balanceStmt->execute();
             $balanceData = $balanceStmt->fetch(PDO::FETCH_ASSOC);
             $totalBalance = $balanceData['saldo_total'] ?? 0;
@@ -322,9 +329,9 @@ class ClientController {
                 ]
             ];
             
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
             error_log('Erro ao obter dados do dashboard: ' . $e->getMessage());
-            return ['status' => false, 'message' => 'Erro ao carregar dados do dashboard: ' . $e->getMessage()];
+            return ['status' => false, 'message' => 'Erro ao atualizar saldo e dados do dashboard.'];
         }
     }
     
@@ -344,6 +351,7 @@ class ClientController {
             }
             
             $db = Database::getConnection();
+            (new \App\Services\Giftback\GiftbackLedger($db))->settleUser((int) $userId);
             
             // Preparar consulta base
             $query = "
@@ -466,7 +474,7 @@ class ClientController {
                 ]
             ];
             
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
             error_log('Erro ao obter extrato: ' . $e->getMessage());
             return ['status' => false, 'message' => 'Erro ao carregar extrato. Tente novamente.'];
         }
@@ -488,6 +496,7 @@ class ClientController {
             }
             
             $db = Database::getConnection();
+            (new \App\Services\Giftback\GiftbackLedger($db))->settleUser((int) $userId);
             
             // Preparar consulta base (CORRIGIDA para evitar duplicatas)
             $query = "
@@ -664,7 +673,7 @@ class ClientController {
                 ]
             ];
             
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
             error_log('Erro ao obter lojas parceiras: ' . $e->getMessage());
             return ['status' => false, 'message' => 'Erro ao carregar lojas parceiras. Tente novamente.'];
         }
@@ -1735,6 +1744,7 @@ class ClientController {
             
             require_once __DIR__ . '/../models/CashbackBalance.php';
             $balanceModel = new CashbackBalance();
+            $giftbackReader = new \App\Services\Giftback\GiftbackClientReadService(Database::getConnection());
             
             $balances = $balanceModel->getAllUserBalances($userId);
             $totalBalance = $balanceModel->getTotalBalance($userId);
@@ -1743,6 +1753,7 @@ class ClientController {
             foreach ($balances as &$balance) {
                 $stats = $balanceModel->getBalanceStatistics($userId, $balance['loja_id']);
                 $balance['estatisticas'] = $stats;
+                $balance['giftback'] = $giftbackReader->wallet((int) $userId, (int) $balance['loja_id']);
             }
             
             return [
@@ -1841,7 +1852,7 @@ class ClientController {
             return [
                 'status' => true,
                 'data' => [
-                    'movimentacoes' => $history,
+                    'movimentacoes' => array_map([\App\Services\Giftback\GiftbackClientReadService::class, 'publicMovement'], $history),
                     'pagina_atual' => $page,
                     'itens_por_pagina' => $limit
                 ]
@@ -2052,6 +2063,7 @@ class ClientController {
             }
             
             $db = Database::getConnection();
+            (new \App\Services\Giftback\GiftbackLedger($db))->settleUser((int) $userId);
             
             // Obter saldo por loja - apenas transações aprovadas
             $balanceQuery = "
@@ -2061,16 +2073,15 @@ class ClientController {
                     l.logo,
                     l.categoria,
                     l.porcentagem_cashback,
-                    SUM(t.valor_cashback) as saldo_disponivel,
+                    cs.saldo_disponivel,
                     COUNT(t.id) as total_transacoes,
                     MAX(t.data_transacao) as ultima_transacao,
                     SUM(t.valor_total) as total_compras
-                FROM transacoes_cashback t
-                JOIN lojas l ON t.loja_id = l.id
-                WHERE t.usuario_id = :user_id 
-                AND t.status = :status
-                GROUP BY l.id, l.nome_fantasia, l.logo, l.categoria, l.porcentagem_cashback
-                HAVING saldo_disponivel > 0
+                FROM cashback_saldos cs
+                JOIN lojas l ON cs.loja_id = l.id
+                LEFT JOIN transacoes_cashback t ON t.loja_id = cs.loja_id AND t.usuario_id = cs.usuario_id AND t.status = :status
+                WHERE cs.usuario_id = :user_id
+                GROUP BY cs.id, cs.saldo_disponivel, l.id, l.nome_fantasia, l.logo, l.categoria, l.porcentagem_cashback
                 ORDER BY saldo_disponivel DESC
             ";
             
@@ -2151,7 +2162,7 @@ class ClientController {
                 ]
             ];
             
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
             error_log('Erro ao obter saldo do cliente: ' . $e->getMessage());
             return ['status' => false, 'message' => 'Erro ao carregar saldo. Tente novamente.'];
         }
@@ -2193,7 +2204,7 @@ class ClientController {
     /**
     * Gera HTML editável do extrato de cashback
     */
-    private static function generateStatementHTML($userData, $statementData, $filters) {
+    public static function generateStatementHTML($userData, $statementData, $filters) {
     // Definir período do relatório
     $periodo = '';
     if (!empty($filters['data_inicio']) && !empty($filters['data_fim'])) {
@@ -2469,10 +2480,13 @@ class ClientController {
         </tr>';
     }
 
-    echo '</tbody>
-    </table>
-
-    <div class="footer">
+    echo '</tbody></table>';
+    if (isset($statementData['creditos'])) {
+        $giftbackCredits = $statementData['creditos'];
+        $giftbackExport = true;
+        require __DIR__ . '/../views/components/giftback-credits.php';
+    }
+    echo '<div class="footer">
         <p>Este documento foi gerado automaticamente pelo sistema Klube Cash</p>
         <p>© ' . date('Y') . ' Klube Cash - Sistema de Cashback</p>
         <p style="margin-top: 10px; font-size: 10px;">
@@ -2988,6 +3002,15 @@ if (basename($_SERVER['PHP_SELF']) === 'ClientController.php') {
             }
             
             $statementData = $result['data'];
+            // Export every credit, including fully used or expired credits, with its public audit history.
+            $reader = new \App\Services\Giftback\GiftbackClientReadService(Database::getConnection());
+            $storeFilter = max(0, (int) ($filters['loja_id'] ?? 0)) ?: null;
+            $credits = $reader->credits((int) $userId, $storeFilter, 1, 100);
+            for ($creditPage = 2; ($creditPage - 1) * $credits['pageSize'] < $credits['total']; $creditPage++) {
+                $nextCredits = $reader->credits((int) $userId, $storeFilter, $creditPage, 100);
+                $credits['items'] = array_merge($credits['items'], $nextCredits['items']);
+            }
+            $statementData['creditos'] = $credits;
             
             // Obter dados do usuário
             $db = Database::getConnection();
@@ -2996,7 +3019,7 @@ if (basename($_SERVER['PHP_SELF']) === 'ClientController.php') {
             $userData = $userStmt->fetch(PDO::FETCH_ASSOC);
             
             // Gerar HTML do extrato
-            self::generateStatementHTML($userData, $statementData, $filters);
+            ClientController::generateStatementHTML($userData, $statementData, $filters);
             exit;   
             break;
 

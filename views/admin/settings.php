@@ -123,7 +123,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         permitir_uso_saldo = :permitir_uso_saldo,
                         valor_minimo_uso = :valor_minimo_uso,
                         percentual_maximo_uso = :percentual_maximo_uso,
-                        tempo_expiracao_dias = :tempo_expiracao_dias,
                         notificar_saldo_baixo = :notificar_saldo_baixo,
                         limite_saldo_baixo = :limite_saldo_baixo,
                         permitir_transferencia = :permitir_transferencia,
@@ -136,7 +135,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':permitir_uso_saldo' => isset($_POST['permitir_uso_saldo']) ? 1 : 0,
                     ':valor_minimo_uso' => floatval($_POST['valor_minimo_uso']),
                     ':percentual_maximo_uso' => floatval($_POST['percentual_maximo_uso']),
-                    ':tempo_expiracao_dias' => intval($_POST['tempo_expiracao_dias']),
                     ':notificar_saldo_baixo' => isset($_POST['notificar_saldo_baixo']) ? 1 : 0,
                     ':limite_saldo_baixo' => floatval($_POST['limite_saldo_baixo']),
                     ':permitir_transferencia' => isset($_POST['permitir_transferencia']) ? 1 : 0,
@@ -370,9 +368,8 @@ try {
                         
                         <div class="form-row">
                             <div class="form-group">
-                                <label class="form-label" for="tempoExpiracaoDias">Tempo de Expiração do Saldo (dias)</label>
-                                <input type="number" min="0" class="form-control" id="tempoExpiracaoDias" name="tempo_expiracao_dias" value="<?php echo $balanceSettings['tempo_expiracao_dias']; ?>">
-                                <small class="form-text">Tempo em dias para o saldo expirar (0 = nunca expira)</small>
+                                <span class="form-label">Validade do giftback por loja</span>
+                                <p>A validade é definida individualmente em cada estabelecimento e aplicada a cada novo crédito. Consulte <a href="/admin/lojas">Lojas parceiras</a> para configurar os dias ou selecionar um cliente e gerenciar um crédito específico.</p>
                             </div>
                         </div>
                         

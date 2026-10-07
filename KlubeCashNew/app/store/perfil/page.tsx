@@ -66,6 +66,7 @@ export default function ProfilePage() {
   const context = useStoreContext();
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ["profile"], queryFn: () => storeFetch<Profile>("profile") });
+  const walletLink = useQuery({ queryKey: ["wallet-link"], queryFn: () => storeFetch<{ token: string | null; enabled: boolean }>("wallet-link") });
   const contact = useForm<z.infer<typeof contactSchema>>({
     resolver: zodResolver(contactSchema),
     defaultValues: { phone: "", website: "", description: "" },
@@ -129,13 +130,17 @@ export default function ProfilePage() {
           <Info label="Razão social" value={profile.company.legalName} />
           <Info label="CNPJ" value={formatCnpj(profile.company.cnpj)} />
           <Info label="E-mail" value={profile.company.email} />
-          <Info label="Cashback do cliente" value={`${profile.company.customerCashbackPercentage}%`} />
+          <Info label="Giftback do cliente" value={`${profile.company.customerCashbackPercentage}%`} />
           <Info label="Cadastro" value={dateTime(profile.company.createdAt)} />
         </div>
       </section>
+      <section className="store-panel" style={{ display: "grid", gap: 12 }}>
+        <div className="store-panel-head"><div><h3>Link de consulta de saldo</h3><p>Use este endereço na arte do QR code da loja. Apenas o administrador da KlubeCash pode ativá-lo ou substituí-lo.</p></div></div>
+        {walletLink.data?.token ? <><p style={{ overflowWrap: "anywhere" }}>{typeof window !== "undefined" ? `${window.location.origin}/saldo/${walletLink.data.token}` : walletLink.data.token}</p><p>{walletLink.data.enabled ? "Link ativo" : "Link desativado pelo administrador"}</p><div><button type="button" className="store-button store-button-primary" onClick={() => void navigator.clipboard.writeText(`${window.location.origin}/saldo/${walletLink.data?.token}`)}>Copiar link</button></div></> : <p>O link ficará disponível quando a loja estiver aprovada.</p>}
+      </section>
       <section className="store-grid store-grid-2">
         <form className="store-panel store-form" onSubmit={contact.handleSubmit((values) => contactMutation.mutate(values))}>
-          <div className="store-panel-head"><div><h3>Contato e apresentação</h3><p>Dados utilizados pelo Klube Cash.</p></div></div>
+          <div className="store-panel-head"><div><h3>Contato e apresentação</h3><p>Dados utilizados pela KlubeCash.</p></div></div>
           <FormField label="Telefone" error={contact.formState.errors.phone?.message}><input className="store-input" {...contact.register("phone")} /></FormField>
           <FormField label="Website" error={contact.formState.errors.website?.message}><input className="store-input" type="url" placeholder="https://" {...contact.register("website")} /></FormField>
           <FormField label="Descrição" error={contact.formState.errors.description?.message}><textarea className="store-textarea" {...contact.register("description")} /></FormField>

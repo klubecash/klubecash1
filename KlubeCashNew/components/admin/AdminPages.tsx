@@ -30,6 +30,7 @@ import { z } from "zod";
 import { adminFetch, mutationHeaders } from "@/lib/admin-client";
 import { dateTime, moneyFromCents, monthLabel, number } from "@/lib/format";
 import { useAdminContext } from "./AdminProviders";
+import { GiftbackCreditsPanel } from "./GiftbackCreditsPanel";
 import {
   EmptyState,
   ErrorState,
@@ -132,7 +133,7 @@ export function DashboardPage() {
     <div className="admin-page">
       <PageHead
         title={`Olá, ${admin.user.name.split(" ")[0]}.`}
-        description="Acompanhe a operação completa do Klube Cash sem misturar o modelo atual com obrigações financeiras históricas."
+        description="Acompanhe a operação completa da KlubeCash sem misturar o modelo atual com obrigações financeiras históricas."
       >
         <Link href="/admin/relatorios" className="admin-button">
           <BarChart3 size={16} />
@@ -140,7 +141,7 @@ export function DashboardPage() {
         </Link>
       </PageHead>
       <div className="admin-alert admin-alert-success">
-        <strong>Modelo financeiro atual: cashback por assinatura.</strong>Novas
+        <strong>Modelo financeiro atual: giftback por assinatura.</strong>Novas
         vendas creditam apenas o benefício do cliente e não geram comissão ou
         repasse.
       </div>
@@ -152,7 +153,7 @@ export function DashboardPage() {
           icon={<CircleDollarSign size={19} />}
         />
         <Stat
-          label="Cashback atual"
+          label="Giftback atual"
           value={moneyFromCents(summary.currentCashbackAmountCents)}
           note="Sem comissão ou repasse"
           icon={<BadgeDollarSign size={19} />}
@@ -263,7 +264,7 @@ export function DashboardPage() {
                   <th>Cliente / loja</th>
                   <th>Código</th>
                   <th>Valor</th>
-                  <th>Cashback</th>
+                  <th>Giftback</th>
                   <th>Modelo</th>
                   <th>Status</th>
                   <th>Data</th>
@@ -687,6 +688,7 @@ export function StoresPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [editing, setEditing] = useState<StoreItem | undefined>();
+  const [giftbackStore, setGiftbackStore] = useState<StoreItem | undefined>();
   const params = new URLSearchParams({
     page: String(page),
     ...(search && { search }),
@@ -734,6 +736,7 @@ export function StoresPage() {
           website: item.website,
           customerCashbackPercentage: item.customerCashbackPercentage,
           cashbackEnabled: item.cashbackEnabled,
+          giftbackExpirationDays: item.giftbackExpirationDays,
           updatedAt: item.updatedAt,
         }),
       }),
@@ -760,7 +763,7 @@ export function StoresPage() {
     <div className="admin-page">
       <PageHead
         title="Lojas parceiras"
-        description="Aprove cadastros, revise dados comerciais e configure o cashback financiado pela própria loja."
+        description="Aprove cadastros, revise dados comerciais e configure o giftback financiado pela própria loja."
       />
       <div className="admin-toolbar">
         <Field label="Pesquisar">
@@ -807,7 +810,7 @@ export function StoresPage() {
                     <tr>
                       <th>Loja</th>
                       <th>Categoria</th>
-                      <th>Cashback</th>
+                      <th>Giftback</th>
                       <th>Operação</th>
                       <th>Status</th>
                       <th>Ações</th>
@@ -821,6 +824,7 @@ export function StoresPage() {
                           <small>
                             {item.cnpj} · {item.email}
                           </small>
+                          <small>{item.networkName ? `Rede: ${item.networkName} · ${item.networkStatus === "active" ? "filial ativa" : "filial suspensa"}` : "Loja isolada"}</small>
                         </td>
                         <td>{item.category}</td>
                         <td>
@@ -828,6 +832,7 @@ export function StoresPage() {
                           <small>
                             {item.cashbackEnabled ? "Ativo" : "Desativado"}
                           </small>
+                          <small>{item.giftbackExpirationDays ? `${item.giftbackExpirationDays} dias para novos créditos` : "Sem expiração para novos créditos"}</small>
                         </td>
                         <td>
                           {number(item.transactionsCount)} vendas
@@ -846,6 +851,11 @@ export function StoresPage() {
                               <Edit3 size={14} />
                               Editar
                             </button>
+                            <button className="admin-button" onClick={() => setGiftbackStore(item)}>
+                              <Clock3 size={14} />
+                              Créditos e validades
+                            </button>
+                            <Link className="admin-button" href={item.networkId ? `/admin/redes?network=${item.networkId}` : `/admin/redes?store=${encodeURIComponent(item.name)}`}>{item.networkId ? "Ver rede" : "Vincular à rede"}</Link>
                             {item.status !== "aprovado" && (
                               <button
                                 className="admin-button admin-button-success"
@@ -878,6 +888,7 @@ export function StoresPage() {
           )}
         </section>
       )}
+      {giftbackStore && <GiftbackCreditsPanel store={giftbackStore} onClose={() => setGiftbackStore(undefined)} />}
       {editing && (
         <Modal
           title={`Editar ${editing.name}`}
@@ -973,7 +984,7 @@ export function StoresPage() {
                   onChange={(e) => setEditing({ ...editing, description: e.target.value })}
                 />
               </Field>
-              <Field label="Cashback do cliente (%)">
+              <Field label="Giftback do cliente (%)">
                 <input
                   className="admin-input"
                   type="number"
@@ -1000,8 +1011,12 @@ export function StoresPage() {
                     })
                   }
                 />
-                Cashback ativo para novas vendas
+                Giftback ativo para novas vendas
               </label>
+              <Field label="Validade de cada novo crédito (dias)">
+                <input className="admin-input" type="number" min="1" max="3650" step="1" placeholder="Sem expiração" value={editing.giftbackExpirationDays ?? ""} onChange={(e) => setEditing({ ...editing, giftbackExpirationDays: e.target.value === "" ? null : Number(e.target.value) })} />
+                <small>Deixe vazio para não expirar. A regra vale apenas para novos créditos; cada depósito tem sua própria validade até o fim do dia, horário de Brasília. Alterações individuais ficam em Créditos e validades.</small>
+              </Field>
             </div>
             {save.isError && mutationMessage(save, "")}
             <div className="admin-modal-actions">
@@ -1152,7 +1167,7 @@ export function TransactionsPage() {
                       <th>Compra</th>
                       <th>Cliente / loja</th>
                       <th>Valores</th>
-                      <th>Cashback</th>
+                      <th>Giftback</th>
                       <th>Modelo</th>
                       <th>Status</th>
                       <th></th>
@@ -1266,6 +1281,16 @@ export function TransactionDetailsPage({ id }: { id: number }) {
         payload: { reason },
       });
   }
+  function correctSeller() {
+    const seller = window.prompt("ID do vendedor comprovadamente vinculado à filial:", "") ?? null;
+    if (seller === null || !/^\d+$/.test(seller) || Number(seller) <= 0) return;
+    const reason = window.prompt("Evidência e motivo da correção (mínimo 10 caracteres):", "") ?? null;
+    if (!reason || reason.trim().length < 10) return;
+    action.mutate({ path: `transactions/${id}/seller`, payload: {
+      sellerId: seller, reason: reason.trim(),
+      ...(item.sellerId != null ? { expectedSellerId: String(item.sellerId) } : {}),
+    } });
+  }
   return (
     <div className="admin-page">
       <PageHead
@@ -1320,7 +1345,7 @@ export function TransactionDetailsPage({ id }: { id: number }) {
           icon={<CircleDollarSign size={18} />}
         />
         <Stat
-          label="Cashback"
+          label="Giftback"
           value={moneyFromCents(item.cashbackAmountCents)}
           note="Benefício do cliente"
           icon={<BadgeDollarSign size={18} />}
@@ -1351,6 +1376,10 @@ export function TransactionDetailsPage({ id }: { id: number }) {
               value={`${item.customerName}${item.customerEmail ? ` · ${item.customerEmail}` : ""}`}
             />
             <Detail label="Loja" value={item.storeName} />
+            <Detail label="Vendedor" value={item.sellerName || "Vendedor não identificado"} />
+            <Detail label="Registrado por" value={item.recordedByName || "Responsável não identificado"} />
+            <Detail label="Rede na venda" value={item.networkId ? `#${item.networkId}` : "Loja isolada"} />
+            <button type="button" className="admin-button" disabled={action.isPending} onClick={correctSeller}>Corrigir vendedor com auditoria</button>
             <Detail label="Descrição" value={item.description || "—"} />
             <Detail label="Modelo" value={item.financialModel} />
             <Detail label="Status" value={item.status} />
@@ -1365,7 +1394,7 @@ export function TransactionDetailsPage({ id }: { id: number }) {
           </div>
           <div className="admin-details">
             <Detail
-              label="Cashback cliente"
+              label="Giftback cliente"
               value={moneyFromCents(item.cashbackAmountCents)}
             />
             <Detail
@@ -1677,7 +1706,7 @@ export function ReportsPage() {
   function exportCsv() {
     if (!query.data) return;
     const rows = [
-      ["Mês", "Modelo", "Vendas", "Valor centavos", "Cashback centavos"],
+      ["Mês", "Modelo", "Vendas", "Valor centavos", "Giftback centavos"],
       ...query.data.monthly.map((row) => [
         row.month,
         row.model,
@@ -1710,7 +1739,7 @@ export function ReportsPage() {
     <div className="admin-page">
       <PageHead
         title="Relatórios"
-        description="Compare o cashback atual com o histórico legado sem misturar receitas ou obrigações."
+              description="Compare o giftback atual com o histórico legado sem misturar receitas ou obrigações."
       >
         <button
           className="admin-button"
@@ -1765,7 +1794,7 @@ export function ReportsPage() {
               icon={<CircleDollarSign size={18} />}
             />
             <Stat
-              label="Cashback"
+              label="Giftback"
               value={moneyFromCents(totals.cashback)}
               note="Concedido aos clientes"
               icon={<BadgeDollarSign size={18} />}
@@ -1788,7 +1817,7 @@ export function ReportsPage() {
                         <th>Modelo</th>
                         <th>Vendas</th>
                         <th>Valor</th>
-                        <th>Cashback</th>
+                        <th>Giftback</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1922,7 +1951,7 @@ export function SettingsPage() {
           <div className="admin-panel">
             <div className="admin-panel-head">
               <div>
-                <h3>Cashback atual</h3>
+                <h3>Giftback atual</h3>
                 <p>A loja financia somente o benefício do cliente</p>
               </div>
             </div>
@@ -2283,6 +2312,10 @@ export function SubscriptionsPage() {
 export function SubscriptionDetailsPage({ id }: { id: number }) {
   const context = useAdminContext();
   const client = useQueryClient();
+  const [actionReason, setActionReason] = useState("");
+  const [actionUntil, setActionUntil] = useState("");
+  const [changePlanSlug, setChangePlanSlug] = useState("");
+  const [changeCycle, setChangeCycle] = useState("monthly");
   const query = useQuery({
     queryKey: ["admin-subscription", id],
     queryFn: () =>
@@ -2293,13 +2326,13 @@ export function SubscriptionDetailsPage({ id }: { id: number }) {
     queryFn: () => adminFetch<{ items: PlanItem[] }>("plans"),
   });
   const action = useMutation({
-    mutationFn: (next: "suspend" | "cancel") => {
+    mutationFn: (next: "activate" | "block" | "unblock" | "pause" | "cancel" | "reactivate") => {
       const current = query.data?.item;
       if (!current) throw new Error("Assinatura não encontrada no estado atual.");
-      return adminFetch(`subscriptions/${id}/status`, {
+      return adminFetch(`subscriptions/${id}/actions`, {
         method: "POST",
         headers: mutationHeaders(context.csrfToken, true),
-        body: JSON.stringify({ action: next, updatedAt: current.updatedAt }),
+        body: JSON.stringify({ action: next, reason: actionReason, until: actionUntil || null, updatedAt: current.updatedAt }),
       });
     },
     onSuccess: () => {
@@ -2311,14 +2344,11 @@ export function SubscriptionDetailsPage({ id }: { id: number }) {
     mutationFn: () => {
       const current = query.data?.item;
       if (!current) throw new Error("Assinatura não encontrada no estado atual.");
-      const choices = plans.data?.items.filter((plan) => plan.active) ?? [];
-      const slug = window.prompt(`Novo plano (${choices.map((plan) => plan.slug).join(", ")}):`, current.planSlug);
-      if (!slug) throw new Error("Troca de plano cancelada.");
-      if (!choices.some((plan) => plan.slug === slug)) throw new Error("Plano ativo inválido.");
-      return adminFetch("subscriptions", {
+      if (!changePlanSlug) throw new Error("Selecione um plano ativo.");
+      return adminFetch(`subscriptions/${id}/change-plan`, {
         method: "POST",
         headers: mutationHeaders(context.csrfToken, true),
-        body: JSON.stringify({ storeId: current.storeId, planSlug: slug, cycle: current.cycle, existingSubscriptionId: current.id, updatedAt: current.updatedAt }),
+        body: JSON.stringify({ planSlug: changePlanSlug, cycle: changeCycle, updatedAt: current.updatedAt }),
       });
     },
     onSuccess: () => {
@@ -2339,19 +2369,19 @@ export function SubscriptionDetailsPage({ id }: { id: number }) {
         <Link className="admin-button" href="/admin/assinaturas">
           Voltar
         </Link>
+        <select className="admin-select" value={changePlanSlug} onChange={(event) => setChangePlanSlug(event.target.value)} aria-label="Novo plano">
+          <option value="">Novo plano</option>
+          {plans.data?.items.filter((plan) => plan.active).map((plan) => <option value={plan.slug} key={plan.id}>{plan.name}</option>)}
+        </select>
+        <select className="admin-select" value={changeCycle} onChange={(event) => setChangeCycle(event.target.value)} aria-label="Novo ciclo">
+          <option value="monthly">Mensal</option><option value="yearly">Anual</option>
+        </select>
         {item.status !== "cancelada" && (
-          <button className="admin-button" onClick={() => changePlan.mutate()} disabled={!plans.data || changePlan.isPending}>
+          <button className="admin-button" onClick={() => changePlan.mutate()} disabled={!changePlanSlug || changePlan.isPending}>
             Trocar plano
           </button>
         )}
-        {item.status !== "suspensa" && item.status !== "cancelada" && (
-          <button
-            className="admin-button"
-            onClick={() => action.mutate("suspend")}
-          >
-            Suspender
-          </button>
-        )}
+        <button className="admin-button" onClick={() => action.mutate(item.status === "ativa" ? "block" : "activate")} disabled={action.isPending}>{item.status === "ativa" ? "Bloquear vendas" : "Ativar manualmente"}</button>
         {item.status !== "cancelada" && (
           <button
             className="admin-button admin-button-danger"
@@ -2362,7 +2392,14 @@ export function SubscriptionDetailsPage({ id }: { id: number }) {
         )}
       </PageHead>
       {mutationMessage(action, "A assinatura foi atualizada.")}
-      {mutationMessage(changePlan, "O plano da assinatura foi alterado sem gerar fatura.")}
+      {mutationMessage(changePlan, "A troca será aplicada na próxima renovação, sem cobrança proporcional.")}
+      <section className="admin-panel">
+        <div className="admin-form-grid">
+          <Field label="Motivo da ação manual"><input className="admin-input" value={actionReason} onChange={(event) => setActionReason(event.target.value)} placeholder="Motivo obrigatório para bloqueio, pausa ou cancelamento" /></Field>
+          <Field label="Validade da ativação manual"><input className="admin-input" type="datetime-local" value={actionUntil} onChange={(event) => setActionUntil(event.target.value)} /></Field>
+        </div>
+        <div className="admin-actions"><button className="admin-button" onClick={() => action.mutate("unblock")} disabled={action.isPending}>Liberar vendas</button><button className="admin-button" onClick={() => action.mutate("pause")} disabled={action.isPending}>Pausar</button><button className="admin-button admin-button-danger" onClick={() => action.mutate("cancel")} disabled={action.isPending}>Cancelar</button></div>
+      </section>
       <section className="admin-grid admin-grid-2">
         <div className="admin-panel">
           <div className="admin-panel-head">
@@ -2388,12 +2425,12 @@ export function SubscriptionDetailsPage({ id }: { id: number }) {
           <div className="admin-panel-head">
             <div>
               <h3>Regra comercial</h3>
-              <p>Checkout permanece desativado</p>
+              <p>Pagamento e bloqueio comercial</p>
             </div>
           </div>
           <div className="admin-alert admin-alert-success">
-            <strong>Ativação por código ou atribuição.</strong>Não há geração de
-            fatura, PIX ou cartão no novo Admin.
+            <strong>Estado comercial separado do financeiro.</strong> O bloqueio
+            de novas vendas não remove dados nem impede a leitura das faturas.
           </div>
         </div>
       </section>
@@ -3062,7 +3099,7 @@ export function TemplatesPage() {
     id: 0,
     name: "",
     subject: "",
-    html: "<h1>Klube Cash</h1><p>Conteúdo do e-mail.</p>",
+    html: "<h1>KlubeCash</h1><p>Conteúdo do e-mail.</p>",
     type: "newsletter",
     active: true,
     updatedAt: "",

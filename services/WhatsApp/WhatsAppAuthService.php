@@ -144,7 +144,9 @@ final class WhatsAppAuthService
             . 'l.id store_id,l.nome_fantasia store_name FROM usuarios u '
             . "JOIN lojas l ON l.id=:store AND l.status='aprovado' "
             . "WHERE u.id=:user AND u.status='ativo' AND u.tipo IN ('loja','funcionario') "
-            . "AND ((u.tipo='loja' AND l.usuario_id=u.id) OR (u.tipo='funcionario' AND u.loja_vinculada_id=l.id)) LIMIT 1"
+            . "AND (EXISTS(SELECT 1 FROM store_user_memberships m WHERE m.user_id=u.id AND m.store_id=l.id AND m.status='active')
+                OR EXISTS(SELECT 1 FROM store_network_memberships n JOIN store_network_managers gm ON gm.network_id=n.network_id
+                    WHERE n.store_id=l.id AND n.status='active' AND gm.user_id=u.id)) LIMIT 1"
         );
         $statement->execute([':store' => $storeId, ':user' => $userId]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);

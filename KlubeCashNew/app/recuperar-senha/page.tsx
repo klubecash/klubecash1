@@ -6,8 +6,8 @@ import { getHomeContext } from "@/lib/home-context";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Recuperar Senha - Klube Cash",
-  description: "Recupere com segurança o acesso à sua conta Klube Cash.",
+  title: "Recuperar Senha - KlubeCash",
+  description: "Recupere com segurança o acesso à sua conta KlubeCash.",
   robots: { index: false, follow: false, noarchive: true },
 };
 

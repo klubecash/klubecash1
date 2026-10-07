@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Eye, Filter, Plus, X } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { storeFetch } from "@/lib/client-api";
 import { dateTime, moneyFromCents, number } from "@/lib/format";
 import {
@@ -12,6 +12,7 @@ import {
   LoadingState,
 } from "@/components/store/PageState";
 import type { Pagination } from "@/types/store";
+import { useStoreContext, useStoreView } from "@/components/store/StoreProviders";
 
 type Transaction = {
   id: number;
@@ -26,6 +27,9 @@ type Transaction = {
   status: string;
   financialModel: "commission_legacy" | "subscription_cashback";
   occurredAt: string;
+  storeName: string;
+  sellerName: string;
+  recordedByName: string;
 };
 type TransactionsData = {
   dataState: "ready" | "empty";
@@ -41,12 +45,19 @@ type TransactionsData = {
 };
 
 export default function TransactionsPage() {
+  const context = useStoreContext();
+  const view = useStoreView();
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [filterOpen, setFilterOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
-  const params = new URLSearchParams({ page: String(page) });
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => { setPage(1); setDetailId(null); });
+    return () => cancelAnimationFrame(frame);
+  }, [view.branch, view.sellerId, view.startDate, view.endDate, view.status]);
+  const params = new URLSearchParams(view.query(true).replace(/^&/, ""));
+  params.set("page", String(page));
   Object.entries(filters).forEach(([key, value]) => {
     if (!value) return;
     if (key === "minimum" || key === "maximum") {
@@ -56,15 +67,15 @@ export default function TransactionsPage() {
     }
   });
   const query = useQuery({
-    queryKey: ["transactions", page, filters],
+    queryKey: ["transactions", context.store.id, page, filters, view.branch, view.sellerId, view.startDate, view.endDate, view.status],
     queryFn: () =>
       storeFetch<TransactionsData>(
         `transactions&${params.toString().replaceAll("&", "&")}`,
       ),
   });
   const detail = useQuery({
-    queryKey: ["transaction", detailId],
-    queryFn: () => storeFetch<Transaction>(`transactions/${detailId}`),
+    queryKey: ["transaction", context.store.id, detailId, view.branch],
+    queryFn: () => storeFetch<Transaction>(`transactions/${detailId}${view.query()}`),
     enabled: detailId !== null,
   });
 
@@ -91,11 +102,12 @@ export default function TransactionsPage() {
         <div>
           <h2>Todas as suas vendas</h2>
           <p>
-            Consulte o valor pago, saldo utilizado e cashback concedido em cada
+            Consulte o valor pago, saldo utilizado e giftback concedido em cada
             venda.
           </p>
         </div>
         <div className="store-head-actions">
+          <a className="store-button" href={`/api/store/v2/transactions/export?${params.toString()}`}>Exportar CSV</a>
           <button className="store-button" onClick={() => setFilterOpen(true)}>
             <Filter size={16} /> Filtros
           </button>
@@ -108,7 +120,7 @@ export default function TransactionsPage() {
         <Stat label="Vendas" value={number(data.summary.salesCount)} />
         <Stat label="Valor movimentado" value={moneyFromCents(data.summary.grossAmountCents)} />
         <Stat label="Saldo utilizado" value={moneyFromCents(data.summary.balanceUsedCents)} />
-        <Stat label="Cashback concedido" value={moneyFromCents(data.summary.cashbackGrantedCents)} />
+        <Stat label="Giftback concedido" value={moneyFromCents(data.summary.cashbackGrantedCents)} />
       </section>
       <section className="store-panel">
         <div className="store-panel-head">
@@ -123,11 +135,14 @@ export default function TransactionsPage() {
               <thead>
                 <tr>
                   <th>Cliente</th>
+                  <th>Filial</th>
+                  <th>Vendeu</th>
+                  <th>Registrou</th>
                   <th>Código</th>
                   <th>Data</th>
                   <th>Valor</th>
                   <th>Saldo usado</th>
-                  <th>Cashback</th>
+                  <th>Giftback</th>
                   <th>Status</th>
                   <th />
                 </tr>
@@ -136,6 +151,9 @@ export default function TransactionsPage() {
                 {data.items.map((item) => (
                   <tr key={item.id}>
                     <td><strong>{item.customerName}</strong><small>{item.customerEmail}</small></td>
+                    <td>{item.storeName}</td>
+                    <td>{item.sellerName}</td>
+                    <td>{item.recordedByName}</td>
                     <td className="store-code">{item.code}</td>
                     <td>{dateTime(item.occurredAt)}</td>
                     <td><strong>{moneyFromCents(item.grossAmountCents)}</strong></td>
@@ -178,17 +196,6 @@ export default function TransactionsPage() {
             </div>
             <form className="store-form" onSubmit={submit}>
               <div className="store-form-grid">
-                <FilterField label="Data inicial" type="date" value={draft.startDate} onChange={(value) => setDraft({ ...draft, startDate: value })} />
-                <FilterField label="Data final" type="date" value={draft.endDate} onChange={(value) => setDraft({ ...draft, endDate: value })} />
-                <label className="store-field">
-                  <span>Status</span>
-                  <select className="store-select" value={draft.status ?? ""} onChange={(event) => setDraft({ ...draft, status: event.target.value })}>
-                    <option value="">Todos</option>
-                    <option value="aprovado">Aprovado</option>
-                    <option value="pendente">Legado pendente</option>
-                    <option value="cancelado">Cancelado</option>
-                  </select>
-                </label>
                 <FilterField label="Cliente" value={draft.customer} onChange={(value) => setDraft({ ...draft, customer: value })} />
                 <FilterField label="Valor mínimo" type="number" value={draft.minimum} onChange={(value) => setDraft({ ...draft, minimum: value })} />
                 <FilterField label="Valor máximo" type="number" value={draft.maximum} onChange={(value) => setDraft({ ...draft, maximum: value })} />
@@ -216,12 +223,15 @@ export default function TransactionsPage() {
             {detail.data && (
               <div className="store-summary-list">
                 <Row label="Cliente" value={detail.data.customerName} />
+                <Row label="Filial" value={detail.data.storeName} />
+                <Row label="Vendedor" value={detail.data.sellerName} />
+                <Row label="Registrado por" value={detail.data.recordedByName} />
                 <Row label="Código" value={detail.data.code} />
                 <Row label="Data" value={dateTime(detail.data.occurredAt)} />
                 <Row label="Valor da venda" value={moneyFromCents(detail.data.grossAmountCents)} />
                 <Row label="Saldo usado" value={moneyFromCents(detail.data.balanceUsedCents)} />
                 <Row label="Valor pago" value={moneyFromCents(detail.data.paidAmountCents)} />
-                <Row label="Cashback do cliente" value={moneyFromCents(detail.data.cashbackGrantedCents)} />
+                <Row label="Giftback do cliente" value={moneyFromCents(detail.data.cashbackGrantedCents)} />
                 <Row label="Status" value={statusLabel(detail.data)} />
                 {detail.data.description && <Row label="Descrição" value={detail.data.description} />}
               </div>

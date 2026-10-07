@@ -20,6 +20,7 @@ export type StoreContext = {
     financialModel: "subscription_cashback";
   };
   user: {
+    id?: number;
     name: string;
     type: "loja" | "funcionario";
     subtype: string | null;
@@ -28,13 +29,21 @@ export type StoreContext = {
   permissions: {
     manageEmployees: boolean;
     deactivateEmployees: boolean;
+    assignSeller?: boolean;
   };
   subscription: {
     active: boolean;
+    salesBlocked?: boolean;
+    reason?: string | null;
     status: string | null;
     planName: string | null;
   };
   csrfToken: string;
+  activeStoreId?: number;
+  networkId?: number | null;
+  networkName?: string | null;
+  canViewNetwork?: boolean;
+  stores?: Array<{ id: number; name: string; role: string; networkId: number | null }>;
 };
 
 export type DashboardData = {
@@ -57,6 +66,9 @@ export type DashboardData = {
     cashbackGrantedCents: number;
     status: string;
     occurredAt: string;
+    sellerName?: string;
+    recordedByName?: string;
+    storeName?: string;
   }>;
   monthlySales: Array<{
     month: string;

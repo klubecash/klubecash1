@@ -333,23 +333,40 @@ function renderStoreDetails(data) {
     const modalContent = document.getElementById('modalStoreContent');
     
     modalTitle.textContent = data.loja.nome_fantasia;
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character]));
+    const money = (cents) => (Number(cents || 0) / 100).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+    const validDate = (value) => value ? String(value).slice(0, 10).split('-').reverse().join('/') : 'Sem vencimento';
+    const movementLabel = (type) => ({credito: 'Giftback recebido', uso: 'Saldo utilizado', estorno: 'Estorno de saldo', expiracao: 'Giftback expirado', reversao_expiracao: 'Expiração revertida', prorrogacao: 'Validade prorrogada', revogacao: 'Crédito cancelado', abertura: 'Saldo anterior registrado'}[type] || 'Atualização de saldo');
+    const movementDelta = (movement) => Math.round((Number(movement.saldo_atual) - Number(movement.saldo_anterior)) * 100);
+    const signedMoney = (cents) => cents === 0 ? 'Sem alteração de saldo' : `${cents < 0 ? '−' : '+'} ${money(Math.abs(cents))}`;
     
     const logoHtml = data.loja.logo ? 
-        `<img src="../../uploads/store_logos/${data.loja.logo}" alt="${data.loja.nome_fantasia}" class="modal-store-logo">` : 
-        `<div class="modal-store-initial">${data.loja.nome_fantasia.charAt(0).toUpperCase()}</div>`;
+        `<img src="../../uploads/store_logos/${escapeHtml(data.loja.logo)}" alt="${escapeHtml(data.loja.nome_fantasia)}" class="modal-store-logo">` :
+        `<div class="modal-store-initial">${escapeHtml(data.loja.nome_fantasia.charAt(0).toUpperCase())}</div>`;
     
     const html = `
         <div class="modal-store-details">
             <div class="modal-store-header">
                 ${logoHtml}
                 <div class="modal-store-info">
-                    <h4>${data.loja.nome_fantasia}</h4>
-                    <p class="store-category">${data.loja.categoria || 'Categoria não informada'}</p>
+                    <h4>${escapeHtml(data.loja.nome_fantasia)}</h4>
+                    <p class="store-category">${escapeHtml(data.loja.categoria || 'Categoria não informada')}</p>
                     <div class="cashback-info">
                         Você ganha <strong>${(parseFloat(data.loja.porcentagem_cashback) / 2).toFixed(1)}%</strong> de cashback
                     </div>
                 </div>
             </div>
+            ${data.giftback?.nextExpirationDate ? `<p class="giftback-expiry">${money(data.giftback.nextExpirationCents)} válidos até ${escapeHtml(validDate(data.giftback.nextExpirationDate))}, fim do dia (Brasília).</p>` : ''}
+            <section aria-label="Validade por crédito">
+                <h5>Créditos e validade</h5>
+                ${(data.giftback?.credits || []).slice(0, 10).map(credit => `
+                    <details class="giftback-credit">
+                        <summary>Crédito #${Number(credit.id)} · ${money(credit.remainingCents)} disponíveis · ${credit.validUntil ? `Válido até ${escapeHtml(validDate(credit.validUntil))}` : 'Sem vencimento'}</summary>
+                        <p>Recebido em ${escapeHtml(validDate(credit.creditedAt))}: ${money(credit.originalCents)}. Validade até o fim do dia, no horário de Brasília.</p>
+                        <ul class="giftback-events">${(credit.events || []).map(event => `<li><span>${escapeHtml(event.label)}<small>${escapeHtml(formatDateTime(event.occurredAt))}</small>${['prorrogacao', 'reversao_expiracao'].includes(event.type) ? `<small>Validade: ${escapeHtml(validDate(event.oldValidUntil))} → ${escapeHtml(validDate(event.newValidUntil))}</small>` : ''}</span><span>${signedMoney(Number(event.deltaCents || 0))}</span></li>`).join('')}</ul>
+                    </details>`).join('') || '<p>Nenhum crédito registrado.</p>'}
+                <p><a href="/cliente/saldo?loja_id=${Number(data.loja.id)}#giftback-credits-title">Ver todos os créditos e histórico desta loja</a></p>
+            </section>
             
             <div class="modal-balance-summary">
                 <div class="balance-item">
@@ -378,13 +395,12 @@ function renderStoreDetails(data) {
                             </span>
                             <div class="activity-details-small">
                                 <span class="activity-desc">
-                                    ${mov.tipo_operacao === 'credito' ? 'Cashback recebido' : 
-                                      mov.tipo_operacao === 'uso' ? 'Saldo usado' : 'Estorno'}
+                                    ${movementLabel(mov.tipo_operacao)}
                                 </span>
                                 <span class="activity-date-small">${formatDateTime(mov.data_operacao)}</span>
                             </div>
-                            <span class="activity-amount-small ${mov.tipo_operacao === 'uso' ? 'negative' : 'positive'}">
-                                ${mov.tipo_operacao === 'uso' ? '-' : '+'}R$ ${parseFloat(mov.valor).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                            <span class="activity-amount-small ${movementDelta(mov) < 0 ? 'negative' : (movementDelta(mov) > 0 ? 'positive' : '')}">
+                                ${signedMoney(movementDelta(mov))}
                             </span>
                         </div>
                     `).join('')}
@@ -392,9 +408,9 @@ function renderStoreDetails(data) {
             </div>
             ` : '<p class="no-activities">Ainda não há atividades nesta loja</p>'}
             
-            ${data.loja.website ? `
+            ${data.loja.website && /^https?:\/\//i.test(data.loja.website) ? `
             <div class="modal-actions">
-                <a href="${data.loja.website}" target="_blank" class="visit-store-btn">
+                <a href="${escapeHtml(data.loja.website)}" target="_blank" rel="noopener noreferrer" class="visit-store-btn">
                     🌐 Visitar Site da Loja
                 </a>
             </div>

@@ -332,6 +332,7 @@ RewriteRule ^api/audit/?$ api/audit.php [L,QSA]
 RewriteRule ^store/pagamento-pix/?$ views/stores/payment-pix.php [L,QSA]
 RewriteRule ^api/mercadopago/?$ api/mercadopago.php [L,QSA]
 RewriteRule ^api/mercadopago-webhook/?$ api/mercadopago-webhook.php [L,QSA]
+RewriteRule ^api/mercadopago-subscriptions-webhook/?$ api/mercadopago-subscriptions-webhook.php [L,QSA]
 RewriteRule ^api/store-payment/?$ api/store-payment.php [L,QSA]
 
 # Lojas

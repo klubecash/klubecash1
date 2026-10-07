@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\WhatsApp;
 
 use App\Core\Logger;
+use App\Services\Giftback\GiftbackLedger;
 use App\Services\Store\StoreApiException;
 use App\Services\Store\StoreCustomerService;
 use App\Services\Store\StoreIdempotencyService;
@@ -13,6 +14,9 @@ use App\Services\Store\StoreTransactionService;
 use App\Services\Store\StoreWhatsAppNotificationService;
 use PDO;
 use Throwable;
+
+require_once __DIR__ . '/../Giftback/GiftbackLedger.php';
+require_once __DIR__ . '/../store/StoreNetworkAccess.php';
 
 final class WhatsAppMenuService
 {
@@ -362,7 +366,7 @@ final class WhatsAppMenuService
         if ($choice === '3') {
             $statement = $this->db->prepare(
                 'SELECT codigo_transacao,valor_total,valor_cliente,status,data_transacao FROM transacoes_cashback '
-                . 'WHERE loja_id=:store AND criado_por=:user ORDER BY data_transacao DESC,id DESC LIMIT 5'
+                . 'WHERE loja_id=:store AND vendedor_id=:user ORDER BY data_transacao DESC,id DESC LIMIT 5'
             );
             $statement->execute([':store' => $merchant['storeId'], ':user' => $merchant['userId']]);
             $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
@@ -412,7 +416,7 @@ final class WhatsAppMenuService
         }
         $customer = $customer['customer'];
         $summary = "👤 *Cliente encontrado*\n" . $this->maskedName((string) $customer['name'])
-            . "\nSaldo nesta loja: *" . $this->money((int) $customer['balanceCents']) . '*';
+            . "\nSaldo " . $this->balanceScopeLabel($merchant['storeId']) . ': *' . $this->money((int) $customer['balanceCents']) . '*';
         if (($payload['mode'] ?? '') === 'lookup') {
             $this->store->setState($senderKey, 'merchant_menu');
             $this->reply($canonical, $senderKey, $eventId, 'customer-result', $summary . "\n\n" . $this->merchantMenu($merchant['storeName']));
@@ -518,7 +522,7 @@ final class WhatsAppMenuService
             $senderKey,
             $eventId,
             'sale-balance-prompt',
-            'Saldo disponivel nesta loja: *' . $this->money((int) ($payload['balanceCents'] ?? 0))
+            'Saldo disponivel ' . $this->balanceScopeLabel($merchant['storeId']) . ': *' . $this->money((int) ($payload['balanceCents'] ?? 0))
             . "*\n\nQuanto do saldo sera utilizado?\nDigite *0* para nao usar saldo."
         );
         return $merchant['userId'];
@@ -589,7 +593,8 @@ final class WhatsAppMenuService
                 'description' => 'Venda registrada pelo WhatsApp',
                 'occurredAt' => date(DATE_ATOM),
             ],
-            (string) ($payload['operationKey'] ?? '')
+            (string) ($payload['operationKey'] ?? ''),
+            'whatsapp'
         );
         try {
             (new StoreWhatsAppNotificationService($this->db))->queueAndProcess((int) $sale['id'], $merchant['storeId']);
@@ -643,7 +648,9 @@ final class WhatsAppMenuService
             "SELECT u.id user_id,u.nome user_name,u.tipo,l.id store_id,l.nome_fantasia store_name "
             . 'FROM usuarios u JOIN lojas l ON l.id=:store AND l.status=\'aprovado\' '
             . "WHERE u.id=:user AND u.status='ativo' AND u.tipo IN ('loja','funcionario') "
-            . "AND ((u.tipo='loja' AND l.usuario_id=u.id) OR (u.tipo='funcionario' AND u.loja_vinculada_id=l.id)) LIMIT 1"
+            . "AND (EXISTS(SELECT 1 FROM store_user_memberships m WHERE m.user_id=u.id AND m.store_id=l.id AND m.status='active')
+                OR EXISTS(SELECT 1 FROM store_network_memberships n JOIN store_network_managers gm ON gm.network_id=n.network_id
+                    WHERE n.store_id=l.id AND n.status='active' AND gm.user_id=u.id)) LIMIT 1"
         );
         $statement->execute([':store' => $storeId, ':user' => $userId]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);
@@ -713,6 +720,10 @@ final class WhatsAppMenuService
             return "ðŸ’° *Seus saldos por loja*\n\nVoce ainda nao possui saldo registrado em nenhuma loja.\n\nCada saldo pertence exclusivamente a respectiva loja.";
         }
         $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+        $ledger = new GiftbackLedger($this->db);
+        foreach ($userIds as $userId) {
+            $ledger->settleUser($userId);
+        }
         $statement = $this->db->prepare(
             'SELECT l.nome_fantasia,l.status,cs.saldo_disponivel FROM cashback_saldos cs '
             . "JOIN lojas l ON l.id=cs.loja_id WHERE cs.usuario_id IN ({$placeholders}) "
@@ -749,13 +760,21 @@ final class WhatsAppMenuService
             . 'ORDER BY (u.loja_criadora_id=:priority) DESC,(cs.usuario_id IS NOT NULL) DESC,u.id LIMIT 25'
         );
         $statement->execute([':store' => $storeId, ':priority' => $storeId, ...$variants]);
+        $ledger = new GiftbackLedger($this->db);
+        $networkStores = (new \App\Services\Store\StoreNetworkAccess($this->db))->walletStores($storeId);
         return array_map(static fn (array $row): array => [
             'id' => (int) $row['id'],
             'name' => (string) $row['nome'],
-            'balanceCents' => StoreMoney::toCents($row['balance']),
+            'balanceCents' => $ledger->networkWallet((int) $row['id'], $networkStores)['availableCents'],
             'creatorStoreId' => $row['loja_criadora_id'] === null ? null : (int) $row['loja_criadora_id'],
             'hasStoreBalance' => (int) $row['has_store_balance'] === 1,
         ], $statement->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    private function balanceScopeLabel(int $storeId): string
+    {
+        return (new \App\Services\Store\StoreNetworkAccess($this->db))->networkId($storeId) === null
+            ? 'nesta loja' : 'nesta rede';
     }
 
     /**

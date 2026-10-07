@@ -69,8 +69,8 @@ export default function WhatsAppAuthorization({ token }: { token: string }) {
   return (
     <main className={styles.page}>
       <section className={styles.card} aria-live="polite">
-        <Link href="/" className={styles.brand} aria-label="Voltar para Klube Cash">
-          <Image src="/assets/images/logolaranja.png" alt="Klube Cash" width={210} height={81} unoptimized priority />
+        <Link href="/" className={styles.brand} aria-label="Voltar para KlubeCash">
+          <Image src="/assets/images/logolaranja.png" alt="KlubeCash" width={210} height={81} unoptimized priority />
         </Link>
 
         {result ? (

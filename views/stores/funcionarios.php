@@ -17,6 +17,7 @@ $activeMenu = 'funcionarios';
 require_once '../../config/database.php';
 require_once '../../config/constants.php';
 require_once '../../controllers/StoreController.php';
+require_once '../../utils/Security.php';
 
 // Iniciar sessão apenas se não estiver ativa
 // Esta verificação previne erros de "headers already sent"
@@ -230,6 +231,7 @@ $permissions = [
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <meta name="csrf-token" content="<?= htmlspecialchars(Security::generateCSRFToken(), ENT_QUOTES, 'UTF-8') ?>">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gerenciar Funcionários - Klube Cash</title>
@@ -707,6 +709,7 @@ $permissions = [
                 method: method,
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '',
                 },
                 body: JSON.stringify(data)
             })
@@ -732,7 +735,8 @@ $permissions = [
             }
             
             fetch(`/api/employees?id=${id}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: { 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '' }
             })
             .then(response => response.json())
             .then(result => {

@@ -14,19 +14,24 @@ import {
   Moon,
   PlusCircle,
   ReceiptText,
+  BarChart3,
   Settings,
   Store,
   Sun,
   Upload,
   Users,
+  Network,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useStoreContext } from "./StoreProviders";
+import { useStoreContext, useStoreView } from "./StoreProviders";
+import { StoreViewBar } from "./StoreViewBar";
+import { storeFetch } from "@/lib/client-api";
 import styles from "./store-shell.module.css";
 
 const items = [
   { href: "/store/dashboard", label: "Visão geral", icon: LayoutDashboard },
+  { href: "/store/rede", label: "Central da rede", icon: Network, permission: "canViewNetwork" as const },
   {
     href: "/store/registrar-transacao",
     label: "Nova venda",
@@ -34,6 +39,7 @@ const items = [
     accent: true,
   },
   { href: "/store/transacoes", label: "Transações", icon: ReceiptText },
+  { href: "/store/relatorios", label: "Relatórios", icon: BarChart3 },
   { href: "/store/upload-lote", label: "Upload em lote", icon: Upload },
   {
     href: "/store/funcionarios",
@@ -46,11 +52,13 @@ const items = [
 
 const titles: Record<string, { title: string; eyebrow: string }> = {
   "/store/dashboard": { title: "Visão geral", eyebrow: "Dashboard" },
+  "/store/rede": { title: "Central da rede", eyebrow: "Gestão" },
   "/store/registrar-transacao": {
     title: "Registrar nova venda",
     eyebrow: "Vendas",
   },
   "/store/transacoes": { title: "Minhas transações", eyebrow: "Vendas" },
+  "/store/relatorios": { title: "Relatórios", eyebrow: "Métricas" },
   "/store/upload-lote": { title: "Upload em lote", eyebrow: "Vendas" },
   "/store/funcionarios": { title: "Equipe da loja", eyebrow: "Gestão" },
   "/store/perfil": { title: "Perfil da loja", eyebrow: "Configurações" },
@@ -61,14 +69,17 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const context = useStoreContext();
+  const view = useStoreView();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dark, setDark] = useState(false);
+  const [switchingStore, setSwitchingStore] = useState(false);
+  const [invitations, setInvitations] = useState<Array<{ store_id: number; store_name: string; role: string }>>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const current = titles[pathname] ?? {
     title: "Área da loja",
-    eyebrow: "Klube Cash",
+    eyebrow: "KlubeCash",
   };
 
   useEffect(() => {
@@ -83,6 +94,11 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
       setDark(shouldDark);
     });
     return () => cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    storeFetch<{ items: Array<{ store_id: number; store_name: string; role: string }> }>("invitations")
+      .then((data) => setInvitations(data.items)).catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -113,25 +129,12 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
     };
   }, [mobileOpen]);
 
-  useEffect(() => {
-    const allowedWithoutPlan = [
-      "/store/registrar-transacao",
-      "/store/meu-plano",
-    ];
-    if (
-      !context.subscription.active &&
-      !allowedWithoutPlan.includes(pathname)
-    ) {
-      router.replace("/store/meu-plano?notice=plan-required");
-    }
-  }, [context.subscription.active, pathname, router]);
-
   const navItems = useMemo(
     () =>
       items.filter(
-        (item) => !item.permission || context.permissions[item.permission],
+        (item) => !item.permission || (item.permission === "canViewNetwork" ? context.canViewNetwork : context.permissions[item.permission]),
       ),
-    [context.permissions],
+    [context.permissions, context.canViewNetwork],
   );
 
   function toggleCollapsed() {
@@ -142,6 +145,28 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
       );
       return !value;
     });
+  }
+
+  async function switchStore(storeId: number) {
+    if (storeId === context.store.id) return;
+    setSwitchingStore(true);
+    try {
+      await storeFetch("active-store", { method: "POST", headers: { "X-CSRF-Token": context.csrfToken },
+        body: JSON.stringify({ storeId, csrfToken: context.csrfToken }) });
+      view.setView({ branch: storeId, sellerId: "", status: "" });
+      router.push("/store/dashboard");
+      router.refresh();
+    } catch {
+      setSwitchingStore(false);
+    }
+  }
+
+  async function acceptInvitation(storeId: number) {
+    try {
+      await storeFetch(`invitations/${storeId}/accept`, { method: "POST", headers: { "X-CSRF-Token": context.csrfToken },
+        body: JSON.stringify({ csrfToken: context.csrfToken }) });
+      window.location.reload();
+    } catch { /* The invitation remains visible for a retry. */ }
   }
 
   return (
@@ -161,7 +186,7 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
           <Link
             href="/store/dashboard"
             className={styles.brandMark}
-            aria-label="Klube Cash - Visão geral"
+            aria-label="KlubeCash - Visão geral"
           >
             K
           </Link>
@@ -197,6 +222,13 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
             <strong title={context.store.name}>{context.store.name}</strong>
           </div>
         </div>
+        {(context.stores?.length ?? 0) > 1 && <label className="store-branch-picker">
+          <span>Filial ativa</span>
+          <select aria-label="Filial ativa" value={context.store.id} disabled={switchingStore}
+            onChange={(event) => void switchStore(Number(event.target.value))}>
+            {context.stores?.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+          </select>
+        </label>}
 
         <nav className={styles.nav}>
           <span className={styles.navLabel}>Navegação</span>
@@ -286,7 +318,13 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </header>
-        <main className={styles.main}>{children}</main>
+        <main className={styles.main}>
+          {invitations.map((invite) => <div className="store-alert" key={invite.store_id}>
+            Convite para {invite.store_name} ({invite.role}). <button type="button" className="store-button" onClick={() => void acceptInvitation(invite.store_id)}>Aceitar vínculo</button>
+          </div>)}
+          {["/store/dashboard", "/store/transacoes", "/store/relatorios"].includes(pathname) && <StoreViewBar showStatus={pathname === "/store/transacoes"} />}
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -22,39 +22,8 @@ function respondClientSearchError(int $statusCode, string $message): void
 
 function resolveClientSearchStoreId(PDO $db, int $userId, string $userType): ?int
 {
-    if ($userType === USER_TYPE_STORE) {
-        $stmt = $db->prepare("
-            SELECT l.id
-            FROM lojas l
-            INNER JOIN usuarios u ON u.id = l.usuario_id
-            WHERE u.id = :user_id
-              AND u.tipo = :user_type
-              AND u.status = :user_status
-              AND l.status = 'aprovado'
-            ORDER BY l.id ASC
-            LIMIT 1
-        ");
-    } else {
-        $stmt = $db->prepare("
-            SELECT l.id
-            FROM usuarios u
-            INNER JOIN lojas l ON l.id = u.loja_vinculada_id
-            WHERE u.id = :user_id
-              AND u.tipo = :user_type
-              AND u.status = :user_status
-              AND l.status = 'aprovado'
-            LIMIT 1
-        ");
-    }
-
-    $stmt->execute([
-        ':user_id' => $userId,
-        ':user_type' => $userType,
-        ':user_status' => USER_ACTIVE,
-    ]);
-    $store = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    return $store && (int) $store['id'] > 0 ? (int) $store['id'] : null;
+    $storeId = (int) (AuthController::getStoreId() ?? 0);
+    return $storeId > 0 ? $storeId : null;
 }
 
 // Verificar autenticação
@@ -87,9 +56,6 @@ if (!$authenticatedStoreId) {
     error_log("API CLIENT SEARCH - Usuário {$userId} sem loja ativa vinculada");
     respondClientSearchError(403, 'Usuário sem loja ativa vinculada');
 }
-
-$_SESSION['store_id'] = $authenticatedStoreId;
-$_SESSION['loja_vinculada_id'] = $authenticatedStoreId;
 
 $input = json_decode(file_get_contents('php://input'), true);
 $action = $input['action'] ?? '';

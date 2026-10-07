@@ -12,9 +12,10 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  description: "Klube Cash - O programa de cashback mais inteligente do Brasil. Receba dinheiro de volta em todas as suas compras. Cadastre-se grátis e comece a economizar hoje mesmo!",
-  keywords: ["cashback", "dinheiro de volta", "economia", "programa de fidelidade", "compras online", "desconto", "lojas parceiras"],
-  authors: [{ name: "Klube Cash" }],
+  title: "KlubeCash - Transforme suas Compras em Dinheiro de Volta",
+  description: "KlubeCash - O programa de giftback mais inteligente do Brasil. Receba dinheiro de volta em todas as suas compras. Cadastre-se grátis e comece a economizar hoje mesmo!",
+  keywords: ["giftback", "dinheiro de volta", "economia", "programa de fidelidade", "compras online", "desconto", "lojas parceiras"],
+  authors: [{ name: "KlubeCash" }],
   robots: { index: true, follow: true },
   icons: { icon: "/assets/images/icons/KlubeCashLOGO.ico" },
 };

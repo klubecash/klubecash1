@@ -81,6 +81,7 @@ export default function BatchUploadPage() {
           Baixar modelo
         </a>
       </section>
+      <div className="store-alert" role="status">Todas as linhas deste arquivo serão registradas na filial ativa: <strong>{context.store.name}</strong>. Informe o e-mail do vendedor em cada linha quando a venda foi feita por outra pessoa; o importador ficará identificado separadamente.</div>
       <section className="store-grid store-grid-3">
         <div className="store-stat">
           <span className="store-stat-label">1. Prepare</span>

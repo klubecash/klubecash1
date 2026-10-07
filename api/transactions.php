@@ -115,6 +115,15 @@ function handleGetRequest() {
 
 // Função para tratar requisições POST (criar nova transação)
 function handlePostRequest() {
+    // A API antiga não conhece filial ativa, vendedor nem alocação de créditos
+    // de uma rede. Impedir que gere uma venda financeira sem rastreabilidade.
+    http_response_code(410);
+    echo json_encode([
+        'status' => false,
+        'message' => 'Registro de vendas transferido para a API autenticada da filial (/api/v2/store/transactions).'
+    ]);
+    return;
+
     // Validar token
     $userData = validateToken();
     

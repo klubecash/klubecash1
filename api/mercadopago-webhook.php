@@ -11,7 +11,7 @@ error_log("Timestamp: " . date('Y-m-d H:i:s'));
 error_log("Payload: " . $input_raw);
 error_log("Headers: " . print_r($headers, true));
 
-// SEMPRE retornar 200 para o Mercado Pago (mesmo se houver erro interno)
+// Notificações processadas retornam 200; falhas financeiras retornam 503 para nova tentativa.
 http_response_code(200);
 
 require_once __DIR__ . '/../config/database.php';
@@ -115,78 +115,19 @@ try {
                 error_log("WEBHOOK: Pagamento encontrado - ID: {$payment['id']}, Status atual: {$payment['status']}");
                 
                 // Verificar se o pagamento ainda precisa ser processado
-                if (in_array($payment['status'], ['pendente', 'pix_aguardando'])) {
-
-                    error_log("WEBHOOK: Iniciando aprovação automática do pagamento {$payment['id']}");
-
-                    // 1. Primeiro, atualizar o status do pagamento
-                    $updatePaymentStmt = $db->prepare("
-                        UPDATE pagamentos_comissao
-                        SET status = 'aprovado',
-                            data_aprovacao = NOW(),
-                            mp_status = 'approved',
-                            pix_paid_at = NOW(),
-                            observacao_admin = ?
-                        WHERE id = ?
-                    ");
-                    $observacao = 'Pagamento PIX aprovado automaticamente via Mercado Pago - ID MP: ' . $mpPaymentId;
-                    $updatePaymentStmt->execute([$observacao, $payment['id']]);
-
-                    // 2. Buscar transações relacionadas ao pagamento
-                    $transactionsStmt = $db->prepare("
-                        SELECT tc.*
-                        FROM pagamentos_transacoes pt
-                        JOIN transacoes_cashback tc ON pt.transacao_id = tc.id
-                        WHERE pt.pagamento_id = ?
-                    ");
-                    $transactionsStmt->execute([$payment['id']]);
-                    $transactions = $transactionsStmt->fetchAll(PDO::FETCH_ASSOC);
-
-                    $totalCashbackLiberado = 0;
-                    $transacoesAprovadas = 0;
-
-                    // 3. Processar cada transação
-                    foreach ($transactions as $transaction) {
-                        // Atualizar status da transação
-                        $updateTransactionStmt = $db->prepare("
-                            UPDATE transacoes_cashback
-                            SET status = 'aprovado'
-                            WHERE id = ?
-                        ");
-                        $updateTransactionStmt->execute([$transaction['id']]);
-
-                        // Creditar cashback usando o modelo CashbackBalance
-                        require_once __DIR__ . '/../models/CashbackBalance.php';
-                        $balanceModel = new CashbackBalance();
-
-                        $cashbackValue = $transaction['valor_cliente'];
-                        if ($cashbackValue > 0) {
-                            $description = "Cashback da compra - Transação #{$transaction['id']} (Pagamento #{$payment['id']} aprovado via MP)";
-
-                            $creditResult = $balanceModel->addBalance(
-                                $transaction['usuario_id'],
-                                $transaction['loja_id'],
-                                $cashbackValue,
-                                $description,
-                                $transaction['id']
-                            );
-
-                            if ($creditResult) {
-                                $totalCashbackLiberado += $cashbackValue;
-                                $transacoesAprovadas++;
-                                error_log("WEBHOOK: Cashback creditado - Transação: {$transaction['id']}, Valor: R$ {$cashbackValue}");
-                            } else {
-                                error_log("WEBHOOK: ERRO ao creditar cashback - Transação: {$transaction['id']}");
-                            }
+                if (in_array($payment['status'], ['pendente', 'pix_aguardando'], true)) {
+                    $result = TransactionController::approvePaymentAutomatically(
+                        (int) $payment['id'],
+                        'Pagamento PIX aprovado via Mercado Pago - ID MP: ' . $mpPaymentId
+                    );
+                    if (!$result['status']) {
+                        $check = $db->prepare('SELECT status FROM pagamentos_comissao WHERE id=?');
+                        $check->execute([$payment['id']]);
+                        if ($check->fetchColumn() !== 'aprovado') {
+                            throw new RuntimeException('A aprovação financeira não foi concluída; tentar novamente.');
                         }
                     }
-
-                    error_log("WEBHOOK: ✅ Pagamento aprovado com sucesso - ID: {$payment['id']}");
-                    error_log("WEBHOOK: Cashback liberado: R$ " . number_format($totalCashbackLiberado, 2, '.', ''));
-                    error_log("WEBHOOK: Transações aprovadas: {$transacoesAprovadas}");
-
-                } else {
-                    error_log("WEBHOOK: Pagamento já foi processado - Status: {$payment['status']}");
+                    $db->prepare("UPDATE pagamentos_comissao SET mp_status='approved',pix_paid_at=COALESCE(pix_paid_at,NOW()) WHERE id=?")->execute([$payment['id']]);
                 }
                 
             } elseif ($mpStatus === 'rejected' || $mpStatus === 'cancelled') {
@@ -215,7 +156,7 @@ try {
     echo json_encode(['status' => 'ok', 'message' => 'Webhook processado com sucesso']);
     
 } catch (Exception $e) {
-    // Log detalhado do erro mas ainda retorna 200 para o MP
+    // Registra a falha e solicita nova tentativa ao Mercado Pago.
     error_log("WEBHOOK: ❌ ERRO CRÍTICO: " . $e->getMessage());
     error_log("WEBHOOK: Stack trace: " . $e->getTraceAsString());
     
@@ -251,7 +192,8 @@ try {
         error_log("WEBHOOK: Erro ao salvar erro no banco: " . $dbError->getMessage());
     }
     
-    echo json_encode(['status' => 'ok', 'message' => 'Webhook recebido com erro interno']);
+    http_response_code(503);
+    echo json_encode(['status' => 'error', 'message' => 'Processamento temporariamente indisponível.']);
 }
 
 error_log("=== FIM WEBHOOK MP ===");

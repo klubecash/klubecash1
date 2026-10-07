@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services\Store;
 
+use App\Services\Giftback\GiftbackLedger;
 use PDO;
 use Throwable;
+
+require_once __DIR__ . '/../Giftback/GiftbackLedger.php';
+require_once __DIR__ . '/StoreNetworkAccess.php';
 
 final class StoreCustomerService
 {
@@ -40,6 +44,15 @@ final class StoreCustomerService
             ':priority_store' => $storeId,
         ]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if (!$row && strlen((string) $digits) >= 10) {
+            $normalized = str_starts_with((string) $digits, '55') ? $digits : '55' . $digits;
+            $claimed = $this->db->prepare('SELECT account_id FROM store_wallet_claims WHERE store_id=? AND phone=? ORDER BY id DESC LIMIT 1');
+            $claimed->execute([$storeId, $normalized]);
+            $accountId = (int) ($claimed->fetchColumn() ?: 0);
+            if ($accountId) {
+                return $this->get($storeId, $accountId);
+            }
+        }
         if (!$row) {
             return [
                 'dataState' => 'empty',
@@ -76,13 +89,17 @@ final class StoreCustomerService
         }
 
         $existing = $this->db->prepare(
-            "SELECT id FROM usuarios WHERE loja_criadora_id=:store_id AND tipo='cliente' AND telefone=:phone LIMIT 1"
+            "SELECT id FROM usuarios WHERE loja_criadora_id=:store_id AND tipo='cliente' AND status='ativo' AND telefone=:phone LIMIT 1"
         );
         $existing->execute([':store_id' => $storeId, ':phone' => $phone]);
         $existingId = (int) ($existing->fetchColumn() ?: 0);
         if ($existingId > 0) {
             return $this->get($storeId, $existingId);
         }
+        $claimed = $this->db->prepare('SELECT account_id FROM store_wallet_claims WHERE store_id=? AND phone=? ORDER BY id DESC LIMIT 1');
+        $claimed->execute([$storeId, '55' . $phone]);
+        $accountId = (int) ($claimed->fetchColumn() ?: 0);
+        if ($accountId > 0) { return $this->get($storeId, $accountId); }
 
         $email = sprintf('visitante_%s_loja_%d@klubecash.local', $phone, $storeId);
         try {
@@ -93,11 +110,7 @@ final class StoreCustomerService
             );
             $insert->execute([':name' => $name, ':email' => $email, ':phone' => $phone, ':store_id' => $storeId]);
             $customerId = (int) $this->db->lastInsertId();
-            $balance = $this->db->prepare(
-                "INSERT IGNORE INTO cashback_saldos (usuario_id,loja_id,saldo_disponivel,total_creditado,total_usado) "
-                . "VALUES (:customer_id,:store_id,'0.00','0.00','0.00')"
-            );
-            $balance->execute([':customer_id' => $customerId, ':store_id' => $storeId]);
+            (new \App\Services\Giftback\GiftbackLedger($this->db))->settleWallet($customerId, $storeId);
             $this->db->commit();
             return $this->get($storeId, $customerId);
         } catch (Throwable $exception) {
@@ -136,6 +149,14 @@ final class StoreCustomerService
     private function row(array $row, int $storeId): array
     {
         $visitor = ($row['tipo_cliente'] ?? '') === 'visitante';
+        $access = new StoreNetworkAccess($this->db);
+        $networkId = $access->networkId($storeId);
+        $requiresPhoneVerification = false;
+        if ($visitor && $networkId !== null) {
+            $proof = $this->db->prepare('SELECT 1 FROM network_visitor_verifications WHERE network_id=? AND user_id=? AND verified_until>NOW() LIMIT 1');
+            $proof->execute([$networkId, (int) $row['id']]);
+            $requiresPhoneVerification = !$proof->fetchColumn();
+        }
         return [
             'id' => (int) $row['id'],
             'name' => (string) $row['nome'],
@@ -144,7 +165,9 @@ final class StoreCustomerService
             'cpf' => $visitor ? null : ($row['cpf'] ?: null),
             'type' => $visitor ? 'visitor' : 'registered',
             'createdByThisStore' => (int) ($row['loja_criadora_id'] ?? 0) === $storeId,
-            'balanceCents' => StoreMoney::toCents($row['balance'] ?? 0),
+            'balanceCents' => $requiresPhoneVerification ? 0 : (new GiftbackLedger($this->db))->networkWallet((int) $row['id'],
+                $access->walletStores($storeId))['availableCents'],
+            'requiresPhoneVerification' => $requiresPhoneVerification,
             'purchaseCount' => (int) ($row['purchases'] ?? 0),
             'spentAmountCents' => StoreMoney::toCents($row['spent'] ?? 0),
         ];

@@ -263,6 +263,9 @@ try {
 
     switch ($action) {
         case 'batch_upload':
+            // O importador legado não registra vendedor por linha. A API v2
+            // preserva importador e vendedor separadamente, inclusive em CSV.
+            storeAppRespond(410, false, null, 'Use o importador atualizado da filial para informar o vendedor de cada venda.');
             $file = $_FILES['file'] ?? null;
             if (!is_array($file) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
                 storeAppRespond(422, false, null, 'Selecione um arquivo CSV v\u00e1lido.');

@@ -260,6 +260,54 @@ html[data-theme="dark"] .store-registration-page .theme-icon-moon {
     background: var(--brand-gradient);
 }
 
+.store-registration-page .registration-mascot {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    min-height: 168px;
+    margin: 18px -12px -12px 0;
+    overflow: hidden;
+}
+
+.store-registration-page .registration-mascot-copy {
+    position: relative;
+    z-index: 2;
+    align-self: center;
+    max-width: 140px;
+}
+
+.store-registration-page .registration-mascot-copy span {
+    display: block;
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+}
+
+.store-registration-page .registration-mascot-copy p {
+    margin: 7px 0 0;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.76rem;
+    font-weight: 650;
+    line-height: 1.45;
+}
+
+.store-registration-page .registration-mascot-image {
+    position: absolute;
+    right: -18px;
+    bottom: -36px;
+    display: block;
+    width: min(62%, 220px);
+    height: auto;
+    filter: drop-shadow(0 18px 24px rgba(72, 37, 20, 0.18));
+    animation: registration-mascot-float 3.5s ease-in-out infinite;
+}
+
+@keyframes registration-mascot-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-7px); }
+}
+
 .store-registration-page .registration-header::before,
 .store-registration-page .registration-header::after {
     content: "";
@@ -921,6 +969,17 @@ html[data-theme="dark"] .store-registration-page .theme-icon-moon {
         padding: 28px clamp(20px, 5vw, 38px) 24px;
     }
 
+    .store-registration-page .registration-mascot {
+        min-height: 132px;
+        margin-top: 10px;
+    }
+
+    .store-registration-page .registration-mascot-image {
+        right: -10px;
+        bottom: -28px;
+        width: 190px;
+    }
+
     .store-registration-page .registration-title {
         max-width: 18ch;
         font-size: clamp(1.65rem, 5vw, 2.25rem);
@@ -980,6 +1039,29 @@ html[data-theme="dark"] .store-registration-page .theme-icon-moon {
         padding: 28px clamp(17px, 5vw, 28px);
     }
 
+    .store-registration-page .registration-mascot {
+        min-height: 112px;
+        margin: 7px -2px -7px 0;
+    }
+
+    .store-registration-page .registration-mascot-copy {
+        max-width: 122px;
+    }
+
+    .store-registration-page .registration-mascot-copy span {
+        font-size: 0.52rem;
+    }
+
+    .store-registration-page .registration-mascot-copy p {
+        font-size: 0.68rem;
+    }
+
+    .store-registration-page .registration-mascot-image {
+        right: -12px;
+        bottom: -22px;
+        width: 155px;
+    }
+
     .store-registration-page .form-grid.two-columns,
     .store-registration-page .summary-grid {
         grid-template-columns: 1fr;
@@ -1013,6 +1095,17 @@ html[data-theme="dark"] .store-registration-page .theme-icon-moon {
         padding: 25px 18px 20px;
     }
 
+    .store-registration-page .registration-mascot {
+        min-height: 104px;
+        margin-right: -2px;
+    }
+
+    .store-registration-page .registration-mascot-image {
+        width: 140px;
+        right: -14px;
+        bottom: -20px;
+    }
+
     .store-registration-page .registration-content {
         padding: 25px 17px 30px;
     }
@@ -1044,6 +1137,13 @@ html[data-theme="dark"] .store-registration-page .theme-icon-moon {
     .store-registration-page #prevBtn[hidden] + .navigation-spacer + #nextBtn,
     .store-registration-page #prevBtn[hidden] + .navigation-spacer + #submitBtn {
         grid-column: 1 / -1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .store-registration-page .registration-mascot-image {
+        animation-duration: 1ms;
+        animation-iteration-count: 1;
     }
 }
 

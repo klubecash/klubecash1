@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Store;
 
 use App\Core\Logger;
+use App\Services\Giftback\GiftbackLedger;
 use App\Services\WhatsApp\CurlWahaHttpClient;
 use App\Services\WhatsApp\WahaConfig;
 use App\Services\WhatsApp\WahaException;
@@ -16,6 +17,7 @@ use Throwable;
 
 require_once __DIR__ . '/StoreMoney.php';
 require_once __DIR__ . '/StoreWhatsAppMessageFormatter.php';
+require_once __DIR__ . '/../Giftback/GiftbackLedger.php';
 
 final class StoreWhatsAppNotificationService
 {
@@ -106,15 +108,11 @@ final class StoreWhatsAppNotificationService
         }
 
         $details = $this->db->prepare(
-            'SELECT d.attempts,t.codigo_transacao,t.valor_total,t.valor_cliente,
+            'SELECT d.attempts,t.codigo_transacao,t.valor_total,t.valor_cliente,t.usuario_id,t.loja_id,
                     u.nome customer_name,u.telefone customer_phone,l.nome_fantasia store_name,
                     COALESCE((SELECT SUM(tsu.valor_usado)
                               FROM transacoes_saldo_usado tsu
-                              WHERE tsu.transacao_id=t.id),0) balance_used,
-                    COALESCE((SELECT cs.saldo_disponivel
-                              FROM cashback_saldos cs
-                              WHERE cs.usuario_id=t.usuario_id AND cs.loja_id=t.loja_id
-                              ORDER BY cs.id DESC LIMIT 1),0) current_balance
+                              WHERE tsu.transacao_id=t.id),0) balance_used
              FROM store_whatsapp_deliveries d
              JOIN transacoes_cashback t ON t.id=d.transaction_id AND t.loja_id=d.loja_id
              JOIN usuarios u ON u.id=t.usuario_id
@@ -135,6 +133,7 @@ final class StoreWhatsAppNotificationService
         }
 
         try {
+            $currentBalanceCents = (new GiftbackLedger($this->db))->settleWallet((int) $row['usuario_id'], (int) $row['loja_id']);
             $message = (new StoreWhatsAppMessageFormatter())->format(
                 (string) ($row['customer_name'] ?? ''),
                 (string) ($row['store_name'] ?? ''),
@@ -142,7 +141,7 @@ final class StoreWhatsAppNotificationService
                 StoreMoney::toCents($row['valor_total'] ?? 0),
                 StoreMoney::toCents($row['balance_used'] ?? 0),
                 StoreMoney::toCents($row['valor_cliente'] ?? 0),
-                StoreMoney::toCents($row['current_balance'] ?? 0)
+                $currentBalanceCents
             );
             $response = (new WahaService(WahaConfig::fromEnvironment(), new CurlWahaHttpClient()))
                 ->sendText($phone, $message);

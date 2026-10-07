@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import styles from "@/app/login/login.module.css";
+import { Klubinho } from "./Klubinho";
 
 type Theme = "light" | "dark";
 type Feedback = { type: "error" | "success"; message: string } | null;
@@ -22,7 +23,7 @@ type LoginResponse = {
 };
 
 const features = [
-  "Cashback real",
+  "Giftback real",
   "Muitas lojas parceiras",
   "Sem taxas ou anuidades",
   "Utilize em lojas que ele foi gerado",
@@ -168,10 +169,10 @@ export default function LoginExperience({
     <main className={styles.root}>
       <div className={styles.ambientGlow} aria-hidden="true" />
       <header className={styles.topbar}>
-        <Link href="/" className={styles.brandLink} aria-label="Klube Cash - página inicial">
+        <Link href="/" className={styles.brandLink} aria-label="KlubeCash - página inicial">
           <Image
             src="/assets/images/logolaranja.png"
-            alt="Klube Cash"
+            alt="KlubeCash"
             width={991}
             height={383}
             unoptimized
@@ -210,7 +211,7 @@ export default function LoginExperience({
             </span>
             <Image
               src="/assets/images/logobranco.png"
-              alt="Klube Cash"
+              alt="KlubeCash"
               className={styles.whiteLogo}
               width={991}
               height={383}
@@ -220,6 +221,13 @@ export default function LoginExperience({
             <div className={styles.welcomeCopy}>
               <h1>Bem-vindo de volta!</h1>
               <p>Entre na sua conta e continue transformando suas compras em dinheiro de volta.</p>
+            </div>
+            <div className={styles.mascotSpotlight}>
+              <div className={styles.mascotCopy}>
+                <span>GIFTBACK COM UMA CARA</span>
+                <p>Seu saldo volta para você.</p>
+              </div>
+              <Klubinho pose="aceno" size={270} className={styles.authKlubinho} priority />
             </div>
             <ul className={styles.featureList}>
               {features.map((feature) => (

@@ -34,7 +34,7 @@ if (isset($_SESSION['user_id']) && !isset($_GET['force_login'])) {
     if ($userType == 'admin') {
         header('Location: ' . ADMIN_DASHBOARD_URL);
     } else if ($userType == 'loja' || $userType == 'funcionario') {
-        header('Location: ' . STORE_DASHBOARD_URL);
+        header('Location: /store');
     } else {
         header('Location: ' . CLIENT_DASHBOARD_URL);
     }
@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($userType == 'admin') {
             $redirectUrl = ADMIN_DASHBOARD_URL;
         } else if ($userType == 'loja' || $userType == 'funcionario') {
-            $redirectUrl = STORE_DASHBOARD_URL;
+            $redirectUrl = '/store';
         }
 
         // Retorna JSON para o front

@@ -193,6 +193,12 @@ define('MP_USER_AGENT', 'KlubeCash/2.1 (Mercado Pago Integration Optimized)');
 define('MP_CREATE_PAYMENT_URL', SITE_URL . '/api/mercadopago?action=create_payment');
 define('MP_CHECK_STATUS_URL', SITE_URL . '/api/mercadopago?action=status');
 define('MP_BASE_URL', 'https://api.mercadopago.com');
+define('MP_SUBSCRIPTIONS_WEBHOOK_URL', SITE_URL . '/api/mercadopago-subscriptions-webhook');
+define('BILLING_PROVIDER', getenv('BILLING_PROVIDER') ?: 'legacy');
+define('BILLING_WRITES_ENABLED', filter_var(getenv('BILLING_WRITES_ENABLED') ?: '0', FILTER_VALIDATE_BOOL));
+define('COMMERCIAL_SALES_GATE_ENABLED', filter_var(getenv('COMMERCIAL_SALES_GATE_ENABLED') ?: '0', FILTER_VALIDATE_BOOL));
+define('CHECKOUT_MODE', getenv('CHECKOUT_MODE') ?: 'legacy');
+define('MANUAL_BILLING_ENABLED', filter_var(getenv('MANUAL_BILLING_ENABLED') ?: '0', FILTER_VALIDATE_BOOL));
 
 // === CONFIGURAÇÕES DE QUALIDADE MP ===
 define('MP_ENABLE_DEVICE_ID', true); // Habilitar device ID

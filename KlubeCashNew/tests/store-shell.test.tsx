@@ -54,7 +54,7 @@ describe("shell da área lojista", () => {
     expect(screen.getByRole("link", { name: "Visão geral" })).toHaveAttribute("href", "/store/dashboard");
     expect(screen.getByRole("link", { name: "Nova venda" })).toHaveAttribute("href", "/store/registrar-transacao");
     expect(screen.getByRole("link", { name: "Funcionários" })).toBeInTheDocument();
-    expect(screen.getByText("Loja de Teste")).toBeInTheDocument();
+    expect(screen.getByTitle("Loja de Teste")).toBeInTheDocument();
   });
 
   it("abre o menu de usuário e preserva o logout PHP", () => {

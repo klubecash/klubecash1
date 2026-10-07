@@ -93,6 +93,10 @@ export type StoreItem = {
   notes: string | null;
   customerCashbackPercentage: number;
   cashbackEnabled: boolean;
+  giftbackExpirationDays: number | null;
+  networkId?: number | null;
+  networkName?: string | null;
+  networkStatus?: string | null;
   ownerName: string;
   transactionsCount: number;
   grossAmountCents: number;
@@ -116,12 +120,54 @@ export type StoreItem = {
   subscription?: { id: number; planName: string; status: string; cycle: string; periodEnd: string | null } | null;
 };
 
+export type GiftbackCustomer = { id: number; name: string; email: string };
+
+export type GiftbackCreditEvent = {
+  id: number;
+  type: string;
+  amountCents: number;
+  previousCents: number;
+  currentCents: number;
+  oldValidUntil: string | null;
+  newValidUntil: string | null;
+  actorId: number | null;
+  actorName: string | null;
+  reason: string | null;
+  occurredAt: string;
+  reversibleCents: number;
+};
+
+export type GiftbackCredit = {
+  id: number;
+  userId: number;
+  storeId: number;
+  customerName: string;
+  storeName: string;
+  originalCents: number;
+  remainingCents: number;
+  consumedCents: number;
+  expiredCents: number;
+  revokedCents: number;
+  creditedAt: string;
+  validUntil: string | null;
+  expiresAt: string | null;
+  version: number;
+  kind: string;
+  status: string;
+  events?: GiftbackCreditEvent[];
+};
+
 export type TransactionItem = {
   id: number;
   code: string;
   customerName: string;
   customerEmail?: string;
   storeName: string;
+  sellerId?: number | null;
+  sellerName?: string;
+  recordedById?: number | null;
+  recordedByName?: string;
+  networkId?: number | null;
   grossAmountCents: number;
   balanceUsedCents: number;
   paidAmountCents: number;
@@ -135,6 +181,8 @@ export type TransactionItem = {
   movements?: Array<{
     id: number;
     type: string;
+    originStoreId?: number;
+    redemptionStoreId?: number | null;
     amountCents: number;
     previousCents: number;
     currentCents: number;

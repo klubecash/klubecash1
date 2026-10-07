@@ -2,6 +2,8 @@
 // models/CashbackBalance.php
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/constants.php';
+require_once __DIR__ . '/../services/Giftback/GiftbackLedger.php';
+require_once __DIR__ . '/../services/store/StoreNetworkAccess.php';
 
 /**
  * Modelo para gestão de saldo de cashback por loja
@@ -19,43 +21,25 @@ class CashbackBalance {
     public function __construct() {
         $this->db = Database::getConnection();
     }
+
+    private function ledger(): \App\Services\Giftback\GiftbackLedger {
+        return new \App\Services\Giftback\GiftbackLedger($this->db);
+    }
     
     /**
      * Obtém o saldo disponível de um usuário em uma loja específica
      * 
-     * Este método é fundamental pois o cashback no Klube Cash é isolado por loja.
-     * Um cliente pode ter R$ 100 na Loja A e R$ 50 na Loja B, mas não pode
-     * usar o saldo da Loja A para comprar na Loja B.
+     * Filiais da mesma rede compartilham disponibilidade; as origens financeiras
+     * permanecem separadas e são conciliadas pelo ledger.
      * 
      * @param int $userId ID do usuário
      * @param int $storeId ID da loja
      * @return float Saldo disponível nesta loja específica
      */
     public function getStoreBalance($userId, $storeId) {
-        try {
-            error_log("DEBUG: Consultando saldo - Usuario: {$userId}, Loja: {$storeId}");
-            
-            $stmt = $this->db->prepare("
-                SELECT saldo_disponivel 
-                FROM cashback_saldos 
-                WHERE usuario_id = :user_id AND loja_id = :store_id
-            ");
-            $stmt->bindParam(':user_id', $userId);
-            $stmt->bindParam(':store_id', $storeId);
-            $stmt->execute();
-            
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            $saldo = $result ? floatval($result['saldo_disponivel']) : 0.00;
-            
-            error_log("DEBUG: Saldo encontrado: R$ {$saldo}");
-            return $saldo;
-            
-        } catch (PDOException $e) {
-            error_log('Erro ao obter saldo da loja: ' . $e->getMessage());
-            return 0.00;
-        }
+        $stores = (new \App\Services\Store\StoreNetworkAccess($this->db))->walletStores((int) $storeId);
+        return $this->ledger()->networkWallet((int) $userId, $stores)['availableCents'] / 100;
     }
-    
     /**
      * Obtém todos os saldos de um usuário agrupados por loja
      * 
@@ -66,73 +50,11 @@ class CashbackBalance {
      * @return array Saldos detalhados por loja
      */
     public function getAllUserBalances($userId) {
-        try {
-            error_log("=== BUSCA SALDOS NA TABELA CASHBACK_SALDOS (CORRETO) ===");
-            
-            // PRIMEIRO: Buscar na tabela cashback_saldos (método correto)
-            $stmt = $this->db->prepare("
-                SELECT 
-                    cs.loja_id,
-                    l.nome_fantasia,
-                    l.logo,
-                    l.categoria,
-                    l.porcentagem_cashback,
-                    cs.saldo_disponivel
-                FROM cashback_saldos cs
-                JOIN lojas l ON cs.loja_id = l.id
-                WHERE cs.usuario_id = :user_id
-                AND cs.saldo_disponivel > 0
-                ORDER BY cs.saldo_disponivel DESC
-            ");
-            $stmt->bindParam(':user_id', $userId);
-            $stmt->execute();
-            
-            $saldosTabela = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            error_log("SALDOS NA TABELA: " . count($saldosTabela));
-            
-            foreach ($saldosTabela as $index => $saldo) {
-                error_log("TABELA[{$index}]: {$saldo['nome_fantasia']} - R$ {$saldo['saldo_disponivel']}");
-            }
-            
-            // Se encontrou na tabela, retornar (método correto)
-            if (!empty($saldosTabela)) {
-                return $saldosTabela;
-            }
-            
-            // FALLBACK: Buscar nas transações apenas se não tiver na tabela
-            error_log("FALLBACK: Buscando nas transações...");
-            
-            $stmt = $this->db->prepare("
-                SELECT 
-                    t.loja_id,
-                    l.nome_fantasia,
-                    l.logo,
-                    l.categoria,
-                    l.porcentagem_cashback,
-                    SUM(CASE WHEN t.status = 'aprovado' THEN t.valor_cliente ELSE 0 END) as saldo_disponivel
-                FROM transacoes_cashback t
-                INNER JOIN lojas l ON t.loja_id = l.id
-                WHERE t.usuario_id = :user_id
-                GROUP BY t.loja_id, l.nome_fantasia, l.logo, l.categoria, l.porcentagem_cashback
-                HAVING saldo_disponivel > 0
-                ORDER BY saldo_disponivel DESC
-            ");
-            $stmt->bindParam(':user_id', $userId);
-            $stmt->execute();
-            
-            $saldosTransacoes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            error_log("FALLBACK: " . count($saldosTransacoes) . " lojas nas transações");
-            
-            return $saldosTransacoes;
-            
-        } catch (PDOException $e) {
-            error_log('ERRO ao obter saldos: ' . $e->getMessage());
-            return [];
-        }
+        $this->ledger()->settleUser((int) $userId);
+        $stmt = $this->db->prepare("SELECT cs.loja_id,l.nome_fantasia,l.logo,l.categoria,l.porcentagem_cashback,cs.saldo_disponivel FROM cashback_saldos cs JOIN lojas l ON l.id=cs.loja_id WHERE cs.usuario_id=? ORDER BY cs.saldo_disponivel DESC");
+        $stmt->execute([(int) $userId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-
     /**
      * Obtém o saldo total consolidado de um usuário (soma de todas as lojas)
      * 
@@ -143,24 +65,11 @@ class CashbackBalance {
      * @return float Saldo total consolidado
      */
     public function getTotalBalance($userId) {
-        try {
-            $stmt = $this->db->prepare("
-                SELECT SUM(saldo_disponivel) as total
-                FROM cashback_saldos 
-                WHERE usuario_id = :user_id
-            ");
-            $stmt->bindParam(':user_id', $userId);
-            $stmt->execute();
-            
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            return $result ? floatval($result['total']) : 0.00;
-            
-        } catch (PDOException $e) {
-            error_log('Erro ao obter saldo total: ' . $e->getMessage());
-            return 0.00;
-        }
+        $this->ledger()->settleUser((int) $userId);
+        $stmt = $this->db->prepare('SELECT COALESCE(SUM(saldo_disponivel),0) FROM cashback_saldos WHERE usuario_id=?');
+        $stmt->execute([(int) $userId]);
+        return (float) $stmt->fetchColumn();
     }
-    
     /**
      * Adiciona saldo de cashback para um usuário em uma loja específica
      * 
@@ -176,94 +85,9 @@ class CashbackBalance {
      * @return bool Sucesso da operação
      */
     public function addBalance($userId, $storeId, $amount, $description = '', $transactionId = null) {
-        if ($amount <= 0) {
-            error_log("CASHBACK: Valor inválido: {$amount}");
-            return false;
-        }
-        
-        error_log("CASHBACK: Iniciando addBalance - User: {$userId}, Store: {$storeId}, Amount: {$amount}");
-        
-        try {
-            // Obter saldo atual ANTES de iniciar a transação
-            $currentBalance = $this->getStoreBalance($userId, $storeId);
-            $newBalance = $currentBalance + $amount;
-            
-            error_log("CASHBACK: Saldo atual: {$currentBalance}, Novo saldo: {$newBalance}");
-            
-            // Verificar se já existe transação ativa para evitar transações aninhadas
-            $useOwnTransaction = !$this->db->inTransaction();
-            if ($useOwnTransaction) {
-                $this->db->beginTransaction();
-            }
-            
-            // 1. Atualizar/inserir saldo usando INSERT ON DUPLICATE KEY UPDATE
-            // Esta técnica permite criar um novo registro ou atualizar um existente
-            // em uma única operação, evitando problemas de concorrência
-            $balanceStmt = $this->db->prepare("
-                INSERT INTO cashback_saldos (usuario_id, loja_id, saldo_disponivel, total_creditado)
-                VALUES (?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                    saldo_disponivel = saldo_disponivel + VALUES(saldo_disponivel),
-                    total_creditado = total_creditado + VALUES(total_creditado),
-                    ultima_atualizacao = CURRENT_TIMESTAMP
-            ");
-            
-            $balanceResult = $balanceStmt->execute([$userId, $storeId, $amount, $amount]);
-            
-            if (!$balanceResult) {
-                if ($useOwnTransaction) {
-                    $this->db->rollBack();
-                }
-                error_log("CASHBACK: Erro ao atualizar saldo");
-                return false;
-            }
-            
-            // 2. Registrar movimentação no histórico
-            // Mantemos um log detalhado de todas as operações para auditoria
-            $movStmt = $this->db->prepare("
-                INSERT INTO cashback_movimentacoes (
-                    usuario_id, loja_id, tipo_operacao, valor,
-                    saldo_anterior, saldo_atual, descricao,
-                    transacao_origem_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ");
-            
-            $movResult = $movStmt->execute([
-                $userId,
-                $storeId,
-                'credito',
-                $amount,
-                $currentBalance,
-                $newBalance,
-                $description,
-                $transactionId
-            ]);
-            
-            if (!$movResult) {
-                if ($useOwnTransaction) {
-                    $this->db->rollBack();
-                }
-                error_log("CASHBACK: Erro ao registrar movimentação");
-                return false;
-            }
-            
-            // Commit da transação (apenas se for transação própria)
-            if ($useOwnTransaction) {
-                $this->db->commit();
-            }
-            error_log("CASHBACK: Saldo creditado com sucesso - Novo saldo: {$newBalance}");
-            return true;
-            
-        } catch (Exception $e) {
-            // Rollback em caso de erro (apenas se for transação própria)
-            if (isset($useOwnTransaction) && $useOwnTransaction && $this->db->inTransaction()) {
-                $this->db->rollBack();
-            }
-            error_log('CASHBACK: Erro ao adicionar saldo: ' . $e->getMessage());
-            return false;
-        }
+        $this->ledger()->credit((int) $userId, (int) $storeId, \App\Services\Giftback\GiftbackLedger::cents($amount), (string) $description, $transactionId === null ? null : (int) $transactionId);
+        return true;
     }
-    
     /**
      * Usa saldo de cashback em uma compra na loja específica
      * 
@@ -285,111 +109,26 @@ class CashbackBalance {
      * @return bool Sucesso da operação
      */
     public function useBalance($userId, $storeId, $amount, $description = '', $useTransactionId = null) {
-        if ($amount <= 0) {
-            error_log("CASHBACK USE: Valor inválido: {$amount}");
-            return false;
-        }
-        
-        error_log("CASHBACK USE: Iniciando useBalance - User: {$userId}, Store: {$storeId}, Amount: {$amount}");
-        
+        $own = !$this->db->inTransaction();
+        if ($own) { $this->db->beginTransaction(); }
         try {
-            // Verificar saldo disponível ANTES de qualquer operação
-            $currentBalance = $this->getStoreBalance($userId, $storeId);
-            
-            if ($currentBalance < $amount) {
-                error_log("CASHBACK USE: Saldo insuficiente - Disponível: {$currentBalance}, Solicitado: {$amount}");
-                return false;
+            $access = new \App\Services\Store\StoreNetworkAccess($this->db);
+            $stores = $access->walletStores((int) $storeId);
+            if (count($stores) > 1) {
+                if ($useTransactionId === null) { throw new RuntimeException('Uso na rede requer transação de venda rastreável.'); }
+                $result = $this->ledger()->spendNetwork((int) $userId, (int) $storeId, $stores,
+                    \App\Services\Giftback\GiftbackLedger::cents($amount), (int) $useTransactionId, null, $access->networkId((int) $storeId));
+            } else {
+                $result = $this->ledger()->spend((int) $userId, (int) $storeId, \App\Services\Giftback\GiftbackLedger::cents($amount), (string) $description, $useTransactionId === null ? null : (int) $useTransactionId);
+                if (!$result['replayed']) { $this->createStoreReimbursementRecord($storeId, $amount, $useTransactionId, $userId); }
             }
-            
-            $newBalance = $currentBalance - $amount;
-            error_log("CASHBACK USE: Saldo atual: {$currentBalance}, Novo saldo: {$newBalance}");
-            
-            // Detectar se já estamos em uma transação (importante para compatibilidade)
-            $isInTransaction = $this->db->inTransaction();
-            
-            // Se não estamos em transação, iniciar uma
-            if (!$isInTransaction) {
-                $this->db->beginTransaction();
-            }
-            
-            try {
-                // 1. Debitar saldo do cliente
-                $updateStmt = $this->db->prepare("
-                    UPDATE cashback_saldos 
-                    SET saldo_disponivel = saldo_disponivel - ?,
-                        total_usado = total_usado + ?,
-                        ultima_atualizacao = CURRENT_TIMESTAMP
-                    WHERE usuario_id = ? AND loja_id = ?
-                ");
-                
-                $updateResult = $updateStmt->execute([$amount, $amount, $userId, $storeId]);
-                
-                if (!$updateResult) {
-                    error_log("CASHBACK USE: Erro no UPDATE do saldo");
-                    throw new Exception('Erro no UPDATE do saldo');
-                }
-                
-                $rowsAffected = $updateStmt->rowCount();
-                if ($rowsAffected == 0) {
-                    error_log("CASHBACK USE: Nenhuma linha foi atualizada");
-                    throw new Exception('Nenhuma linha foi atualizada');
-                }
-                
-                error_log("CASHBACK USE: UPDATE executado - {$rowsAffected} linhas afetadas");
-                
-                // 2. Registrar movimentação no histórico
-                $movStmt = $this->db->prepare("
-                    INSERT INTO cashback_movimentacoes (
-                        usuario_id, loja_id, tipo_operacao, valor,
-                        saldo_anterior, saldo_atual, descricao,
-                        transacao_uso_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ");
-                
-                $movResult = $movStmt->execute([
-                    $userId,
-                    $storeId,
-                    'uso',
-                    $amount,
-                    $currentBalance,
-                    $newBalance,
-                    $description,
-                    $useTransactionId
-                ]);
-                
-                if (!$movResult) {
-                    error_log("CASHBACK USE: Erro ao registrar movimentação");
-                    throw new Exception('Erro ao registrar movimentação');
-                }
-                
-                error_log("CASHBACK USE: Movimentação registrada com sucesso");
-                
-                // 3. CORREÇÃO PRINCIPAL: Criar registro de reembolso para a loja
-                // Esta é a funcionalidade que estava faltando!
-                $this->createStoreReimbursementRecord($storeId, $amount, $useTransactionId, $userId);
-                
-                // Se iniciamos a transação, fazer commit
-                if (!$isInTransaction) {
-                    $this->db->commit();
-                }
-                
-                error_log("CASHBACK USE: Saldo debitado com sucesso - Novo saldo: {$newBalance}");
-                return true;
-                
-            } catch (Exception $e) {
-                // Se iniciamos a transação, fazer rollback
-                if (!$isInTransaction && $this->db->inTransaction()) {
-                    $this->db->rollBack();
-                }
-                throw $e;
-            }
-            
-        } catch (Exception $e) {
-            error_log('CASHBACK USE: Erro ao debitar saldo: ' . $e->getMessage());
-            return false;
+            if ($own) { $this->db->commit(); }
+            return true;
+        } catch (Throwable $error) {
+            if ($own && $this->db->inTransaction()) { $this->db->rollBack(); }
+            throw $error;
         }
     }
-    
     /**
      * MÉTODO NOVO: Cria registro de reembolso pendente para a loja
      * 
@@ -465,8 +204,7 @@ class CashbackBalance {
             
         } catch (Exception $e) {
             error_log('REEMBOLSO: Erro ao criar registro - ' . $e->getMessage());
-            // IMPORTANTE: Não falhar a transação principal por causa de erro no reembolso
-            // O uso do saldo é mais crítico que o registro do reembolso
+            throw $e;
         }
     }
     
@@ -484,46 +222,12 @@ class CashbackBalance {
      * @return bool Sucesso da operação
      */
     public function refundBalance($userId, $storeId, $amount, $description = '', $transactionId = null) {
-        if ($amount <= 0) {
-            return false;
-        }
-        
-        try {
-            $this->db->beginTransaction();
-            
-            // Obter saldo atual
-            $currentBalance = $this->getStoreBalance($userId, $storeId);
-            $newBalance = $currentBalance + $amount;
-            
-            // Atualizar saldo (adicionar de volta o valor estornado)
-            $stmt = $this->db->prepare("
-                UPDATE cashback_saldos 
-                SET saldo_disponivel = saldo_disponivel + :amount,
-                    total_usado = total_usado - :amount,
-                    ultima_atualizacao = CURRENT_TIMESTAMP
-                WHERE usuario_id = :user_id AND loja_id = :store_id
-            ");
-            $stmt->bindParam(':user_id', $userId);
-            $stmt->bindParam(':store_id', $storeId);
-            $stmt->bindParam(':amount', $amount);
-            
-            if (!$stmt->execute()) {
-                throw new Exception('Erro ao atualizar saldo');
-            }
-            
-            // Registrar movimentação de estorno
-            $this->recordMovement($userId, $storeId, 'estorno', $amount, $currentBalance, $newBalance, $description, null, $transactionId);
-            
-            $this->db->commit();
-            return true;
-            
-        } catch (Exception $e) {
-            $this->db->rollBack();
-            error_log('Erro ao estornar saldo: ' . $e->getMessage());
-            return false;
-        }
+        // Historical callers used this for sale cancellation. Both legs must be
+        // reversed together: return consumed credits, then revoke the grant.
+        if (!$transactionId) { throw new \App\Services\Giftback\GiftbackException('Informe a transação original para estornar o saldo.'); }
+        $this->ledger()->reverseSale((int) $userId, (int) $storeId, (int) $transactionId, (string) $description);
+        return true;
     }
-    
     /**
      * Registra uma movimentação no histórico
      * 
@@ -541,48 +245,6 @@ class CashbackBalance {
      * @param int|null $useTransactionId ID da transação de uso (para débitos)
      * @return bool Sucesso da operação
      */
-    private function recordMovement($userId, $storeId, $type, $amount, $previousBalance, $newBalance, $description = '', $originTransactionId = null, $useTransactionId = null) {
-        try {
-            error_log("CASHBACK DEBUG: recordMovement - User: $userId, Store: $storeId, Type: $type, Amount: $amount");
-            
-            $stmt = $this->db->prepare("
-                INSERT INTO cashback_movimentacoes (
-                    usuario_id, loja_id, tipo_operacao, valor,
-                    saldo_anterior, saldo_atual, descricao,
-                    transacao_origem_id, transacao_uso_id
-                ) VALUES (
-                    ?, ?, ?, ?,
-                    ?, ?, ?,
-                    ?, ?
-                )
-            ");
-            
-            $result = $stmt->execute([
-                $userId,
-                $storeId, 
-                $type,
-                $amount,
-                $previousBalance,
-                $newBalance,
-                $description,
-                $originTransactionId,
-                $useTransactionId
-            ]);
-            
-            if ($result) {
-                error_log("CASHBACK DEBUG: Movimentação registrada com sucesso");
-            } else {
-                $errorInfo = $stmt->errorInfo();
-                error_log("CASHBACK DEBUG: Erro ao registrar movimentação: " . json_encode($errorInfo));
-            }
-            
-            return $result;
-            
-        } catch (PDOException $e) {
-            error_log('CASHBACK DEBUG: Exceção ao registrar movimentação: ' . $e->getMessage());
-            return true; // Não falhar por causa de erro no log
-        }
-    }
     
     /**
      * Obtém o histórico de movimentações de um usuário em uma loja
@@ -597,6 +259,7 @@ class CashbackBalance {
      * @return array Histórico de movimentações
      */
     public function getMovementHistory($userId, $storeId, $limit = 50, $offset = 0) {
+        $this->ledger()->settleWallet((int) $userId, (int) $storeId);
         try {
             $stmt = $this->db->prepare("
                 SELECT 
@@ -640,6 +303,7 @@ class CashbackBalance {
      * @return array Estatísticas detalhadas
      */
     public function getBalanceStatistics($userId, $storeId) {
+        $this->ledger()->settleWallet((int) $userId, (int) $storeId);
         try {
             $stmt = $this->db->prepare("
                 SELECT 
@@ -678,43 +342,12 @@ class CashbackBalance {
      * @return bool Sucesso da operação
      */
     public function syncBalancesFromTransactions($userId = null) {
-        try {
-            $this->db->beginTransaction();
-            
-            // Query para recalcular saldos baseado em transações aprovadas
-            $whereClause = $userId ? "WHERE t.usuario_id = :user_id" : "";
-            
-            $stmt = $this->db->prepare("
-                INSERT INTO cashback_saldos (usuario_id, loja_id, saldo_disponivel, total_creditado)
-                SELECT 
-                    t.usuario_id,
-                    t.loja_id,
-                    SUM(t.valor_cliente) as saldo_disponivel,
-                    SUM(t.valor_cliente) as total_creditado
-                FROM transacoes_cashback t
-                $whereClause
-                AND t.status = 'aprovado'
-                GROUP BY t.usuario_id, t.loja_id
-                ON DUPLICATE KEY UPDATE
-                    saldo_disponivel = VALUES(saldo_disponivel),
-                    total_creditado = VALUES(total_creditado),
-                    ultima_atualizacao = CURRENT_TIMESTAMP
-            ");
-            
-            if ($userId) {
-                $stmt->bindParam(':user_id', $userId);
-            }
-            
-            $stmt->execute();
-            
-            $this->db->commit();
-            return true;
-            
-        } catch (Exception $e) {
-            $this->db->rollBack();
-            error_log('Erro ao sincronizar saldos: ' . $e->getMessage());
-            return false;
+        // Compatibility endpoint: settling the ledger never rebuilds spent funds.
+        if ($userId !== null) { $this->ledger()->settleUser((int) $userId); }
+        else {
+            foreach ($this->db->query('SELECT DISTINCT usuario_id FROM cashback_saldos ORDER BY usuario_id')->fetchAll(PDO::FETCH_COLUMN) as $id) { $this->ledger()->settleUser((int) $id); }
         }
+        return true;
     }
 }
 ?>

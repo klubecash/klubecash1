@@ -4,8 +4,9 @@ session_start();
 header('Content-Type: application/json');
 
 try {
-    require_once 'config/database.php';
-    require_once 'config/constants.php';
+    require_once __DIR__ . '/../config/database.php';
+    require_once __DIR__ . '/../config/constants.php';
+    require_once __DIR__ . '/../services/Giftback/GiftbackClientReadService.php';
 
     // Verificar autenticação básica
     if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'cliente') {
@@ -22,6 +23,7 @@ try {
     }
 
     $db = Database::getConnection();
+    $giftback = (new \App\Services\Giftback\GiftbackClientReadService($db))->wallet((int) $userId, $lojaId);
 
     // Buscar dados da loja
     $storeStmt = $db->prepare("
@@ -86,7 +88,8 @@ try {
         'data' => [
             'loja' => $loja,
             'saldo' => $saldo,
-            'movimentacoes' => $movimentacoes,
+            'movimentacoes' => array_map([\App\Services\Giftback\GiftbackClientReadService::class, 'publicMovement'], $movimentacoes),
+            'giftback' => $giftback,
             'estatisticas' => [
                 'total_movimentacoes' => count($movimentacoes)
             ]
@@ -96,11 +99,7 @@ try {
 } catch (Exception $e) {
     echo json_encode([
         'status' => false, 
-        'message' => 'Erro: ' . $e->getMessage(),
-        'debug' => [
-            'file' => $e->getFile(),
-            'line' => $e->getLine()
-        ]
+        'message' => 'Não foi possível atualizar o saldo desta loja.'
     ]);
 }
 ?>

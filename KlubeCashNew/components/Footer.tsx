@@ -9,8 +9,8 @@ export function Footer({ currentYear, storeRegisterUrl }: FooterProps) {
       <div className="container">
         <div className="footer-grid">
           <div className="footer-brand">
-            <h4>Klube Cash</h4>
-            <p>Transformando suas compras em oportunidades de economia. O programa de cashback mais inteligente e confiável do Brasil.</p>
+            <h4>KlubeCash</h4>
+            <p>Transformando suas compras em oportunidades de economia. O programa de giftback mais inteligente e confiável do Brasil.</p>
           </div>
 
           <div>
@@ -43,7 +43,7 @@ export function Footer({ currentYear, storeRegisterUrl }: FooterProps) {
         </div>
 
         <div className="footer-bottom">
-          <p>© {currentYear} Klube Cash. Todos os direitos reservados.</p>
+          <p>© {currentYear} KlubeCash. Todos os direitos reservados.</p>
         </div>
       </div>
     </footer>

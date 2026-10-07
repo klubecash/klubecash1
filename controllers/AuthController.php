@@ -8,6 +8,8 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/constants.php';
 require_once __DIR__ . '/../utils/Email.php';
 require_once __DIR__ . '/../utils/Validator.php';
+require_once __DIR__ . '/../services/store/StoreApiException.php';
+require_once __DIR__ . '/../services/store/StoreNetworkAccess.php';
 
 /**
  * Controlador de Autenticação
@@ -19,11 +21,10 @@ class AuthController {
     private const PASSWORD_RECOVERY_COOLDOWN = 60;
 
     public static function requireStoreAccess() {
-        // CORREÇÃO: Bypass para funcionários
-        if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'funcionario' && isset($_SESSION['store_id'])) {
-            return; // Funcionário com store_id = OK
+        if (self::hasStoreAccess() && self::getStoreId() === null) {
+            header('Location: /store/dashboard');
+            exit;
         }
-        
         if (!self::hasStoreAccess()) {
             header("Location: " . LOGIN_URL . "?error=acesso_restrito");
             exit;
@@ -87,71 +88,17 @@ class AuthController {
 
         error_log('auth.login.session_configured');
 
-        // Lógica para loja
-        if ($user['tipo'] === 'loja') {
-            error_log('auth.login.store_context_started');
-
-            try {
-                $storeStmt = $db->prepare("SELECT * FROM lojas WHERE usuario_id = ? AND status = 'aprovado' ORDER BY id ASC LIMIT 1");
-                $storeStmt->execute([$user['id']]);
-                $loja = $storeStmt->fetch(PDO::FETCH_ASSOC);
-
-                if ($loja) {
-                    error_log('auth.login.store_found');
-
-                    $_SESSION['store_id'] = intval($loja['id']);
-                    $_SESSION['store_name'] = $loja['nome_fantasia'];
-                    $_SESSION['loja_vinculada_id'] = intval($loja['id']);
-
-                    if (isset($_SESSION['store_id']) && $_SESSION['store_id'] > 0) {
-                        error_log('auth.login.store_context_ready');
-                    } else {
-                        error_log('auth.login.store_context_failed');
-                        return ['status' => false, 'message' => 'Erro ao salvar dados da loja na sessão.'];
-                    }
-                } else {
-                    error_log('auth.login.store_not_found');
-                    return ['status' => false, 'message' => 'Nenhuma loja aprovada encontrada para sua conta.'];
-                }
-            } catch (Exception $e) {
-                error_log("LOGIN: EXCEÇÃO na configuração da loja: " . $e->getMessage());
-                return ['status' => false, 'message' => 'Erro ao configurar dados da loja: ' . $e->getMessage()];
+        if (in_array($user['tipo'], ['loja', 'funcionario'], true)) {
+            $access = new \App\Services\Store\StoreNetworkAccess($db);
+            $stores = $access->stores((int) $user['id']);
+            if ($stores === []) {
+                return ['status' => false, 'message' => 'Nenhuma filial ativa está vinculada à sua conta.'];
             }
-        } else {
-            error_log('auth.login.non_store_user');
-        }
-
-        // Lógica para funcionários
-        if ($user['tipo'] === 'funcionario') {
-            error_log('auth.login.employee_context_started');
-
-            if (empty($user['loja_vinculada_id'])) {
-                error_log('auth.login.employee_without_store');
-                return ['status' => false, 'message' => 'Funcionário sem loja vinculada. Entre em contato com o suporte.'];
+            // A previous branch must never leak into a newly authenticated user.
+            unset($_SESSION['store_id'], $_SESSION['loja_vinculada_id'], $_SESSION['store_name']);
+            if (count($stores) === 1) {
+                $access->select((int) $user['id'], $stores[0]['id']);
             }
-
-            $storeStmt = $db->prepare("SELECT * FROM lojas WHERE id = ? AND status = 'aprovado'");
-            $storeStmt->execute([$user['loja_vinculada_id']]);
-            $storeData = $storeStmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$storeData) {
-                error_log('auth.login.employee_store_unavailable');
-                return ['status' => false, 'message' => 'A loja vinculada não está ativa.'];
-            }
-
-            $_SESSION['employee_subtype'] = $user['subtipo_funcionario'] ?? 'funcionario';
-            $_SESSION['store_id'] = intval($storeData['id']);
-            $_SESSION['store_name'] = $storeData['nome_fantasia'];
-            $_SESSION['loja_vinculada_id'] = intval($storeData['id']);
-            $_SESSION['subtipo_funcionario'] = $user['subtipo_funcionario'] ?? 'funcionario';
-
-
-            if (!isset($_SESSION['store_id']) || empty($_SESSION['store_id']) || $_SESSION['store_id'] != $storeData['id']) {
-                error_log('auth.login.employee_context_failed');
-                return ['status' => false, 'message' => 'Erro crítico ao configurar acesso à loja.'];
-            }
-
-            error_log('auth.login.employee_context_ready');
         }
 
         // Atualizar último login
@@ -183,7 +130,7 @@ class AuthController {
 
     } catch (Exception $e) {
         error_log('LOGIN ERRO CRÍTICO: ' . $e->getMessage());
-        return ['status' => false, 'message' => 'Erro: ' . $e->getMessage()];
+        return ['status' => false, 'message' => 'Não foi possível concluir o login. Tente novamente em instantes.'];
     }
 }
 
@@ -198,12 +145,7 @@ public static function debugStoreAccess() {
     
     error_log('auth.store_access.checked');
     
-    // Para funcionários, garantir acesso direto
-    if ($userType === 'funcionario' && !empty($storeId)) {
-        return true;
-    }
-    
-    return false;
+    return in_array($userType, ['loja','funcionario'], true) && $storeId !== null && self::getStoreId() !== null;
 }
     /**
      * Verifica se o usuário logado tem acesso à área da loja
@@ -224,21 +166,20 @@ public static function debugStoreAccess() {
             return false;
         }
         
-        // CORREÇÃO: Para funcionários, verificar store_id diretamente
-        if ($userType === 'funcionario') {
-            return !empty($_SESSION['store_id']);
-        }
-        
-        // Para outros tipos
-        $storeId = self::getStoreId();
-        return !empty($storeId);
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        $access = new \App\Services\Store\StoreNetworkAccess(Database::getConnection());
+        return $userId > 0 && $access->stores($userId) !== [];
     }
 
     /**
      * Verifica se é lojista (não funcionário)
      */
     public static function isStoreOwner() {
-        return isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'loja';
+        $storeId = self::getStoreId();
+        if (!$storeId) { return false; }
+        $membership = (new \App\Services\Store\StoreNetworkAccess(Database::getConnection()))
+            ->membership((int) ($_SESSION['user_id'] ?? 0), (int) $storeId);
+        return ($membership['role'] ?? '') === 'titular';
     }
 
     /**
@@ -255,19 +196,11 @@ public static function debugStoreAccess() {
             return null;
         }
         
-        $userType = $_SESSION['user_type'];
-        
-        // Para lojistas, usar store_id
-        if ($userType === USER_TYPE_STORE || $userType === 'loja') {
-            return $_SESSION['store_id'] ?? null;
-        }
-        
-        // Para funcionários, usar loja_vinculada_id OU store_id (ambos devem ter o mesmo valor)
-        if ($userType === USER_TYPE_EMPLOYEE || $userType === 'funcionario') {
-            return $_SESSION['store_id'] ?? $_SESSION['loja_vinculada_id'] ?? null;
-        }
-        
-        return null;
+        if (!in_array($_SESSION['user_type'], ['loja', 'funcionario'], true)) { return null; }
+        $storeId = (int) ($_SESSION['store_id'] ?? 0);
+        if ($storeId <= 0) { return null; }
+        $access = new \App\Services\Store\StoreNetworkAccess(Database::getConnection());
+        return $access->membership((int) ($_SESSION['user_id'] ?? 0), $storeId) ? $storeId : null;
     }
 
     public static function getStoreData() {
@@ -309,12 +242,9 @@ public static function debugStoreAccess() {
             return false;
         }
         
-        if (self::isStore()) {
-            return true;
-        }
-
-        return self::isEmployee()
-            && ($_SESSION['employee_subtype'] ?? $_SESSION['subtipo_funcionario'] ?? null) === EMPLOYEE_TYPE_MANAGER;
+        $membership = (new \App\Services\Store\StoreNetworkAccess(Database::getConnection()))
+            ->membership((int) ($_SESSION['user_id'] ?? 0), (int) $storeId);
+        return in_array($membership['role'] ?? '', ['titular', 'gerente', 'gestor_rede'], true);
     }
 
 
@@ -1186,11 +1116,7 @@ public static function debugStoreAccess() {
      * @return bool Verdadeiro se o usuário for loja
      */
     public static function isStore() {
-        if (!self::isAuthenticated()) {
-            return false;
-        }
-        
-        return $_SESSION['user_type'] === USER_TYPE_STORE;
+        return self::isStoreOwner();
     }
     
     /**

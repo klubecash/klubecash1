@@ -36,6 +36,8 @@ const groups = [
       { href: "/admin/dashboard", label: "Visão geral", icon: LayoutDashboard },
       { href: "/admin/usuarios", label: "Usuários", icon: Users },
       { href: "/admin/lojas", label: "Lojas", icon: Building2 },
+      { href: "/admin/redes", label: "Central de redes", icon: Building2 },
+      { href: "/admin/links-lojas", label: "Links das lojas", icon: Search },
       { href: "/admin/transacoes", label: "Transações", icon: ReceiptText },
     ],
   },
@@ -72,6 +74,8 @@ const pageTitles: Array<[RegExp, string, string]> = [
   [/^\/admin\/dashboard$|^\/admin$/, "Dashboard", "Visão geral"],
   [/^\/admin\/usuarios/, "Operação", "Usuários"],
   [/^\/admin\/lojas/, "Operação", "Lojas parceiras"],
+  [/^\/admin\/redes/, "Operação", "Central de redes"],
+  [/^\/admin\/links-lojas/, "Operação", "Links das lojas"],
   [/^\/admin\/transa/, "Operação", "Transações"],
   [/^\/admin\/financeiro/, "Financeiro", "Histórico legado"],
   [/^\/admin\/relatorios/, "Inteligência", "Relatórios"],
@@ -96,7 +100,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const profile = useRef<HTMLDivElement>(null);
   const title = pageTitles.find(([pattern]) => pattern.test(pathname)) ?? [
     /.*/,
-    "Klube Cash",
+    "KlubeCash",
     "Admin Master",
   ];
 
@@ -187,7 +191,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <Link
             href="/admin/dashboard"
             className={styles.brandMark}
-            aria-label="Klube Cash Admin"
+            aria-label="KlubeCash Admin"
           >
             K
           </Link>

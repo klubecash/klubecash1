@@ -20,6 +20,10 @@ StoreHelper::requireStoreAccess();
 
 // Obter dados da loja - SE a verificação passou, os dados existem
 $storeId = StoreHelper::getCurrentStoreId();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $storeId && !StoreHelper::canRegisterSales((int) $storeId)) {
+    header('Location: /store/meu-plano?error=' . rawurlencode('Novas vendas estão bloqueadas até a regularização da assinatura.'));
+    exit;
+}
 $store = AuthController::getStoreData();
 
 // NOVO: Obter configurações completas da loja incluindo MVP e cashback

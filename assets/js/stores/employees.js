@@ -79,7 +79,8 @@ function deleteEmployee(employeeId, employeeName) {
         showLoading();
         
         fetch(`../../api/employees.php?id=${employeeId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: { 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '' }
         })
         .then(response => response.json())
         .then(data => {
@@ -151,6 +152,7 @@ function submitEmployeeForm(event) {
         method: method,
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '',
         },
         body: JSON.stringify(data)
     })

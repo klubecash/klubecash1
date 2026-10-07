@@ -11,6 +11,7 @@ KlubeCashNew
 database
 documentacao
 logs
+uploads
 tests
 *.log
 *.md

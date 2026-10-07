@@ -377,7 +377,7 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
                             : '1'),
                         ENT_QUOTES,
                         'UTF-8'
-                    ); ?>" alt="Klube Cash">
+                    ); ?>" alt="KlubeCash">
                 </div>
                 <button type="button" class="theme-toggle" id="themeToggle" aria-label="Ativar modo noturno" aria-pressed="false">
                     <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
@@ -404,6 +404,18 @@ debug_log("Dados de seleção preparados, iniciando renderização da página");
                         <span class="progress-step" data-step="7" role="listitem">Revisão</span>
                     </div>
                 </div>
+
+                <section class="registration-mascot" aria-label="Klubinho, o mascote da KlubeCash">
+                    <div class="registration-mascot-copy">
+                        <span>GIFTBACK PARA O SEU NEGÓCIO</span>
+                        <p>O Klubinho comemora cada cliente que volta.</p>
+                    </div>
+                    <img
+                        src="<?php echo htmlspecialchars(SITE_URL . '/assets/images/klubinho/klubinho-comemora.png', ENT_QUOTES, 'UTF-8'); ?>"
+                        alt="Klubinho comemorando o giftback da sua loja"
+                        class="registration-mascot-image"
+                    >
+                </section>
             </div>
 
             <!-- Conteúdo do formulário -->

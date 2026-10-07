@@ -13,6 +13,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/constants.php';
 require_once __DIR__ . '/../controllers/AuthController.php';
 require_once __DIR__ . '/../controllers/StoreController.php';
+require_once __DIR__ . '/../utils/Security.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -26,6 +27,11 @@ if (!AuthController::isAuthenticated() || !AuthController::canManageEmployees())
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
+if (in_array($method, ['POST','PUT','DELETE'], true) && !Security::validateCSRFToken((string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''))) {
+    http_response_code(419);
+    echo json_encode(['status' => false, 'message' => 'Sessão de segurança expirada. Use a área atual da loja.']);
+    exit;
+}
 
 switch ($method) {
     case 'GET':
@@ -61,9 +67,9 @@ function handleGetRequest() {
             }
             
             $stmt = $db->prepare("
-                SELECT id, nome, email, telefone, subtipo_funcionario, status, data_criacao
-                FROM usuarios 
-                WHERE id = ? AND loja_vinculada_id = ? AND tipo = 'funcionario'
+                SELECT u.id,u.nome,u.email,u.telefone,m.role subtipo_funcionario,m.status,u.data_criacao
+                FROM usuarios u JOIN store_user_memberships m ON m.user_id=u.id
+                WHERE u.id = ? AND m.store_id = ? AND u.tipo = 'funcionario'
             ");
             $stmt->execute([$employeeId, $storeId]);
             

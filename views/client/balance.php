@@ -8,6 +8,7 @@ require_once '../../config/database.php';
 require_once '../../config/constants.php';
 require_once '../../controllers/ClientController.php';
 require_once '../../controllers/AuthController.php';
+require_once __DIR__ . '/../../services/Giftback/GiftbackClientReadService.php';
 
 // Iniciar sessão
 session_start();
@@ -24,6 +25,10 @@ $userName = $_SESSION['user_name'] ?? 'Cliente';
 
 try {
     $db = Database::getConnection();
+    (new \App\Services\Giftback\GiftbackLedger($db))->settleUser((int) $userId);
+    $giftbackReader = new \App\Services\Giftback\GiftbackClientReadService($db);
+    $giftbackFilterStoreId = max(0, (int) ($_GET['loja_id'] ?? 0)) ?: null;
+    $giftbackCredits = $giftbackReader->credits((int) $userId, $giftbackFilterStoreId, max(1, (int) ($_GET['giftback_page'] ?? 1)));
     
     // Saldo total disponível
     $saldoTotalQuery = "
@@ -61,6 +66,11 @@ try {
     $saldosPorLojaStmt->bindParam(':user_id', $userId);
     $saldosPorLojaStmt->execute();
     $saldosPorLoja = $saldosPorLojaStmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($saldosPorLoja as &$lojaSaldo) {
+        $lojaSaldo['giftback'] = $giftbackReader->wallet((int) $userId, (int) $lojaSaldo['loja_id']);
+        $lojaSaldo['origin_giftback'] = (new \App\Services\Giftback\GiftbackLedger($db))->wallet((int) $userId, (int) $lojaSaldo['loja_id']);
+    }
+    unset($lojaSaldo);
     
     // Saldos pendentes (mantendo consulta original)
     $saldoPendenteQuery = "
@@ -153,6 +163,7 @@ try {
     ];
     $movimentacoesRecentes = [];
     $dadosMensais = [];
+    $giftbackCredits = ['items' => [], 'total' => 0];
 }
 
 // Funções auxiliares (mantendo as originais)
@@ -207,7 +218,7 @@ function formatMonth($yearMonth) {
                 <h1>💰 Seus Saldos de Cashback</h1>
                 <p class="header-subtitle">
                     Aqui você encontra todo o dinheiro que ganhou de volta nas suas compras. 
-                    <strong>Lembre-se:</strong> cada loja tem sua própria "carteira" de saldo!
+                    <strong>Lembre-se:</strong> filiais da mesma rede compartilham o saldo válido; cada crédito mantém a loja de origem.
                 </p>
             </div>
             <div class="header-actions">
@@ -323,7 +334,7 @@ function formatMonth($yearMonth) {
                         <div class="step-icon">1️⃣</div>
                         <div class="step-content">
                             <strong>Escolha a loja</strong>
-                            <p>Vá até uma das lojas onde você tem saldo</p>
+                            <p>Vá até a loja de origem ou outra filial ativa da mesma rede</p>
                         </div>
                     </div>
                     <div class="step">
@@ -344,8 +355,7 @@ function formatMonth($yearMonth) {
                 <div class="important-note">
                     <div class="note-icon">💡</div>
                     <p>
-                        <strong>Importante:</strong> Você só pode usar o saldo na mesma loja onde o ganhou. 
-                        É como ter uma carteira separada para cada loja!
+                        <strong>Importante:</strong> o saldo pode ser usado nas filiais da mesma rede. Lojas independentes continuam com saldo separado.
                     </p>
                 </div>
             </div>
@@ -355,7 +365,7 @@ function formatMonth($yearMonth) {
         <div class="stores-section">
             <div class="section-header">
                 <h2>🏪 Suas Carteiras por Loja</h2>
-                <p class="section-subtitle">Cada loja tem seu próprio saldo que você pode usar</p>
+                <p class="section-subtitle">Veja a origem dos créditos e quanto pode usar nas filiais da mesma rede</p>
             </div>
             
             <?php if (empty($saldosPorLoja)): ?>
@@ -404,6 +414,12 @@ function formatMonth($yearMonth) {
                         </div>
                         
                         <div class="store-balance">
+                            <?php if (!empty($loja['origin_giftback']['nextExpirationDate'])): ?>
+                                <p class="giftback-expiry"><?= formatCurrency($loja['origin_giftback']['nextExpirationCents'] / 100) ?> desta loja válidos até <?= date('d/m/Y', strtotime($loja['origin_giftback']['nextExpirationDate'])) ?>, fim do dia.</p>
+                            <?php endif; ?>
+                            <?php if (($loja['giftback']['scope'] ?? 'store') === 'network'): ?>
+                                <p class="giftback-expiry">Disponível para usar na rede: <?= formatCurrency($loja['giftback']['availableCents'] / 100) ?>.</p>
+                            <?php endif; ?>
                             <?php if ($loja['saldo_disponivel'] > 0): ?>
                                 <div class="balance-available">
                                     <div class="balance-label">Você pode usar:</div>
@@ -460,6 +476,7 @@ function formatMonth($yearMonth) {
         </div>
 
         <!-- Seção de Atividades e Estatísticas -->
+        <?php if (!$hasError) { require __DIR__ . '/../components/giftback-credits.php'; } ?>
         <div class="activity-section">
             <!-- Suas Últimas Atividades -->
             <div class="activity-card">
@@ -491,17 +508,7 @@ function formatMonth($yearMonth) {
                                 <div class="activity-details">
                                     <div class="activity-description">
                                         <?php 
-                                        switch ($movimento['tipo_operacao']) {
-                                            case 'credito':
-                                                echo 'Você ganhou cashback';
-                                                break;
-                                            case 'uso':
-                                                echo 'Você usou seu saldo';
-                                                break;
-                                            case 'estorno':
-                                                echo 'Estorno de saldo';
-                                                break;
-                                        }
+                                        echo htmlspecialchars(\App\Services\Giftback\GiftbackClientReadService::eventLabel($movimento['tipo_operacao']));
                                         ?>
                                         <span class="store-name-small"> - <?php echo htmlspecialchars($movimento['loja_nome']); ?></span>
                                     </div>
@@ -510,9 +517,9 @@ function formatMonth($yearMonth) {
                                     </div>
                                 </div>
                                 <div class="activity-amount">
-                                    <span class="amount-value <?php echo $movimento['tipo_operacao'] === 'uso' ? 'negative' : 'positive'; ?>">
-                                        <?php echo $movimento['tipo_operacao'] === 'uso' ? '-' : '+'; ?>
-                                        <?php echo formatCurrency($movimento['valor']); ?>
+                                    <?php $movimentoDelta = round(((float) $movimento['saldo_atual'] - (float) $movimento['saldo_anterior']) * 100); ?>
+                                    <span class="amount-value <?= $movimentoDelta < 0 ? 'negative' : ($movimentoDelta > 0 ? 'positive' : '') ?>">
+                                        <?= $movimentoDelta === 0 ? 'Sem alteração de saldo' : ($movimentoDelta < 0 ? '− ' : '+ ') . formatCurrency(abs($movimentoDelta) / 100) ?>
                                     </span>
                                 </div>
                             </div>

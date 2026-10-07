@@ -4,10 +4,17 @@ declare(strict_types=1);
 
 namespace App\Services\Store;
 
+use App\Services\Billing\BillingFeatureFlags;
+use App\Services\Billing\SubscriptionService;
 use DateTimeImmutable;
 use PDO;
 use PDOException;
 use Throwable;
+use App\Services\Giftback\GiftbackLedger;
+use App\Services\Giftback\GiftbackException;
+
+require_once __DIR__ . '/../Giftback/GiftbackLedger.php';
+require_once __DIR__ . '/StoreNetworkAccess.php';
 
 final class StoreTransactionService
 {
@@ -21,9 +28,34 @@ final class StoreTransactionService
     /** @param array<string, mixed> $input
      *  @return array<string, mixed>
      */
-    public function create(int $storeId, int $actorId, array $input, string $idempotencyKey): array
+    public function create(int $storeId, int $actorId, array $input, string $idempotencyKey, string $channel = 'manual'): array
     {
         $request = $this->validateInput($input);
+        $access = new StoreNetworkAccess($this->db);
+        $actorMembership = $access->membership($actorId, $storeId);
+        if (!$actorMembership) { throw new StoreApiException('Conta sem acesso ativo à filial.', 403); }
+        if ($actorMembership['role'] === 'financeiro') { throw new StoreApiException('Esta função não pode registrar vendas.', 403); }
+        if (!in_array($channel, ['manual', 'csv', 'whatsapp'], true)) { throw new StoreApiException('Canal de venda inválido.', 422); }
+        if ($channel === 'csv' && !in_array($actorMembership['role'], ['titular','gerente','gestor_rede'], true)) {
+            throw new StoreApiException('Importação de vendas restrita à gestão.', 403);
+        }
+        $sellerId = (int) ($input['sellerId'] ?? ($channel === 'csv' ? 0 : $actorId));
+        if ($sellerId <= 0 && $channel !== 'csv') { throw new StoreApiException('Informe o vendedor da venda.', 422); }
+        if ($sellerId > 0 && $sellerId !== $actorId && !in_array($actorMembership['role'], ['titular', 'gerente', 'gestor_rede'], true)) {
+            throw new StoreApiException('Somente gestor pode registrar venda de outro vendedor.', 403);
+        }
+        $sellerName = $sellerId > 0 ? $access->assertSeller($sellerId, $storeId) : null;
+        $networkId = $access->networkId($storeId);
+        $walletStores = $access->walletStores($storeId);
+        $request['sellerId'] = $sellerId ?: null;
+        $request['channel'] = $channel;
+        // A subscription interruption never removes historical data or read
+        // access. It only gates every new sale channel when the rollout flag
+        // is enabled. Keeping the check here makes the rule impossible to
+        // bypass through CSV, WhatsApp or a future API consumer.
+        if (BillingFeatureFlags::commercialSalesGateEnabled()) {
+            (new SubscriptionService($this->db))->assertCanRegisterSales($storeId);
+        }
         $idempotency = $this->idempotency->begin('store_sale', $storeId, $actorId, $idempotencyKey, $request);
         if ($idempotency['replayed']) {
             return [...($idempotency['data'] ?? []), 'replayed' => true];
@@ -31,6 +63,12 @@ final class StoreTransactionService
 
         try {
             $this->db->beginTransaction();
+
+            if ($networkId !== null) {
+                $networkLock = $this->db->prepare('SELECT id FROM store_networks WHERE id=? AND status=\'active\' LOCK IN SHARE MODE');
+                $networkLock->execute([$networkId]);
+                if (!$networkLock->fetchColumn()) { throw new StoreApiException('A rede mudou. Atualize e tente novamente.', 409); }
+            }
 
             $storeStatement = $this->db->prepare(
                 "SELECT id, nome_fantasia, status, cashback_ativo, COALESCE(porcentagem_cliente, 5.00) customer_percentage "
@@ -44,13 +82,22 @@ final class StoreTransactionService
             if ((int) $store['cashback_ativo'] !== 1) {
                 throw new StoreApiException('Esta loja não oferece cashback no momento.', 422);
             }
+            if ($access->networkId($storeId) !== $networkId || $access->walletStores($storeId) !== $walletStores || !$access->membership($actorId, $storeId)) {
+                throw new StoreApiException('A filial ou seu acesso mudou. Atualize e tente novamente.', 409);
+            }
 
             $customerStatement = $this->db->prepare(
-                "SELECT id FROM usuarios WHERE id=:customer_id AND tipo='cliente' AND status='ativo' LIMIT 1"
+                "SELECT id,tipo_cliente FROM usuarios WHERE id=:customer_id AND tipo='cliente' AND status='ativo' LIMIT 1"
             );
             $customerStatement->execute([':customer_id' => $request['customerId']]);
-            if (!$customerStatement->fetchColumn()) {
+            $customer = $customerStatement->fetch(PDO::FETCH_ASSOC);
+            if (!$customer) {
                 throw new StoreApiException('Cliente não encontrado ou inativo.', 422);
+            }
+            if ($networkId !== null && $request['balanceUsedCents'] > 0 && ($customer['tipo_cliente'] ?? '') === 'visitante') {
+                $proof = $this->db->prepare('SELECT challenge_id FROM network_visitor_verifications WHERE network_id=? AND user_id=? AND verified_until>NOW() LIMIT 1');
+                $proof->execute([$networkId, $request['customerId']]);
+                if (!$proof->fetchColumn()) { throw new StoreApiException('Cliente visitante precisa confirmar o telefone no link da filial antes de usar saldo da rede.', 403); }
             }
 
             $duplicateStatement = $this->db->prepare(
@@ -98,8 +145,8 @@ final class StoreTransactionService
                 throw new StoreApiException('O saldo utilizado supera o limite permitido para esta compra.', 422);
             }
 
-            $this->ensureBalanceRow($request['customerId'], $storeId);
-            $balance = $this->lockBalance($request['customerId'], $storeId);
+            $ledger = new GiftbackLedger($this->db);
+            $balance = $ledger->networkWallet($request['customerId'], $walletStores);
             if ($balanceUsedCents > $balance['availableCents']) {
                 throw new StoreApiException(
                     'Saldo insuficiente. Disponível: R$ ' . StoreMoney::decimal($balance['availableCents']) . '.',
@@ -119,15 +166,20 @@ final class StoreTransactionService
             $cashbackCents = StoreMoney::percentage($paidCents, $store['customer_percentage']);
             $insert = $this->db->prepare(
                 'INSERT INTO transacoes_cashback '
-                . '(usuario_id, loja_id, criado_por, valor_total, valor_cashback, valor_cliente, valor_admin, '
+                . '(usuario_id, loja_id, criado_por, vendedor_id, network_id_snapshot, vendedor_nome_snapshot, registrado_por_nome_snapshot, source_channel, valor_total, valor_cashback, valor_cliente, valor_admin, '
                 . 'valor_loja, codigo_transacao, descricao, data_transacao, status, financial_model) '
-                . "VALUES (:customer_id,:store_id,:actor_id,:gross,:cashback,:customer_cashback,'0.00','0.00',"
+                . "VALUES (:customer_id,:store_id,:actor_id,:seller_id,:network_id,:seller_name,:actor_name,:channel,:gross,:cashback,:customer_cashback,'0.00','0.00',"
                 . ":code,:description,:occurred_at,'aprovado','subscription_cashback')"
             );
             $insert->execute([
                 ':customer_id' => $request['customerId'],
                 ':store_id' => $storeId,
                 ':actor_id' => $actorId,
+                ':seller_id' => $sellerId ?: null,
+                ':network_id' => $networkId,
+                ':seller_name' => $sellerName,
+                ':actor_name' => $access->actorName($actorId),
+                ':channel' => $channel,
                 ':gross' => StoreMoney::decimal($grossCents),
                 ':cashback' => StoreMoney::decimal($cashbackCents),
                 ':customer_cashback' => StoreMoney::decimal($cashbackCents),
@@ -141,73 +193,14 @@ final class StoreTransactionService
 
             $runningBalanceCents = $balance['availableCents'];
             if ($balanceUsedCents > 0) {
-                $newBalanceCents = $runningBalanceCents - $balanceUsedCents;
-                $update = $this->db->prepare(
-                    'UPDATE cashback_saldos SET saldo_disponivel=:available, total_usado=total_usado+:used, '
-                    . 'ultima_atualizacao=NOW() WHERE usuario_id=:customer_id AND loja_id=:store_id'
-                );
-                $update->execute([
-                    ':available' => StoreMoney::decimal($newBalanceCents),
-                    ':used' => StoreMoney::decimal($balanceUsedCents),
-                    ':customer_id' => $request['customerId'],
-                    ':store_id' => $storeId,
-                ]);
-                $movement = $this->db->prepare(
-                    "INSERT INTO cashback_movimentacoes (usuario_id,loja_id,criado_por,tipo_operacao,valor,"
-                    . "saldo_anterior,saldo_atual,descricao,transacao_uso_id) "
-                    . "VALUES (:customer_id,:store_id,:actor_id,'uso',:amount,:before,:after,:description,:transaction_id)"
-                );
-                $movement->execute([
-                    ':customer_id' => $request['customerId'],
-                    ':store_id' => $storeId,
-                    ':actor_id' => $actorId,
-                    ':amount' => StoreMoney::decimal($balanceUsedCents),
-                    ':before' => StoreMoney::decimal($runningBalanceCents),
-                    ':after' => StoreMoney::decimal($newBalanceCents),
-                    ':description' => 'Uso de cashback na venda ' . $request['code'],
-                    ':transaction_id' => $transactionId,
-                ]);
-                $used = $this->db->prepare(
-                    'INSERT INTO transacoes_saldo_usado (transacao_id,usuario_id,loja_id,valor_usado) '
-                    . 'VALUES (:transaction_id,:customer_id,:store_id,:amount)'
-                );
-                $used->execute([
-                    ':transaction_id' => $transactionId,
-                    ':customer_id' => $request['customerId'],
-                    ':store_id' => $storeId,
-                    ':amount' => StoreMoney::decimal($balanceUsedCents),
-                ]);
-                $runningBalanceCents = $newBalanceCents;
+                $debit = $ledger->spendNetwork($request['customerId'], $storeId, $walletStores, $balanceUsedCents, $transactionId, $actorId, $networkId);
+                $used = $this->db->prepare('INSERT INTO transacoes_saldo_usado (transacao_id,usuario_id,loja_id,valor_usado) VALUES (?,?,?,?)');
+                $used->execute([$transactionId, $request['customerId'], $storeId, StoreMoney::decimal($balanceUsedCents)]);
+                $runningBalanceCents = $debit['balanceCents'];
             }
-
             if ($cashbackCents > 0) {
-                $newBalanceCents = $runningBalanceCents + $cashbackCents;
-                $update = $this->db->prepare(
-                    'UPDATE cashback_saldos SET saldo_disponivel=:available, total_creditado=total_creditado+:cashback, '
-                    . 'ultima_atualizacao=NOW() WHERE usuario_id=:customer_id AND loja_id=:store_id'
-                );
-                $update->execute([
-                    ':available' => StoreMoney::decimal($newBalanceCents),
-                    ':cashback' => StoreMoney::decimal($cashbackCents),
-                    ':customer_id' => $request['customerId'],
-                    ':store_id' => $storeId,
-                ]);
-                $movement = $this->db->prepare(
-                    "INSERT INTO cashback_movimentacoes (usuario_id,loja_id,criado_por,tipo_operacao,valor,"
-                    . "saldo_anterior,saldo_atual,descricao,transacao_origem_id) "
-                    . "VALUES (:customer_id,:store_id,:actor_id,'credito',:amount,:before,:after,:description,:transaction_id)"
-                );
-                $movement->execute([
-                    ':customer_id' => $request['customerId'],
-                    ':store_id' => $storeId,
-                    ':actor_id' => $actorId,
-                    ':amount' => StoreMoney::decimal($cashbackCents),
-                    ':before' => StoreMoney::decimal($runningBalanceCents),
-                    ':after' => StoreMoney::decimal($newBalanceCents),
-                    ':description' => 'Cashback da venda ' . $request['code'],
-                    ':transaction_id' => $transactionId,
-                ]);
-                $runningBalanceCents = $newBalanceCents;
+                $grant = $ledger->credit($request['customerId'], $storeId, $cashbackCents, 'Giftback da venda ' . $request['code'], $transactionId, $actorId);
+                $runningBalanceCents += $cashbackCents;
             }
 
             $credit = $this->db->prepare('UPDATE transacoes_cashback SET cashback_credited_at=NOW() WHERE id=:id');
@@ -235,6 +228,9 @@ final class StoreTransactionService
                 'balanceUsedCents' => $balanceUsedCents,
                 'cashbackGrantedCents' => $cashbackCents,
                 'customerBalanceCents' => $runningBalanceCents,
+                'sellerId' => $sellerId ?: null,
+                'recordedById' => $actorId,
+                'networkId' => $networkId,
                 'replayed' => false,
             ];
             $this->idempotency->complete('store_sale', $storeId, $idempotencyKey, $response);
@@ -245,6 +241,9 @@ final class StoreTransactionService
                 $this->db->rollBack();
             }
             $this->idempotency->fail('store_sale', $storeId, $idempotencyKey);
+            if ($exception instanceof GiftbackException) {
+                throw new StoreApiException($exception->getMessage(), $exception->httpStatus);
+            }
             if ($exception instanceof StoreApiException) {
                 throw $exception;
             }
@@ -255,25 +254,6 @@ final class StoreTransactionService
         }
     }
 
-    private function ensureBalanceRow(int $customerId, int $storeId): void
-    {
-        $statement = $this->db->prepare(
-            'INSERT IGNORE INTO cashback_saldos (usuario_id,loja_id,saldo_disponivel,total_creditado,total_usado) '
-            . "VALUES (:customer_id,:store_id,'0.00','0.00','0.00')"
-        );
-        $statement->execute([':customer_id' => $customerId, ':store_id' => $storeId]);
-    }
-
-    /** @return array{availableCents: int} */
-    private function lockBalance(int $customerId, int $storeId): array
-    {
-        $statement = $this->db->prepare(
-            'SELECT saldo_disponivel FROM cashback_saldos '
-            . 'WHERE usuario_id=:customer_id AND loja_id=:store_id LIMIT 1 FOR UPDATE'
-        );
-        $statement->execute([':customer_id' => $customerId, ':store_id' => $storeId]);
-        return ['availableCents' => StoreMoney::toCents($statement->fetchColumn() ?: 0)];
-    }
 
     /** @param array<string, mixed> $input
      *  @return array{customerId:int,grossAmountCents:int,balanceUsedCents:int,code:string,description:string,occurredAt:string}

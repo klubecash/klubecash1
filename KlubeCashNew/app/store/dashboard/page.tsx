@@ -18,14 +18,15 @@ import {
   ErrorState,
   LoadingState,
 } from "@/components/store/PageState";
-import { useStoreContext } from "@/components/store/StoreProviders";
+import { useStoreContext, useStoreView } from "@/components/store/StoreProviders";
 
 export default function DashboardPage() {
   const context = useStoreContext();
+  const view = useStoreView();
   const searchParams = useSearchParams();
   const query = useQuery({
-    queryKey: ["store-dashboard"],
-    queryFn: () => storeFetch<DashboardData>("dashboard"),
+    queryKey: ["store-dashboard", context.store.id, view.branch, view.sellerId, view.startDate, view.endDate],
+    queryFn: () => storeFetch<DashboardData>(`dashboard${view.query()}`),
   });
   if (query.isLoading) return <LoadingState />;
   if (query.isError || !query.data)
@@ -47,8 +48,7 @@ export default function DashboardPage() {
         <div>
           <h2>Olá, {context.user.name.split(" ")[0]}.</h2>
           <p>
-            Acompanhe o desempenho da {context.store.name} e encontre
-            rapidamente o que precisa.
+            Acompanhe as vendas aprovadas de {view.branch === "network" ? context.networkName ?? "sua rede" : context.stores?.find((store) => store.id === view.branch)?.name ?? context.store.name}.
           </p>
         </div>
         <div className="store-head-actions">
@@ -88,7 +88,7 @@ export default function DashboardPage() {
           icon={<Users size={20} />}
         />
         <Stat
-          label="Cashback gerado"
+          label="Giftback gerado"
           value={moneyFromCents(summary.cashbackGrantedCents)}
           note="Creditado aos clientes"
           icon={<BadgeDollarSign size={20} />}
@@ -135,12 +135,12 @@ export default function DashboardPage() {
             <QuickLink
               href="/store/registrar-transacao"
               title="Nova venda"
-              text="Registre uma compra e gere cashback."
+              text="Registre uma compra e gere giftback."
             />
             <QuickLink
               href="/store/transacoes"
               title="Histórico de vendas"
-              text="Consulte vendas, saldo usado e cashback concedido."
+              text="Consulte vendas, saldo usado e giftback concedido."
             />
             <QuickLink
               href="/store/upload-lote"
@@ -154,7 +154,7 @@ export default function DashboardPage() {
         <div className="store-panel-head">
           <div>
             <h3>Transações recentes</h3>
-            <p>Últimas movimentações da loja</p>
+            <p>Últimas movimentações da visão selecionada</p>
           </div>
           <Link className="store-link" href="/store/transacoes">
             Ver todas <ArrowRight size={14} />
@@ -166,10 +166,13 @@ export default function DashboardPage() {
               <thead>
                 <tr>
                   <th>Cliente</th>
+                  <th>Filial</th>
+                  <th>Vendeu</th>
+                  <th>Registrou</th>
                   <th>Código</th>
                   <th>Data</th>
                   <th>Valor</th>
-                  <th>Cashback</th>
+                  <th>Giftback</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -179,6 +182,9 @@ export default function DashboardPage() {
                     <td>
                       <strong>{item.customerName}</strong>
                     </td>
+                    <td>{item.storeName ?? context.store.name}</td>
+                    <td>{item.sellerName ?? "Vendedor não identificado"}</td>
+                    <td>{item.recordedByName ?? "Responsável não identificado"}</td>
                     <td className="store-code">{item.code}</td>
                     <td>{dateTime(item.occurredAt)}</td>
                     <td>

@@ -7,10 +7,11 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
+// Exercita apenas a configuração local; nunca use uma credencial real no teste.
 putenv('SMTP_HOST=smtp.resend.com');
 putenv('SMTP_PORT=465');
 putenv('SMTP_USERNAME=resend');
-putenv('SMTP_PASSWORD=quality-check-placeholder');
+putenv('SMTP_PASSWORD=' . str_repeat('x', 16));
 putenv('SMTP_FROM_EMAIL=notificacoes@klubecash.com');
 putenv('SMTP_FROM_NAME=Klube Cash');
 putenv('SMTP_ENCRYPTION=smtps');

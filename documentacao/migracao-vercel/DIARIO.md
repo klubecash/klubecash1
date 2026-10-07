@@ -1,5 +1,46 @@
 # Diário da migração
 
+## 2026-10-05 — Central de redes, filiais, equipe e vendas
+
+- **Estado:** Publicado; smoke test público aprovado, validação autenticada pendente.
+- **Deploy anterior:** `dpl_9112jY4yuJx8jGfg6FY5uKeXmqCf` em `https://www.klubecash.com`.
+- **Deploy atual:** `dpl_BZugXDGhRGKu89jjX1LzR9xheDMQ`, `Ready`, associado a `https://www.klubecash.com`.
+- **Alterações:** central de redes para admin e lojista, filtros compartilhados e diagnóstico de carteiras, junto das alterações locais existentes.
+- **Migrações:** nova tabela de auditoria de reparos ainda não aplicada; o reparo permanece bloqueado até instalação e reconciliação verificadas.
+- **Testes locais:** home/login HTTP 200; centrais protegidas redirecionam sem sessão; 56 testes Next, lint, TypeScript, build, 250 arquivos PHP, 104 rotas e detector de segredos aprovados.
+- **Produção:** home, login, cadastro e health HTTP 200; banco `ok`; centrais sem sessão redirecionam; APIs protegidas retornam 401; migração não exposta por HTTP (404).
+- **Incidente de deploy:** primeira tentativa falhou porque o registro de contêineres atingiu 50 imagens; removida somente a imagem sem tag `image_fWUT2f25IH9oqpiwe0DBF0QGiB7l` de 44 dias atrás. Imagem ativa e deploy anterior preservados. Segundo deploy concluído.
+- **Próximo passo:** ensaiar e aplicar a migração de auditoria em banco isolado antes de ativar reparos; validar fluxos com contas de teste autenticadas.
+
+## 2026-10-02 — Correção do login de lojas e funcionários
+
+- **Estado:** esquema de acesso aplicado no banco `default`; deploy final promovido.
+- **Deploy anterior:** `dpl_AKZfxR3567GfBrgKrXLZpGMWNVr3`.
+- **Deploy final:** `dpl_9112jY4yuJx8jGfg6FY5uKeXmqCf` em `https://www.klubecash.com`.
+- **Causa:** `store_user_memberships` e demais objetos de rede estavam ausentes no banco usado pela produção, gerando SQLSTATE 42S02 no login.
+- **Migração:** `run_store_network_migration.php --apply-schema-only` executada em deploy protegido; criou tabelas/colunas e importou vínculos antigos, sem alterar saldos ou criar redes. Simulação posterior retornou `changes: []`.
+- **Conciliação pendente:** zero diferenças nas carteiras existentes, mas 9 créditos sem carteira (R$ 290,50 disponíveis nas lojas 38 e 88). Entrada e retomada de filiais em rede estão bloqueadas até revisão desses registros.
+- **Segurança:** ponte temporária de migração removida do deploy final (HTTP 404). Erros SQL deixam de ser exibidos na resposta de login.
+- **Verificação:** health e banco `ok`; login fictício retorna credenciais inválidas sem erro SQL; home/login HTTP 200; áreas protegidas exigem sessão. Não foi usado login de conta real.
+- **Git:** deploy direto pela CLI; alterações locais ainda não commitadas nem enviadas ao GitHub.
+
+## 2026-09-30 — Publicação integral e validade individual do giftback
+
+- **Estado:** Publicado; verificações de produção aprovadas.
+- **Deploy anterior:** `dpl_GBTKnYNZaUKa1qD5pBj1URbZ6LZJ`.
+- **Deploy final:** `dpl_6r3NB7vL5MupyBRaoZ3b9aNo5Pfc`, promovido para `https://www.klubecash.com`.
+- **Escopo:** todas as alterações locais, incluindo giftback, cobrança e visual, autorizado pelo usuário.
+- **Backup:** dispensado explicitamente pelo usuário, que informou ausência de uso do ambiente.
+- **Ativação:** conferir schema no próprio ambiente, pausar movimentações, aplicar migrations aditivas e reconciliar saldos antes de liberar.
+- **Agendamento:** plano Vercel Hobby; cron diário, com vencimentos também verificados em consultas e utilizações. A execução a cada minuto depende de um agendador externo.
+- **Acesso operacional:** credencial temporária exclusiva para esta ativação, com prazo de expiração; ponte de migração removida da versão final.
+- **Migrations:** admin/store/billing v2 já estavam instaladas; aplicados os campos/tabelas aditivos de checkout transparente e o controle individual de giftback. Nenhuma assinatura externa foi cancelada.
+- **Reconciliação:** 10 carteiras e 10 créditos de abertura; R$ 559,49 preservados; `ready=1`; zero divergências. Nenhuma loja recebeu prazo automaticamente.
+- **Verificação:** home/login/cadastro/asset/health HTTP 200; áreas protegidas redirecionam para login; API administrativa e worker sem autorização retornam 401; arquivos internos e ponte temporária retornam 404.
+- **Worker:** execução manual pelo agendador em `2026-09-30T08:07:00Z`, resposta HTTP 200, `failed=0`, sem valores vencidos pendentes.
+- **Limitação:** não houve teste autenticado com conta real nem alterações de prazo em lojas reais durante o deploy. O agendamento por minuto continua dependente de worker externo; na Vercel Hobby foi instalado o diário.
+- **Git:** publicação direta pela CLI, sem push que pudesse disparar o workflow legado de FTP/Hostinger.
+
 ## 2026-08-08 — Início
 
 - **Estado:** Em andamento.

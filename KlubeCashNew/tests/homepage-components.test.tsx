@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Header } from "@/components/Header";
 import { Hero } from "@/components/Hero";
 import { PartnerStores } from "@/components/PartnerStores";
+import { HowItWorksAndBenefits } from "@/components/MarketingSections";
 import type { HomeContext, HomeUser } from "@/types/home";
 
 const links: HomeContext["links"] = {
@@ -75,6 +76,14 @@ describe("homepage por tipo de usuário", () => {
 });
 
 describe("header e parceiros", () => {
+  it("apresenta a seção institucional do Klubinho", () => {
+    render(<HowItWorksAndBenefits />);
+
+    expect(screen.getByRole("heading", { name: "O giftback tem uma cara." })).toBeInTheDocument();
+    expect(screen.getByText("O Mascote KlubeCash")).toBeInTheDocument();
+    expect(screen.getAllByAltText("Klubinho, o mascote da KlubeCash")).toHaveLength(2);
+  });
+
   it("preserva ações mobile do visitante", () => {
     render(<Header authenticated={false} user={null} links={links} />);
     expect(screen.getByText("Cadastrar Grátis").closest("a")).toHaveAttribute("href", "/registro");

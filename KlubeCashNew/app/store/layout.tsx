@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getStoreContext, StoreApiError } from "@/lib/store-api";
 import { StoreProviders } from "@/components/store/StoreProviders";
 import { StoreShell } from "@/components/store/StoreShell";
+import { StoreSelector } from "@/components/store/StoreSelector";
 import "./store.css";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,9 @@ export default async function StoreLayout({
     }
     if (error instanceof StoreApiError && error.status === 403) {
       redirect("/?error=store-access-denied");
+    }
+    if (error instanceof StoreApiError && error.status === 409) {
+      return <StoreSelector />;
     }
     throw error;
   }

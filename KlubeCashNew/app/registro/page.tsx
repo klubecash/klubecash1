@@ -6,8 +6,8 @@ import { getHomeContext } from "@/lib/home-context";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Criar Conta - Klube Cash",
-  description: "Crie sua conta gratuita e comece a ganhar cashback com o Klube Cash.",
+  title: "Criar Conta - KlubeCash",
+  description: "Crie sua conta gratuita e comece a ganhar giftback com a KlubeCash.",
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;

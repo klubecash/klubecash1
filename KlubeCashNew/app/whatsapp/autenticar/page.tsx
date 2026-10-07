@@ -6,7 +6,7 @@ import WhatsAppAuthorization from "@/components/WhatsAppAuthorization";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Autorizar WhatsApp - Klube Cash",
+  title: "Autorizar WhatsApp - KlubeCash",
   description: "Autorize com seguranca o acesso lojista pelo WhatsApp.",
   robots: { index: false, follow: false },
   referrer: "no-referrer",

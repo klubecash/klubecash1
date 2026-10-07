@@ -7,6 +7,9 @@ namespace App\Services\Admin;
 use PDO;
 use Throwable;
 
+use App\Services\Billing\SubscriptionService;
+use App\Services\Giftback\GiftbackLedger;
+
 final class AdminMutationService
 {
     private AdminAuditService $audit;
@@ -32,6 +35,8 @@ final class AdminMutationService
         $exists = $this->db->prepare('SELECT COUNT(*) FROM usuarios WHERE email=:email'); $exists->execute([':email' => $email]);
         if ((int) $exists->fetchColumn() > 0) { throw new AdminApiException('Já existe um usuário com este e-mail.', 409); }
         $password = bin2hex(random_bytes(16));
+        $this->db->beginTransaction();
+        try {
         $stmt = $this->db->prepare(
             "INSERT INTO usuarios (nome,email,telefone,senha_hash,status,tipo,tipo_cliente,loja_vinculada_id,subtipo_funcionario) "
             . "VALUES (:name,:email,:phone,:password,'ativo',:type,:customer_type,:store,:subtype)"
@@ -43,14 +48,30 @@ final class AdminMutationService
             ':subtype' => $type === 'funcionario' ? (string) ($input['employeeSubtype'] ?? 'funcionario') : 'funcionario',
         ]);
         $id = (int) $this->db->lastInsertId();
+        if ($type === 'funcionario') {
+            $role = (string) ($input['employeeSubtype'] ?? 'vendedor');
+            if (!in_array($role, ['gerente','financeiro','vendedor'], true)) { $role = 'vendedor'; }
+            $this->db->prepare("INSERT INTO store_user_memberships(user_id,store_id,role,status,accepted_at)
+                VALUES(?,?,?,'active',NOW())")->execute([$id, (int) $input['linkedStoreId'], $role]);
+            $this->db->prepare("INSERT INTO store_user_membership_events(user_id,store_id,actor_id,action,new_role,reason)
+                VALUES(?,?,?,'admin_created',?,'Conta criada pela KlubeCash')")
+                ->execute([$id, (int) $input['linkedStoreId'], $this->actorId, $role]);
+        }
         $after = ['id' => $id, 'name' => $name, 'email' => $email, 'type' => $type, 'status' => 'ativo'];
         $this->audit->record('user.create', 'user', $id, null, $after);
+        $this->db->commit();
         return $after + ['passwordResetRequired' => true];
+        } catch (Throwable $error) {
+            if ($this->db->inTransaction()) { $this->db->rollBack(); }
+            throw $error;
+        }
     }
 
     /** @param array<string, mixed> $input @return array<string, mixed> */
     public function updateUser(int $id, array $input): array
     {
+        $this->db->beginTransaction();
+        try {
         $before = $this->lockUser($id);
         $this->assertCurrentVersion($before, $input['updatedAt'] ?? null);
         if ($before['tipo'] === 'admin') {
@@ -68,9 +89,39 @@ final class AdminMutationService
         if ($type === 'funcionario' && $storeId <= 0) { throw new AdminApiException('Selecione a loja do funcionário.', 422); }
         $stmt = $this->db->prepare('UPDATE usuarios SET nome=:name,email=:email,telefone=:phone,tipo=:type,loja_vinculada_id=:store,subtipo_funcionario=:subtype WHERE id=:id');
         $stmt->execute([':name' => $name, ':email' => $email, ':phone' => $phone, ':type' => $type, ':store' => $storeId, ':subtype' => (string) ($input['employeeSubtype'] ?? $before['subtipo_funcionario']), ':id' => $id]);
+        if ($type === 'funcionario' && $storeId !== null) {
+            $role = (string) ($input['employeeSubtype'] ?? $before['subtipo_funcionario'] ?? 'vendedor');
+            if (!in_array($role, ['gerente','financeiro','vendedor'], true)) { $role = 'vendedor'; }
+            $prior = $this->db->prepare('SELECT role,status FROM store_user_memberships WHERE user_id=? AND store_id=? FOR UPDATE');
+            $prior->execute([$id, $storeId]);
+            $oldMembership = $prior->fetch(PDO::FETCH_ASSOC) ?: null;
+            $this->db->prepare("INSERT INTO store_user_memberships(user_id,store_id,role,status,accepted_at)
+                VALUES(?,?,?,'active',NOW()) ON DUPLICATE KEY UPDATE role=VALUES(role),status='active'")
+                ->execute([$id, $storeId, $role]);
+            if (!$oldMembership || $oldMembership['role'] !== $role || $oldMembership['status'] !== 'active') {
+                $this->db->prepare("INSERT INTO store_user_membership_events(user_id,store_id,actor_id,action,old_role,new_role,reason)
+                    VALUES(?,?,?,'admin_updated',?,?, 'Vínculo alterado pela KlubeCash')")
+                    ->execute([$id, $storeId, $this->actorId, $oldMembership['role'] ?? null, $role]);
+            }
+        } elseif ($before['tipo'] === 'funcionario') {
+            $links = $this->db->prepare("SELECT store_id,role FROM store_user_memberships WHERE user_id=? AND status='active' FOR UPDATE");
+            $links->execute([$id]);
+            $oldLinks = $links->fetchAll(PDO::FETCH_ASSOC);
+            $this->db->prepare("UPDATE store_user_memberships SET status='inactive' WHERE user_id=?")->execute([$id]);
+            $event = $this->db->prepare("INSERT INTO store_user_membership_events(user_id,store_id,actor_id,action,old_role,reason)
+                VALUES(?,?,?,'admin_deactivated',?,'Tipo da conta alterado pela KlubeCash')");
+            foreach ($oldLinks as $link) {
+                $event->execute([$id, (int) $link['store_id'], $this->actorId, $link['role']]);
+            }
+        }
         $after = ['id' => $id, 'name' => $name, 'email' => $email, 'phone' => $phone, 'type' => $type, 'linkedStoreId' => $storeId];
         $this->audit->record('user.update', 'user', $id, $before, $after);
+        $this->db->commit();
         return $after;
+        } catch (Throwable $error) {
+            if ($this->db->inTransaction()) { $this->db->rollBack(); }
+            throw $error;
+        }
     }
 
     /** @return array<string, mixed> */
@@ -139,6 +190,10 @@ final class AdminMutationService
     /** @param array<string, mixed> $input @return array<string, mixed> */
     public function updateStore(int $id, array $input): array
     {
+        $this->assertActiveAdministrator();
+        $ownsTransaction = !$this->db->inTransaction();
+        if ($ownsTransaction) { $this->db->beginTransaction(); }
+        try {
         $before = $this->lockStore($id);
         $this->assertCurrentVersion($before, $input['updatedAt'] ?? null);
         $name = trim((string) ($input['name'] ?? $before['nome_fantasia']));
@@ -147,22 +202,69 @@ final class AdminMutationService
         $phone = trim((string) ($input['phone'] ?? $before['telefone']));
         $category = trim((string) ($input['category'] ?? $before['categoria']));
         $percentage = (float) ($input['customerCashbackPercentage'] ?? $before['porcentagem_cliente']);
+        $expirationDays = $before['giftback_expiration_days'] ?? null;
+        if (array_key_exists('giftbackExpirationDays', $input)) {
+            $expirationDays = $input['giftbackExpirationDays'];
+            if ($expirationDays !== null && (!is_int($expirationDays) || $expirationDays < 1 || $expirationDays > 3650)) {
+                throw new AdminApiException('A validade deve ser um número inteiro de 1 a 3650 dias, ou sem expiração.', 422, ['giftbackExpirationDays' => ['Informe de 1 a 3650 dias.']]);
+            }
+        }
         if ($name === '' || $legalName === '') { throw new AdminApiException('Nome fantasia e razão social são obrigatórios.', 422); }
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { throw new AdminApiException('E-mail da loja inválido.', 422); }
         if ($percentage < 0 || $percentage > 100) { throw new AdminApiException('A porcentagem deve estar entre 0 e 100.', 422); }
         $stmt = $this->db->prepare(
             'UPDATE lojas SET nome_fantasia=:name,razao_social=:legal,email=:email,telefone=:phone,categoria=:category,descricao=:description,website=:website,'
-            . 'porcentagem_cliente=:customer_percentage,porcentagem_admin=0,porcentagem_cashback=:cashback_percentage,cashback_ativo=:enabled,data_config_cashback=NOW() WHERE id=:id'
+            . 'porcentagem_cliente=:customer_percentage,porcentagem_admin=0,porcentagem_cashback=:cashback_percentage,cashback_ativo=:enabled,giftback_expiration_days=:expiration_days,data_config_cashback=NOW() WHERE id=:id'
         );
         $stmt->execute([
             ':name' => $name, ':legal' => $legalName, ':email' => $email, ':phone' => $phone, ':category' => $category,
             ':description' => (string) ($input['description'] ?? $before['descricao']), ':website' => (string) ($input['website'] ?? $before['website']),
             ':customer_percentage' => $percentage, ':cashback_percentage' => $percentage,
             ':enabled' => (bool) ($input['cashbackEnabled'] ?? $before['cashback_ativo']) ? 1 : 0, ':id' => $id,
+            ':expiration_days' => $expirationDays,
         ]);
-        $after = ['id' => $id, 'name' => $name, 'email' => $email, 'customerCashbackPercentage' => $percentage, 'cashbackEnabled' => (bool) ($input['cashbackEnabled'] ?? $before['cashback_ativo'])];
+        $after = ['id' => $id, 'name' => $name, 'email' => $email, 'customerCashbackPercentage' => $percentage, 'cashbackEnabled' => (bool) ($input['cashbackEnabled'] ?? $before['cashback_ativo']), 'giftbackExpirationDays' => $expirationDays === null ? null : (int) $expirationDays];
         $this->audit->record('store.update', 'store', $id, $before, $after);
+        if (($before['giftback_expiration_days'] ?? null) != $expirationDays) {
+            $this->audit->record('giftback.policy.update', 'store', $id, ['giftbackExpirationDays' => $before['giftback_expiration_days'] ?? null], ['giftbackExpirationDays' => $expirationDays, 'appliesTo' => 'new_credits_only']);
+        }
+        if ($ownsTransaction) { $this->db->commit(); }
         return $after;
+        } catch (Throwable $exception) {
+            if ($ownsTransaction && $this->db->inTransaction()) { $this->db->rollBack(); }
+            throw $exception;
+        }
+    }
+
+    /** @param array<string, mixed> $input @return array<string, mixed> */
+    public function changeGiftbackCredit(int $id, string $action, array $input, string $key): array
+    {
+        $this->assertActiveAdministrator();
+        $userId = $input['userId'] ?? null;
+        $storeId = $input['storeId'] ?? null;
+        $version = $input['expectedVersion'] ?? null;
+        if (!is_int($userId) || $userId <= 0 || !is_int($storeId) || $storeId <= 0 || !is_int($version) || $version < 1) {
+            throw new AdminApiException('Informe o cliente, a loja e a versão do crédito selecionado.', 422);
+        }
+        $ledger = new GiftbackLedger($this->db);
+        $credit = $ledger->creditDetail($id, $userId);
+        if ((int) $credit['storeId'] !== $storeId) {
+            throw new AdminApiException('O crédito não pertence ao cliente nesta loja.', 404);
+        }
+        if ($action === 'extend') {
+            return $ledger->extendCredit($id, $this->actorId, (string) ($input['validUntil'] ?? ''), (string) ($input['reason'] ?? ''), $version, $key);
+        }
+        if ($action !== 'restore' || !is_int($input['expirationEventId'] ?? null) || $input['expirationEventId'] <= 0) {
+            throw new AdminApiException('Selecione a expiração individual que deseja reverter.', 422);
+        }
+        return $ledger->restoreCredit($id, $input['expirationEventId'], $this->actorId, (string) ($input['validUntil'] ?? ''), (string) ($input['reason'] ?? ''), $version, $key);
+    }
+
+    private function assertActiveAdministrator(): void
+    {
+        $stmt = $this->db->prepare("SELECT id FROM usuarios WHERE id=:actor AND tipo='admin' AND status='ativo'");
+        $stmt->execute([':actor' => $this->actorId]);
+        if (!$stmt->fetchColumn()) { throw new AdminApiException('Acesso restrito a administradores ativos da KlubeCash.', 403); }
     }
 
     /** @return array<string, mixed> */
@@ -177,6 +279,13 @@ final class AdminMutationService
             $this->assertCurrentVersion($before, $expectedUpdatedAt);
             $stmt = $this->db->prepare("UPDATE lojas SET status=:status,observacao=:notes,data_aprovacao=CASE WHEN :is_approved=1 THEN COALESCE(data_aprovacao,NOW()) ELSE data_aprovacao END WHERE id=:id");
             $stmt->execute([':status' => $status, ':is_approved' => $status === 'aprovado' ? 1 : 0, ':notes' => $notes, ':id' => $id]);
+            if ($status === 'aprovado') {
+                require_once __DIR__ . '/../StoreWallet/StoreWalletService.php';
+                (new \App\Services\StoreWallet\StoreWalletService($this->db))->provision($id);
+                $this->db->prepare("INSERT IGNORE INTO store_user_memberships(user_id,store_id,role,status,accepted_at)
+                    SELECT u.id,l.id,'titular','active',NOW() FROM lojas l JOIN usuarios u ON u.id=l.usuario_id
+                    WHERE l.id=? AND u.tipo='loja'")->execute([$id]);
+            }
             $result = ['id' => $id, 'status' => $status, 'replayed' => false];
             $this->audit->record('store.status', 'store', $id, $before, $result);
             $this->idempotency->complete('store_status', $key, $result);
@@ -205,10 +314,10 @@ final class AdminMutationService
                 $this->db->prepare("UPDATE transacoes_comissao SET status='cancelado' WHERE transacao_id=:id AND status='pendente'")->execute([':id' => $id]);
             }
             $this->db->prepare('UPDATE transacoes_cashback SET status=:status WHERE id=:id')->execute([':status' => $status, ':id' => $id]);
-            $this->db->commit();
             $result = ['id' => $id, 'status' => $status, 'replayed' => false];
             $this->audit->record('transaction.legacy_status', 'transaction', $id, $row, $result + ['notes' => $notes]);
             $this->idempotency->complete('legacy_transaction_status', $key, $result);
+            $this->db->commit();
             return $result;
         } catch (Throwable $exception) {
             if ($this->db->inTransaction()) { $this->db->rollBack(); }
@@ -219,37 +328,29 @@ final class AdminMutationService
     /** @return array<string, mixed> */
     public function reverseCurrentTransaction(int $id, string $reason, string $key): array
     {
+        $this->assertActiveAdministrator();
         if (strlen(trim($reason)) < 5) { throw new AdminApiException('Informe o motivo do estorno.', 422, ['reason' => ['Motivo obrigatório.']]); }
         $payload = ['id' => $id, 'reason' => trim($reason)];
-        $state = $this->idempotency->begin('transaction_reverse', $key, $payload);
-        if ($state['replayed']) { return [...($state['data'] ?? []), 'replayed' => true]; }
+        $ownsTransaction = !$this->db->inTransaction();
         try {
-            $this->db->beginTransaction();
+            if ($ownsTransaction) { $this->db->beginTransaction(); }
+            $state = $this->idempotency->begin('transaction_reverse', $key, $payload);
+            if ($state['replayed']) {
+                if ($ownsTransaction) { $this->db->commit(); }
+                return [...($state['data'] ?? []), 'replayed' => true];
+            }
             $row = $this->lockTransaction($id);
             if (($row['financial_model'] ?? '') !== 'subscription_cashback' || $row['status'] !== 'aprovado') { throw new AdminApiException('Somente vendas aprovadas do modelo atual podem ser estornadas.', 409); }
-            $balanceStmt = $this->db->prepare('SELECT * FROM cashback_saldos WHERE usuario_id=:user AND loja_id=:store LIMIT 1 FOR UPDATE');
-            $balanceStmt->execute([':user' => $row['usuario_id'], ':store' => $row['loja_id']]); $balance = $balanceStmt->fetch(PDO::FETCH_ASSOC);
-            if (!$balance) { throw new AdminApiException('Saldo da transação não foi encontrado.', 409); }
-            $usedStmt = $this->db->prepare("SELECT COALESCE(SUM(valor),0) FROM cashback_movimentacoes WHERE transacao_uso_id=:id AND tipo_operacao='uso'");
-            $usedStmt->execute([':id' => $id]); $used = (float) $usedStmt->fetchColumn();
-            $creditStmt = $this->db->prepare("SELECT COALESCE(SUM(valor),0) FROM cashback_movimentacoes WHERE transacao_origem_id=:id AND tipo_operacao='credito'");
-            $creditStmt->execute([':id' => $id]); $credit = (float) $creditStmt->fetchColumn();
-            $current = (float) $balance['saldo_disponivel'];
-            if ($current + $used + 0.0001 < $credit) { throw new AdminApiException('O cashback desta venda já foi utilizado e exige revisão manual.', 409); }
-            $newBalance = $current + $used - $credit;
-            $this->db->prepare('UPDATE cashback_saldos SET saldo_disponivel=:balance,total_creditado=GREATEST(0,total_creditado-:credit),total_usado=GREATEST(0,total_usado-:used),ultima_atualizacao=NOW() WHERE id=:id')
-                ->execute([':balance' => $newBalance, ':credit' => $credit, ':used' => $used, ':id' => $balance['id']]);
-            $movement = $this->db->prepare("INSERT INTO cashback_movimentacoes (usuario_id,loja_id,criado_por,tipo_operacao,valor,saldo_anterior,saldo_atual,descricao,transacao_origem_id) VALUES (:user,:store,:actor,'estorno',:amount,:before,:after,:description,:transaction)");
-            $movement->execute([':user' => $row['usuario_id'], ':store' => $row['loja_id'], ':actor' => $this->actorId, ':amount' => abs($credit - $used), ':before' => $current, ':after' => $newBalance, ':description' => 'Estorno administrativo: ' . trim($reason), ':transaction' => $id]);
+            $ledger = (new GiftbackLedger($this->db))->reverseSale((int) $row['usuario_id'], (int) $row['loja_id'], $id, trim($reason), $this->actorId);
             $this->db->prepare("UPDATE transacoes_cashback SET status='cancelado' WHERE id=:id")->execute([':id' => $id]);
-            $this->db->commit();
-            $result = ['id' => $id, 'status' => 'cancelado', 'restoredBalanceUsedCents' => AdminMoney::cents($used), 'reversedCashbackCents' => AdminMoney::cents($credit), 'replayed' => false];
+            $result = ['id' => $id, 'status' => 'cancelado', 'restoredBalanceUsedCents' => $ledger['restoredBalanceUsedCents'], 'reversedCashbackCents' => $ledger['reversedCashbackCents'], 'replayed' => false];
             $this->audit->record('transaction.reverse', 'transaction', $id, $row, $result + ['reason' => trim($reason)]);
             $this->idempotency->complete('transaction_reverse', $key, $result);
+            if ($ownsTransaction) { $this->db->commit(); }
             return $result;
         } catch (Throwable $exception) {
-            if ($this->db->inTransaction()) { $this->db->rollBack(); }
-            $this->idempotency->fail('transaction_reverse', $key); throw $exception;
+            if ($ownsTransaction && $this->db->inTransaction()) { $this->db->rollBack(); }
+            throw $exception;
         }
     }
 
@@ -411,6 +512,62 @@ final class AdminMutationService
         } catch (Throwable $exception) { $this->idempotency->fail('subscription_status', $key); throw $exception; }
     }
 
+    /**
+     * New subscription lifecycle action. Unlike the legacy status endpoint,
+     * this action keeps read access intact and records a reason for every
+     * commercial block or manual activation.
+     *
+     * @return array<string, mixed>
+     */
+    public function subscriptionAction(int $id, string $action, string $reason, string $until, string $key, ?string $expectedUpdatedAt = null): array
+    {
+        if ($key === '') {
+            throw new AdminApiException('A chave de idempotência é obrigatória.', 400);
+        }
+        if (!in_array($action, ['activate', 'block', 'unblock', 'pause', 'cancel', 'reactivate'], true)) {
+            throw new AdminApiException('Ação de assinatura inválida.', 422);
+        }
+        $payload = ['id' => $id, 'action' => $action, 'reason' => trim($reason), 'until' => trim($until)];
+        $state = $this->idempotency->begin('subscription_action', $key, $payload);
+        if ($state['replayed']) {
+            return [...($state['data'] ?? []), 'replayed' => true];
+        }
+        try {
+            $service = new SubscriptionService($this->db);
+            $result = $service->manualAction($id, $action, $this->actorId, $reason, $until !== '' ? $until : null, $expectedUpdatedAt);
+            $this->audit->record('subscription.' . $action, 'subscription', $id, null, $result);
+            $this->idempotency->complete('subscription_action', $key, $result);
+            return $result + ['replayed' => false];
+        } catch (Throwable $exception) {
+            $this->idempotency->fail('subscription_action', $key);
+            if ($exception instanceof AdminApiException) {
+                throw $exception;
+            }
+            throw new AdminApiException($exception->getMessage(), 422);
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public function scheduleSubscriptionPlanChange(int $id, string $planSlug, string $cycle, string $key, ?string $expectedUpdatedAt = null): array
+    {
+        if ($key === '') { throw new AdminApiException('A chave de idempotência é obrigatória.', 400); }
+        $state = $this->idempotency->begin('subscription_plan_change', $key, ['id' => $id, 'planSlug' => $planSlug, 'cycle' => $cycle]);
+        if ($state['replayed']) { return [...($state['data'] ?? []), 'replayed' => true]; }
+        try {
+            $current = $this->db->prepare('SELECT loja_id,updated_at FROM assinaturas WHERE id=:id LIMIT 1'); $current->execute([':id' => $id]); $row = $current->fetch(PDO::FETCH_ASSOC);
+            if (!$row) { throw new AdminApiException('Assinatura não encontrada.', 404); }
+            $this->assertCurrentVersion($row, $expectedUpdatedAt);
+            $result = (new SubscriptionService($this->db))->requestPlanChange((int) $row['loja_id'], $planSlug, $cycle, $this->actorId);
+            $this->audit->record('subscription.plan_change_scheduled', 'subscription', $id, null, $result);
+            $this->idempotency->complete('subscription_plan_change', $key, $result);
+            return $result + ['replayed' => false];
+        } catch (Throwable $exception) {
+            $this->idempotency->fail('subscription_plan_change', $key);
+            if ($exception instanceof AdminApiException) { throw $exception; }
+            throw new AdminApiException($exception->getMessage(), 422);
+        }
+    }
+
     /** @return array<string, mixed> */
     private function lockUser(int $id): array
     {
@@ -450,17 +607,12 @@ final class AdminMutationService
     {
         $duplicate = $this->db->prepare("SELECT COUNT(*) FROM cashback_movimentacoes WHERE transacao_origem_id=:id AND tipo_operacao='credito'"); $duplicate->execute([':id' => $transaction['id']]);
         if ((int) $duplicate->fetchColumn() > 0) { return; }
-        $balanceStmt = $this->db->prepare('SELECT * FROM cashback_saldos WHERE usuario_id=:user AND loja_id=:store LIMIT 1 FOR UPDATE');
-        $balanceStmt->execute([':user' => $transaction['usuario_id'], ':store' => $transaction['loja_id']]); $balance = $balanceStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$balance) {
-            $this->db->prepare('INSERT INTO cashback_saldos (usuario_id,loja_id,saldo_disponivel,total_creditado,total_usado) VALUES (:user,:store,0,0,0)')->execute([':user' => $transaction['usuario_id'], ':store' => $transaction['loja_id']]);
-            $balanceStmt->execute([':user' => $transaction['usuario_id'], ':store' => $transaction['loja_id']]); $balance = $balanceStmt->fetch(PDO::FETCH_ASSOC);
-        }
-        $amount = (float) $transaction['valor_cliente']; $before = (float) $balance['saldo_disponivel']; $after = $before + $amount;
-        $this->db->prepare('UPDATE cashback_saldos SET saldo_disponivel=:after,total_creditado=total_creditado+:amount,ultima_atualizacao=NOW() WHERE id=:id')->execute([':after' => $after, ':amount' => $amount, ':id' => $balance['id']]);
-        $this->db->prepare("INSERT INTO cashback_movimentacoes (usuario_id,loja_id,criado_por,tipo_operacao,valor,saldo_anterior,saldo_atual,descricao,transacao_origem_id) VALUES (:user,:store,:actor,'credito',:amount,:before,:after,:description,:transaction)")->execute([
-            ':user' => $transaction['usuario_id'], ':store' => $transaction['loja_id'], ':actor' => $this->actorId, ':amount' => $amount, ':before' => $before, ':after' => $after,
-            ':description' => 'Crédito de cashback legado aprovado pelo administrador', ':transaction' => $transaction['id'],
-        ]);
+        $amount = AdminMoney::cents($transaction['valor_cliente']);
+        if ($amount <= 0) { return; }
+        (new GiftbackLedger($this->db))->credit(
+            (int) $transaction['usuario_id'], (int) $transaction['loja_id'], $amount,
+            'Crédito de giftback legado aprovado pelo administrador', (int) $transaction['id'], $this->actorId,
+            'transaction-credit:' . (int) $transaction['id']
+        );
     }
 }

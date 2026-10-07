@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit3, Plus, Search, Trash2, X } from "lucide-react";
@@ -19,6 +20,7 @@ type Employee = {
   phone: string;
   subtype: "gerente" | "financeiro" | "vendedor";
   status: string;
+  networkManager?: boolean;
   createdAt: string;
   lastLoginAt: string | null;
 };
@@ -46,6 +48,9 @@ export default function EmployeesPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("");
   const [editing, setEditing] = useState<Employee | null | undefined>(undefined);
+  const [inviting, setInviting] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"gerente" | "financeiro" | "vendedor">("vendedor");
   const form = useForm<EmployeeForm>({ resolver: zodResolver(employeeSchema), defaultValues: emptyForm });
   const query = useQuery({
     queryKey: ["employees", page, filter],
@@ -82,6 +87,11 @@ export default function EmployeesPage() {
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employees"] }),
   });
+  const invite = useMutation({
+    mutationFn: () => storeFetch("employees/invite", { method: "POST", headers: { "X-CSRF-Token": context.csrfToken },
+      body: JSON.stringify({ email: inviteEmail, role: inviteRole, csrfToken: context.csrfToken }) }),
+    onSuccess: () => { setInviting(false); setInviteEmail(""); queryClient.invalidateQueries({ queryKey: ["employees"] }); },
+  });
 
   if (!context.permissions.manageEmployees)
     return <div className="store-page"><section className="store-panel store-empty"><h3>Acesso de gestão necessário</h3><p>Apenas o titular e gerentes podem administrar funcionários.</p></section></div>;
@@ -93,8 +103,9 @@ export default function EmployeesPage() {
   return (
     <div className="store-page store-stack">
       <section className="store-page-head">
-        <div><h2>Sua equipe</h2><p>Cadastre e organize quem pode operar a conta da loja.</p></div>
-        <button className="store-button store-button-primary" onClick={() => setEditing(null)}><Plus size={17} /> Novo funcionário</button>
+        <div><h2>Equipe da filial</h2><p>{context.store.name}: cada função e vínculo pertencem a esta filial, mesmo quando a conta trabalha em outras.</p></div>
+        <div className="store-head-actions">{context.canViewNetwork && <Link className="store-button" href="/store/rede">Ver equipe da rede</Link>}<button className="store-button" onClick={() => setInviting(true)}>Convidar conta existente</button>
+        <button className="store-button store-button-primary" onClick={() => setEditing(null)}><Plus size={17} /> Novo funcionário</button></div>
       </section>
       <section className="store-grid store-grid-4">
         <Stat label="Total" value={number(data.summary.total)} />
@@ -119,12 +130,12 @@ export default function EmployeesPage() {
                 <tr key={item.id}>
                   <td><strong>{item.name}</strong><small>{item.email}</small></td>
                   <td>{item.phone || "—"}</td>
-                  <td style={{ textTransform: "capitalize" }}>{item.subtype}</td>
+                  <td style={{ textTransform: "capitalize" }}>{item.subtype}{item.networkManager && <small>Gestor da rede · KlubeCash</small>}</td>
                   <td>{dateTime(item.createdAt)}</td>
                   <td><span className={`store-status ${item.status}`}>{item.status}</span></td>
                   <td><div style={{ display: "flex", gap: 6 }}>
-                    <button className="store-button store-icon-button" aria-label="Editar" onClick={() => setEditing(item)}><Edit3 size={15} /></button>
-                    {context.permissions.deactivateEmployees && item.status === "ativo" && (
+                    {!item.networkManager && <button className="store-button store-icon-button" aria-label="Editar" onClick={() => setEditing(item)}><Edit3 size={15} /></button>}
+                    {context.permissions.deactivateEmployees && item.status === "ativo" && !item.networkManager && (
                       <button className="store-button store-icon-button store-button-danger" aria-label="Desativar" onClick={() => { if (confirm(`Desativar ${item.name}?`)) remove.mutate(item.id); }}><Trash2 size={15} /></button>
                     )}
                   </div></td>
@@ -136,24 +147,39 @@ export default function EmployeesPage() {
         {data.pagination.totalPages > 1 && <div className="store-pagination"><button className="store-button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Anterior</button><span>Página {data.pagination.page} de {data.pagination.totalPages}</span><button className="store-button" disabled={page >= data.pagination.totalPages} onClick={() => setPage(page + 1)}>Próxima</button></div>}
       </section>
 
+      {inviting && <div className="store-modal-backdrop" role="dialog" aria-modal="true"><div className="store-modal">
+        <div className="store-modal-head"><h3>Convidar funcionário já cadastrado</h3><button className="store-button store-icon-button" onClick={() => setInviting(false)}><X size={17} /></button></div>
+        <p>Use o mesmo e-mail da conta existente. O funcionário precisará aceitar o vínculo ao entrar.</p>
+        <form className="store-form" onSubmit={(event) => { event.preventDefault(); invite.mutate(); }}>
+          <label className="store-field"><span>E-mail da conta</span><input className="store-input" type="email" required value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} /></label>
+          <label className="store-field"><span>Função nesta filial</span><select className="store-select" value={inviteRole} onChange={(event) => setInviteRole(event.target.value as typeof inviteRole)}>
+            <option value="vendedor">Vendedor</option><option value="financeiro">Financeiro</option>
+            {context.permissions.deactivateEmployees && <option value="gerente">Gerente</option>}
+          </select></label>
+          {invite.isError && <p className="store-alert store-alert-error" role="alert">{invite.error.message}</p>}
+          <button className="store-button store-button-primary" disabled={invite.isPending}>Enviar convite</button>
+        </form>
+      </div></div>}
+
       {editing !== undefined && (
         <div className="store-modal-backdrop" role="dialog" aria-modal="true">
           <div className="store-modal">
             <div className="store-modal-head"><h3>{editing ? "Editar funcionário" : "Novo funcionário"}</h3><button className="store-button store-icon-button" onClick={() => setEditing(undefined)}><X size={17} /></button></div>
             <form className="store-form" onSubmit={form.handleSubmit((values) => save.mutate(values))}>
               <div className="store-form-grid">
-                <Field label="Nome" error={form.formState.errors.name?.message}><input className="store-input" {...form.register("name")} /></Field>
-                <Field label="E-mail" error={form.formState.errors.email?.message}><input className="store-input" type="email" {...form.register("email")} /></Field>
-                <Field label="Telefone" error={form.formState.errors.phone?.message}><input className="store-input" {...form.register("phone")} /></Field>
+                <Field label="Nome" error={form.formState.errors.name?.message}><input className="store-input" readOnly={Boolean(editing)} {...form.register("name")} /></Field>
+                <Field label="E-mail" error={form.formState.errors.email?.message}><input className="store-input" readOnly={Boolean(editing)} type="email" {...form.register("email")} /></Field>
+                <Field label="Telefone" error={form.formState.errors.phone?.message}><input className="store-input" readOnly={Boolean(editing)} {...form.register("phone")} /></Field>
                 <Field label="Função" error={form.formState.errors.subtype?.message}>
                   <select className="store-select" {...form.register("subtype")}>
                     <option value="vendedor">Vendedor</option>
                     <option value="financeiro">Financeiro</option>
-                    {context.user.type === "loja" && <option value="gerente">Gerente</option>}
+                    {context.permissions.deactivateEmployees && <option value="gerente">Gerente</option>}
                   </select>
                 </Field>
-                <Field label={editing ? "Nova senha (opcional)" : "Senha provisória"} error={form.formState.errors.password?.message}><input className="store-input" type="password" {...form.register("password")} /></Field>
+                {!editing && <Field label="Senha provisória" error={form.formState.errors.password?.message}><input className="store-input" type="password" {...form.register("password")} /></Field>}
               </div>
+              {editing && <p className="store-help">Dados pessoais e senha pertencem à conta do funcionário; aqui você altera somente a função nesta filial.</p>}
               {save.isError && <div className="store-alert store-alert-error">{save.error.message}</div>}
               <div className="store-form-actions"><button type="button" className="store-button" onClick={() => setEditing(undefined)}>Cancelar</button><button className="store-button store-button-primary" disabled={save.isPending}>{save.isPending ? "Salvando..." : "Salvar funcionário"}</button></div>
             </form>

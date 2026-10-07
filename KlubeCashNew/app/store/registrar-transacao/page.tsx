@@ -1,12 +1,13 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
   Search,
+  ShieldAlert,
   UserPlus,
 } from "lucide-react";
 import { useRef, useState } from "react";
@@ -15,6 +16,7 @@ import { z } from "zod";
 import { storeFetch } from "@/lib/client-api";
 import { moneyFromCents } from "@/lib/format";
 import { useStoreContext } from "@/components/store/StoreProviders";
+import Link from "next/link";
 
 type Customer = {
   id: number;
@@ -70,6 +72,10 @@ export default function RegisterTransactionPage() {
   const [canCreate, setCanCreate] = useState(false);
   const [visitor, setVisitor] = useState({ name: "", phone: "" });
   const [result, setResult] = useState<SaleResult | null>(null);
+  const [sellerId, setSellerId] = useState<number | null>(null);
+  const sellers = useQuery({ queryKey: ["store-sellers", context.store.id],
+    queryFn: () => storeFetch<{ items: Array<{ id: number; name: string; role: string }> }>("sellers"),
+    enabled: Boolean(context.permissions.assignSeller) });
   const form = useForm<SaleInput, unknown, SaleForm>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -150,6 +156,7 @@ export default function RegisterTransactionPage() {
           code: values.code,
           occurredAt: new Date(values.date).toISOString(),
           description: values.description,
+          sellerId: context.permissions.assignSeller ? (sellerId ?? context.user.id) : context.user.id,
           csrfToken: context.csrfToken,
         }),
       });
@@ -162,6 +169,19 @@ export default function RegisterTransactionPage() {
     },
   });
 
+  if (context.subscription.salesBlocked) {
+    return (
+      <div className="store-page store-stack">
+        <section className="store-panel store-empty">
+          <ShieldAlert size={52} style={{ color: "var(--store-warning, #d97706)" }} />
+          <h2>Registro de vendas temporariamente bloqueado</h2>
+          <p>O histórico, clientes e demais recursos continuam disponíveis. Regularize ou reative o plano para registrar novas vendas.</p>
+          <Link className="store-button store-button-primary" href="/store/meu-plano">Ver plano e faturas</Link>
+        </section>
+      </div>
+    );
+  }
+
   const reset = () => {
     setStep(1);
     setCustomer(null);
@@ -169,6 +189,7 @@ export default function RegisterTransactionPage() {
     setSearch("");
     setNotice("");
     idempotencyKey.current = null;
+    setSellerId(null);
     form.reset({
       total: 0,
       code: saleCode(),
@@ -184,11 +205,12 @@ export default function RegisterTransactionPage() {
         <div>
           <h2>{result ? "Venda aprovada!" : "Nova venda"}</h2>
           <p>
-            O cashback do cliente é aprovado e creditado imediatamente, sem
+            O giftback do cliente é aprovado e creditado imediatamente, sem
             comissão ou cobrança posterior.
           </p>
         </div>
       </section>
+      <div className="store-alert" role="status">Filial desta venda: <strong>{context.store.name}</strong>. Registro feito por <strong>{context.user.name}</strong>. Confira a filial ativa no menu antes de continuar.</div>
       <div className="store-steps" aria-label={`Etapa ${step} de 4`}>
         {[1, 2, 3, 4].map((item) => (
           <span
@@ -297,12 +319,20 @@ export default function RegisterTransactionPage() {
             <div>
               <h3>2. Dados da venda</h3>
               <p>
-                Cashback atual: {context.store.customerCashbackPercentage}% do
+                Giftback atual: {context.store.customerCashbackPercentage}% do
                 valor efetivamente pago.
               </p>
             </div>
           </div>
           <div className="store-form-grid">
+            {context.permissions.assignSeller && <label className="store-field store-field-full">
+              <span>Quem realizou a venda</span>
+              <select className="store-select" value={sellerId ?? context.user.id ?? ""}
+                onChange={(event) => setSellerId(Number(event.target.value))}>
+                {sellers.data?.items.map((seller) => <option key={seller.id} value={seller.id}>{seller.name}</option>)}
+              </select>
+              <small className="store-help">O responsável pelo registro também ficará identificado separadamente.</small>
+            </label>}
             <Field label="Valor total" error={form.formState.errors.total?.message}>
               <input
                 className="store-input"
@@ -366,6 +396,9 @@ export default function RegisterTransactionPage() {
             </div>
             <div className="store-summary-list">
               <Row label="Cliente" value={customer?.name ?? ""} />
+              <Row label="Filial" value={context.store.name} />
+              <Row label="Vendedor" value={sellers.data?.items.find((item) => item.id === (sellerId ?? context.user.id))?.name ?? context.user.name} />
+              <Row label="Registrado por" value={context.user.name} />
               <Row label="Código" value={form.getValues("code")} />
               <Row label="Valor da compra" value={moneyFromCents(totalCents)} />
               <Row label="Saldo utilizado" value={moneyFromCents(balanceCents)} />
@@ -375,13 +408,13 @@ export default function RegisterTransactionPage() {
           <div className="store-panel">
             <div className="store-panel-head">
               <div>
-                <h3>Cashback do cliente</h3>
+                <h3>Giftback do cliente</h3>
                 <p>Não existe comissão ou parcela administrativa.</p>
               </div>
             </div>
             <div className="store-summary-list">
               <Row
-                label={`Cashback (${context.store.customerCashbackPercentage}%)`}
+                label={`Giftback (${context.store.customerCashbackPercentage}%)`}
                 value={moneyFromCents(cashbackCents)}
               />
               <Row label="Status após confirmar" value="Aprovado" />
@@ -410,9 +443,9 @@ export default function RegisterTransactionPage() {
       {step === 4 && result && (
         <section className="store-panel store-empty">
           <CheckCircle2 size={58} style={{ color: "var(--store-green)" }} />
-          <h3>Venda aprovada e cashback creditado</h3>
+          <h3>Venda aprovada e giftback creditado</h3>
           <p>
-            Cashback: <strong>{moneyFromCents(result.cashbackGrantedCents)}</strong>
+            Giftback: <strong>{moneyFromCents(result.cashbackGrantedCents)}</strong>
             {result.replayed ? " · confirmação recuperada com segurança" : ""}
           </p>
           <button

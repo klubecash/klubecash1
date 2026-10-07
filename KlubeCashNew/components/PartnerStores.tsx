@@ -9,9 +9,9 @@ export function PartnerStores({ partnerStores, links }: PartnerStoresProps) {
       <div className="container">
         <div className="section-header fade-in">
           <span className="section-badge">Nossos Parceiros</span>
-          <h2 className="section-title">Onde Você Pode Usar o Klube Cash</h2>
+          <h2 className="section-title">Onde Você Pode Usar o KlubeCash</h2>
           <p className="section-description">
-            Descubra algumas das incríveis lojas parceiras onde você pode ganhar cashback
+            Descubra algumas das incríveis lojas parceiras onde você pode ganhar giftback
           </p>
         </div>
 

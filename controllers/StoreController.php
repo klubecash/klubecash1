@@ -5,6 +5,8 @@ require_once __DIR__ . '/../config/constants.php';
 require_once __DIR__ . '/../config/email.php';
 require_once __DIR__ . '/AuthController.php';
 require_once dirname(__DIR__) . '/utils/Validator.php';
+require_once dirname(__DIR__) . '/services/store/StoreApiException.php';
+require_once dirname(__DIR__) . '/services/store/StoreManagementService.php';
 
 /**
  * Controlador de Lojas
@@ -65,11 +67,19 @@ class StoreController {
                     $db->rollBack();
                     return ['status' => false, 'message' => 'Erro ao ativar usuário da loja aprovada.'];
                 }
+                $db->prepare("INSERT INTO store_user_memberships(user_id,store_id,role,status,accepted_at)
+                    VALUES(?,?,'titular','active',NOW()) ON DUPLICATE KEY UPDATE role='titular',status='active'")
+                    ->execute([(int) $store['usuario_id'], (int) $storeId]);
+                $db->prepare("INSERT INTO store_user_membership_events(user_id,store_id,actor_id,action,new_role,reason)
+                    VALUES(?,?,?,'store_approved','titular','Aprovação da loja pela KlubeCash')")
+                    ->execute([(int) $store['usuario_id'], (int) $storeId, (int) ($_SESSION['user_id'] ?? 0)]);
             } else {
                 // Se não houver usuário associado, isso pode ser um problema
                 $db->rollBack();
                 return ['status' => false, 'message' => 'Loja não possui usuário associado para ativar.'];
             }
+            require_once __DIR__ . '/../services/StoreWallet/StoreWalletService.php';
+            (new \App\Services\StoreWallet\StoreWalletService($db))->provision((int) $storeId);
             
             // PASSO 5: Confirmar todas as alterações
             // Como assinar o contrato final - só agora as mudanças são permanentes
@@ -120,7 +130,7 @@ class StoreController {
                 ]
             ];
             
-        } catch (PDOException $e) {
+        } catch (Throwable $e) {
             // Se algo der errado, cancelar todas as alterações
             if (isset($db) && $db->inTransaction()) {
                 $db->rollBack();
@@ -618,6 +628,36 @@ class StoreController {
      * Lista todos os funcionários de uma loja
      */
     public static function getEmployees($filters = [], $page = 1) {
+        if (!AuthController::canManageEmployees() || !self::getStoreId()) {
+            return ['status' => false, 'message' => 'Acesso restrito à gestão da filial ativa.'];
+        }
+        try {
+            $result = (new \App\Services\Store\StoreManagementService(Database::getConnection()))->employees(
+                (int) self::getStoreId(),
+                ['subtype' => ($filters['subtipo'] ?? '') === 'todos' ? '' : (string) ($filters['subtipo'] ?? ''),
+                    'status' => ($filters['status'] ?? '') === 'todos' ? '' : (string) ($filters['status'] ?? ''),
+                    'search' => (string) ($filters['busca'] ?? '')],
+                max(1, (int) $page)
+            );
+            $employees = array_map(static fn (array $item): array => [
+                'id' => $item['id'], 'nome' => $item['name'], 'email' => $item['email'],
+                'telefone' => $item['phone'], 'subtipo_funcionario' => $item['subtype'],
+                'status' => $item['status'], 'data_criacao' => $item['createdAt'],
+                'ultimo_login' => $item['lastLoginAt'],
+            ], $result['items']);
+            $summary = $result['summary']; $pagination = $result['pagination'];
+            return ['status' => true, 'data' => [
+                'funcionarios' => $employees,
+                'estatisticas' => ['total_funcionarios' => $summary['total'], 'total_financeiro' => $summary['financial'],
+                    'total_gerente' => $summary['managers'], 'total_vendedor' => $summary['sales'],
+                    'total_ativos' => $summary['active'], 'total_inativos' => $summary['inactive']],
+                'paginacao' => ['total' => $pagination['totalItems'], 'por_pagina' => $pagination['pageSize'],
+                    'pagina_atual' => $pagination['page'], 'total_paginas' => $pagination['totalPages']],
+            ]];
+        } catch (\Throwable $error) {
+            error_log('legacy.employee.list ' . get_class($error));
+            return ['status' => false, 'message' => 'Não foi possível carregar a equipe da filial.'];
+        }
         try {
             if (!AuthController::canManageEmployees()) {
                 return ['status' => false, 'message' => 'Acesso restrito a lojistas e gerentes.'];
@@ -731,6 +771,23 @@ class StoreController {
      * Cria um novo funcionário
      */
     public static function createEmployee($data) {
+        if (!AuthController::canManageEmployees() || !self::getStoreId()) {
+            return ['status' => false, 'message' => 'Acesso restrito à gestão da filial ativa.'];
+        }
+        try {
+            $created = (new \App\Services\Store\StoreManagementService(Database::getConnection()))->createEmployee(
+                (int) self::getStoreId(), AuthController::isStoreOwner(),
+                ['name' => $data['nome'] ?? '', 'email' => $data['email'] ?? '',
+                    'phone' => $data['telefone'] ?? '', 'password' => $data['senha'] ?? '',
+                    'subtype' => $data['subtipo_funcionario'] ?? '']
+            );
+            return ['status' => true, 'message' => 'Funcionário criado na filial.', 'data' => ['id' => $created['id']]];
+        } catch (\App\Services\Store\StoreApiException $error) {
+            return ['status' => false, 'message' => $error->getMessage()];
+        } catch (\Throwable $error) {
+            error_log('legacy.employee.create ' . get_class($error));
+            return ['status' => false, 'message' => 'Não foi possível criar o funcionário.'];
+        }
         try {
             // NOVA VERIFICAÇÃO
             if (!AuthController::hasStoreAccess()) {
@@ -846,6 +903,10 @@ class StoreController {
             
             if ($success) {
                 $funcionarioId = $db->lastInsertId();
+                $role = in_array((string) $data['subtipo_funcionario'], ['gerente','financeiro','vendedor'], true)
+                    ? (string) $data['subtipo_funcionario'] : 'vendedor';
+                $db->prepare("INSERT INTO store_user_memberships(user_id,store_id,role,status,accepted_at)
+                    VALUES(?,?,?,'active',NOW())")->execute([$funcionarioId, $finalStoreId, $role]);
                 
                 // Log da criação
                 error_log("Funcionário criado - ID: {$funcionarioId}, Loja: {$finalStoreId}, Criado por: {$_SESSION['user_id']}");
@@ -865,6 +926,23 @@ class StoreController {
      * Atualiza dados de um funcionário
      */
     public static function updateEmployee($employeeId, $data) {
+        if (!AuthController::canManageEmployees() || !self::getStoreId()) {
+            return ['status' => false, 'message' => 'Acesso restrito à gestão da filial ativa.'];
+        }
+        try {
+            (new \App\Services\Store\StoreManagementService(Database::getConnection()))->updateEmployee(
+                (int) self::getStoreId(), AuthController::isStoreOwner(), (int) $employeeId,
+                ['name' => $data['nome'] ?? '', 'email' => $data['email'] ?? '',
+                    'phone' => $data['telefone'] ?? '', 'password' => $data['senha'] ?? '',
+                    'subtype' => $data['subtipo_funcionario'] ?? '']
+            );
+            return ['status' => true, 'message' => 'Função atualizada nesta filial.'];
+        } catch (\App\Services\Store\StoreApiException $error) {
+            return ['status' => false, 'message' => $error->getMessage()];
+        } catch (\Throwable $error) {
+            error_log('legacy.employee.update ' . get_class($error));
+            return ['status' => false, 'message' => 'Não foi possível atualizar o vínculo.'];
+        }
         try {
             if (!AuthController::canManageEmployees()) {
                 return ['status' => false, 'message' => 'Acesso restrito a lojistas e gerentes.'];
@@ -960,6 +1038,18 @@ class StoreController {
      * Remove/desativa um funcionário
      */
     public static function deleteEmployee($employeeId) {
+        if (!AuthController::isStoreOwner() || !self::getStoreId()) {
+            return ['status' => false, 'message' => 'Apenas o titular pode desativar o vínculo nesta filial.'];
+        }
+        try {
+            (new \App\Services\Store\StoreManagementService(Database::getConnection()))->deactivateEmployee((int) self::getStoreId(), (int) $employeeId);
+            return ['status' => true, 'message' => 'Vínculo desativado nesta filial.'];
+        } catch (\App\Services\Store\StoreApiException $error) {
+            return ['status' => false, 'message' => $error->getMessage()];
+        } catch (\Throwable $error) {
+            error_log('legacy.employee.deactivate ' . get_class($error));
+            return ['status' => false, 'message' => 'Não foi possível desativar o vínculo.'];
+        }
         try {
             if (!AuthController::isStore()) {
                 return ['status' => false, 'message' => 'Acesso restrito a lojistas.'];

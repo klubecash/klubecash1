@@ -238,6 +238,46 @@
   line-height: 1.72;
 }
 
+.mascotSpotlight {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 165px;
+  margin: 18px -18px 4px 0;
+  overflow: hidden;
+}
+
+.mascotCopy {
+  position: relative;
+  z-index: 2;
+  align-self: center;
+  max-width: 145px;
+  margin-left: 2px;
+}
+
+.mascotCopy span {
+  display: block;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.mascotCopy p {
+  margin: 7px 0 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.authKlubinho {
+  position: absolute;
+  right: -18px;
+  bottom: -38px;
+  width: 245px;
+}
+
 .featureList {
   display: grid;
   gap: 13px;
@@ -657,6 +697,8 @@
   .brandContent { display: grid; grid-template-columns: 1fr 1fr; align-items: end; gap: 18px 30px; }
   .secureBadge { grid-column: 1 / -1; }
   .whiteLogo { width: 150px; margin: 16px 0 0; align-self: center; }
+  .mascotSpotlight { min-height: 136px; margin-top: 8px; }
+  .authKlubinho { width: 205px; right: -12px; bottom: -31px; }
   .welcomeCopy { grid-column: 1; }
   .welcomeCopy h1 { font-size: 2.25rem; }
   .featureList { grid-column: 2; grid-row: 2 / span 2; margin: 0; align-self: center; }
@@ -680,6 +722,11 @@
   .brandContent { display: flex; gap: 0; }
   .secureBadge { margin-bottom: 29px; }
   .whiteLogo { width: 132px; margin: 0 0 22px; }
+  .mascotSpotlight { min-height: 112px; margin: 3px -8px 0 0; }
+  .mascotCopy { max-width: 122px; }
+  .mascotCopy span { font-size: 0.54rem; }
+  .mascotCopy p { font-size: 0.7rem; }
+  .authKlubinho { width: 166px; right: -14px; bottom: -24px; }
   .welcomeCopy h1 { margin-bottom: 10px; font-size: 2rem; }
   .welcomeCopy p { font-size: 0.89rem; line-height: 1.58; }
   .featureList { display: none; }
@@ -701,7 +748,8 @@
 @media (prefers-reduced-motion: reduce) {
   .loginShell,
   .toast,
-  .spinner { animation-duration: 1ms; animation-iteration-count: 1; }
+  .spinner,
+  :global(.klubinho-float) { animation-duration: 1ms; animation-iteration-count: 1; }
   .submitButton,
   .submitButton svg,
   .themeToggle,

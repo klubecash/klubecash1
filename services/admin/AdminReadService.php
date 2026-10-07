@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Services\Admin;
 
+use App\Services\Billing\SubscriptionService;
+use App\Services\Giftback\GiftbackLedger;
 use PDO;
+use Throwable;
 
 final class AdminReadService
 {
@@ -184,10 +187,12 @@ final class AdminReadService
         $offset = ($page - 1) * $pageSize;
         $stmt = $this->db->prepare(
             "SELECT l.id,l.nome_fantasia,l.razao_social,l.cnpj,l.email,l.telefone,l.categoria,l.status,l.observacao,
-                    l.porcentagem_cliente,l.cashback_ativo,l.data_cadastro,l.data_aprovacao,l.updated_at,u.nome owner_name,
+                    l.porcentagem_cliente,l.cashback_ativo,l.giftback_expiration_days,l.data_cadastro,l.data_aprovacao,l.updated_at,u.nome owner_name,
+                    nm.network_id,nm.status network_membership_status,n.name network_name,
                     (SELECT COUNT(*) FROM transacoes_cashback t WHERE t.loja_id=l.id) transactions_count,
                     (SELECT COALESCE(SUM(t.valor_total),0) FROM transacoes_cashback t WHERE t.loja_id=l.id AND t.status='aprovado') gross_amount
-             FROM lojas l LEFT JOIN usuarios u ON u.id=l.usuario_id{$whereSql}
+             FROM lojas l LEFT JOIN usuarios u ON u.id=l.usuario_id
+             LEFT JOIN store_network_memberships nm ON nm.store_id=l.id LEFT JOIN store_networks n ON n.id=nm.network_id{$whereSql}
              ORDER BY l.data_cadastro DESC,l.id DESC LIMIT {$pageSize} OFFSET {$offset}"
         );
         $stmt->execute($params);
@@ -199,10 +204,13 @@ final class AdminReadService
     {
         $stmt = $this->db->prepare(
             "SELECT l.*,u.nome owner_name,u.email owner_email,e.cep,e.logradouro,e.numero,e.complemento,e.bairro,e.cidade,e.estado,
+                    nm.network_id,nm.status network_membership_status,n.name network_name,
                     (SELECT COUNT(*) FROM usuarios f WHERE f.loja_vinculada_id=l.id AND f.tipo='funcionario' AND f.status='ativo') employees_count,
                     (SELECT COUNT(*) FROM transacoes_cashback t WHERE t.loja_id=l.id) transactions_count,
                     (SELECT COALESCE(SUM(t.valor_total),0) FROM transacoes_cashback t WHERE t.loja_id=l.id AND t.status='aprovado') gross_amount
-             FROM lojas l LEFT JOIN usuarios u ON u.id=l.usuario_id LEFT JOIN lojas_endereco e ON e.loja_id=l.id WHERE l.id=:id LIMIT 1"
+             FROM lojas l LEFT JOIN usuarios u ON u.id=l.usuario_id LEFT JOIN lojas_endereco e ON e.loja_id=l.id
+             LEFT JOIN store_network_memberships nm ON nm.store_id=l.id LEFT JOIN store_networks n ON n.id=nm.network_id
+             WHERE l.id=:id LIMIT 1"
         );
         $stmt->execute([':id' => $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -250,6 +258,51 @@ final class AdminReadService
     }
 
     /** @param array<string, string> $filters @return array<string, mixed> */
+    public function giftbackCustomers(int $storeId, string $search, int $page, int $pageSize = 20): array
+    {
+        $where = ' WHERE s.loja_id=:store';
+        $params = [':store' => $storeId];
+        if (trim($search) !== '') {
+            $where .= ' AND (u.nome LIKE :name OR u.email LIKE :email OR u.id=:user_id)';
+            $params += [':name' => '%' . trim($search) . '%', ':email' => '%' . trim($search) . '%', ':user_id' => (int) $search];
+        }
+        $count = $this->db->prepare('SELECT COUNT(*) FROM cashback_saldos s JOIN usuarios u ON u.id=s.usuario_id' . $where);
+        $count->execute($params);
+        $page = max(1, $page); $pageSize = max(1, min(100, $pageSize));
+        $offset = ($page - 1) * $pageSize;
+        $stmt = $this->db->prepare('SELECT u.id,u.nome,u.email FROM cashback_saldos s JOIN usuarios u ON u.id=s.usuario_id' . $where . " ORDER BY u.nome,u.id LIMIT {$pageSize} OFFSET {$offset}");
+        $stmt->execute($params);
+        return $this->page(array_map(static fn (array $row): array => [
+            'id' => (int) $row['id'], 'name' => (string) $row['nome'], 'email' => (string) $row['email'],
+        ], $stmt->fetchAll(PDO::FETCH_ASSOC)), $page, $pageSize, (int) $count->fetchColumn());
+    }
+
+    /** Listar créditos sempre exige um cliente específico dentro da loja. */
+    public function giftbackCredits(int $storeId, int $userId, array $filters, int $page, int $pageSize = 20): array
+    {
+        if ($storeId <= 0 || $userId <= 0) {
+            throw new AdminApiException('Selecione uma loja e um cliente para consultar o giftback.', 422);
+        }
+        $ledger = new GiftbackLedger($this->db);
+        $ledger->settleWallet($userId, $storeId);
+        $result = $ledger->listCredits($userId, $storeId, $filters, $page, $pageSize);
+        return $this->page($result['items'], $result['page'], $result['pageSize'], $result['total']);
+    }
+
+    public function giftbackCredit(int $id, int $userId, int $storeId): array
+    {
+        if ($userId <= 0 || $storeId <= 0) {
+            throw new AdminApiException('Selecione o cliente e a loja deste crédito.', 422);
+        }
+        $ledger = new GiftbackLedger($this->db);
+        $ledger->settleWallet($userId, $storeId);
+        $credit = $ledger->creditDetail($id, $userId);
+        if ((int) $credit['storeId'] !== $storeId) {
+            throw new AdminApiException('O crédito não pertence ao cliente nesta loja.', 404);
+        }
+        return $this->state(['item' => $credit]);
+    }
+
     public function transactions(array $filters, int $page, int $pageSize = 20): array
     {
         [$where, $params] = $this->where($filters, [
@@ -283,7 +336,8 @@ final class AdminReadService
         $offset = ($page - 1) * $pageSize;
         $stmt = $this->db->prepare(
             "SELECT t.id,t.codigo_transacao,t.valor_total,t.valor_cliente,t.valor_admin,t.valor_loja,t.valor_cashback,t.status,
-                    t.financial_model,t.data_transacao,t.descricao,u.nome customer_name,u.email customer_email,l.nome_fantasia store_name,
+                    t.financial_model,t.data_transacao,t.descricao,t.vendedor_id,t.vendedor_nome_snapshot,t.criado_por,
+                    t.registrado_por_nome_snapshot,t.network_id_snapshot,u.nome customer_name,u.email customer_email,l.nome_fantasia store_name,
                     COALESCE((SELECT SUM(cm.valor) FROM cashback_movimentacoes cm WHERE cm.transacao_uso_id=t.id AND cm.tipo_operacao='uso'),0) balance_used
              FROM transacoes_cashback t JOIN usuarios u ON u.id=t.usuario_id JOIN lojas l ON l.id=t.loja_id{$whereSql}
              ORDER BY t.data_transacao DESC,t.id DESC LIMIT {$pageSize} OFFSET {$offset}"
@@ -305,7 +359,7 @@ final class AdminReadService
         if (!$row) {
             throw new AdminApiException('Transação não encontrada.', 404);
         }
-        $movements = $this->db->prepare('SELECT id,tipo_operacao,valor,saldo_anterior,saldo_atual,descricao,data_operacao FROM cashback_movimentacoes WHERE transacao_origem_id=:origin_id OR transacao_uso_id=:usage_id ORDER BY data_operacao,id');
+        $movements = $this->db->prepare('SELECT id,loja_id,redemption_store_id,tipo_operacao,valor,saldo_anterior,saldo_atual,descricao,data_operacao FROM cashback_movimentacoes WHERE transacao_origem_id=:origin_id OR transacao_uso_id=:usage_id ORDER BY data_operacao,id');
         $movements->execute([':origin_id' => $id, ':usage_id' => $id]);
         $item = $this->transactionRow($row) + [
             'description' => (string) ($row['descricao'] ?? ''),
@@ -315,6 +369,8 @@ final class AdminReadService
             'cashbackCreditedAt' => $this->iso($row['cashback_credited_at'] ?? null),
             'movements' => array_map(fn (array $movement): array => [
                 'id' => (int) $movement['id'], 'type' => (string) $movement['tipo_operacao'],
+                'originStoreId' => (int) $movement['loja_id'],
+                'redemptionStoreId' => $movement['redemption_store_id'] === null ? null : (int) $movement['redemption_store_id'],
                 'amountCents' => AdminMoney::cents($movement['valor']), 'previousCents' => AdminMoney::cents($movement['saldo_anterior']),
                 'currentCents' => AdminMoney::cents($movement['saldo_atual']), 'description' => (string) ($movement['descricao'] ?? ''),
                 'occurredAt' => $this->iso($movement['data_operacao']),
@@ -479,14 +535,24 @@ final class AdminReadService
         if (!$row) { throw new AdminApiException('Assinatura não encontrada.', 404); }
         $invoice = $this->db->prepare('SELECT id,numero,amount,status,due_date,paid_at,payment_method,created_at FROM faturas WHERE assinatura_id=:id ORDER BY created_at DESC');
         $invoice->execute([':id' => $id]);
-        return $this->state(['item' => $this->subscriptionRow($row) + [
+        $item = $this->subscriptionRow($row) + [
             'storeEmail' => (string) $row['store_email'],
             'invoices' => array_map(fn (array $item): array => [
                 'id' => (int) $item['id'], 'number' => (string) $item['numero'], 'amountCents' => AdminMoney::cents($item['amount']),
                 'status' => (string) $item['status'], 'dueDate' => $this->iso($item['due_date']), 'paidAt' => $this->iso($item['paid_at']),
                 'paymentMethod' => $item['payment_method'], 'createdAt' => $this->iso($item['created_at']),
             ], $invoice->fetchAll(PDO::FETCH_ASSOC)),
-        ]]);
+        ];
+        try {
+            $billing = new SubscriptionService($this->db);
+            $context = $billing->context((int) $row['loja_id']);
+            $item['salesAccess'] = $context['salesAccess'] ?? null;
+            $item['gateway'] = $context['subscription']['gateway'] ?? ($row['gateway'] ?? null);
+        } catch (Throwable) {
+            // The read model remains available while an optional billing
+            // migration is being rolled out.
+        }
+        return $this->state(['item' => $item]);
     }
 
     /** @return array<string, mixed> */
@@ -644,6 +710,10 @@ final class AdminReadService
             'id' => (int) $row['id'], 'name' => (string) $row['nome_fantasia'], 'legalName' => (string) $row['razao_social'], 'cnpj' => (string) $row['cnpj'],
             'email' => (string) $row['email'], 'phone' => (string) $row['telefone'], 'category' => (string) $row['categoria'], 'status' => (string) $row['status'],
             'notes' => $row['observacao'] ?? null, 'customerCashbackPercentage' => (float) $row['porcentagem_cliente'], 'cashbackEnabled' => (bool) $row['cashback_ativo'],
+            'giftbackExpirationDays' => isset($row['giftback_expiration_days']) ? (int) $row['giftback_expiration_days'] : null,
+            'networkId' => isset($row['network_id']) ? (int) $row['network_id'] : null,
+            'networkName' => $row['network_name'] ?? null,
+            'networkStatus' => $row['network_membership_status'] ?? null,
             'ownerName' => (string) ($row['owner_name'] ?? ''), 'transactionsCount' => (int) ($row['transactions_count'] ?? 0),
             'grossAmountCents' => AdminMoney::cents($row['gross_amount'] ?? 0), 'registeredAt' => $this->iso($row['data_cadastro']), 'approvedAt' => $this->iso($row['data_aprovacao']),
             'updatedAt' => $this->iso($row['updated_at']),
@@ -657,6 +727,11 @@ final class AdminReadService
         return [
             'id' => (int) $row['id'], 'code' => (string) ($row['codigo_transacao'] ?? ''), 'customerName' => (string) $row['customer_name'],
             'storeName' => (string) $row['store_name'], 'grossAmountCents' => $gross, 'balanceUsedCents' => $balance,
+            'sellerId' => isset($row['vendedor_id']) ? (int) $row['vendedor_id'] : null,
+            'sellerName' => $row['vendedor_nome_snapshot'] ?: 'Vendedor não identificado',
+            'recordedById' => isset($row['criado_por']) ? (int) $row['criado_por'] : null,
+            'recordedByName' => $row['registrado_por_nome_snapshot'] ?: 'Responsável não identificado',
+            'networkId' => isset($row['network_id_snapshot']) ? (int) $row['network_id_snapshot'] : null,
             'paidAmountCents' => max(0, $gross - $balance), 'cashbackAmountCents' => AdminMoney::cents($row['valor_cliente'] ?? $row['valor_cashback'] ?? 0),
             'status' => (string) $row['status'], 'financialModel' => (string) ($row['financial_model'] ?? 'commission_legacy'), 'occurredAt' => $this->iso($row['data_transacao']),
         ];

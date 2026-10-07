@@ -1,0 +1,16 @@
+[Unit]
+Description=KlubeCash giftback expiration
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/klubecash-worker.env
+ExecStart=/bin/sh /opt/klubecash/scripts/vps/klubecash-giftback-worker.sh
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

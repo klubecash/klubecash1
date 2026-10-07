@@ -31,7 +31,7 @@ describe("experiência de cadastro", () => {
 
     expect(screen.getByRole("heading", { name: "Crie sua conta" })).toBeInTheDocument();
     expect(screen.getByText("Comece a ganhar dinheiro de volta em suas compras")).toBeInTheDocument();
-    expect(screen.getByText("Cashback real")).toBeInTheDocument();
+    expect(screen.getByText("Giftback real")).toBeInTheDocument();
     expect(screen.getByText("Processo rápido e seguro")).toBeInTheDocument();
     expect(screen.getByText("Muitas de lojas parceiras")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Fazer login" })).toHaveAttribute("href", "/login");

@@ -14,8 +14,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const context = await getHomeContext();
   return {
     title: context.authenticated && context.user
-      ? `Bem-vindo ao Klube Cash, ${context.user.name}`
-      : "Klube Cash - Transforme suas Compras em Dinheiro de Volta",
+      ? `Bem-vindo ao KlubeCash, ${context.user.name}`
+      : "KlubeCash - Transforme suas Compras em Dinheiro de Volta",
   };
 }
 

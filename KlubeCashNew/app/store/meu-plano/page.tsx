@@ -2,7 +2,9 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BadgeCheck, Check, KeyRound, Sparkles } from "lucide-react";
+import { BadgeCheck, Check, CreditCard, KeyRound, ShieldAlert, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { storeFetch } from "@/lib/client-api";
@@ -10,95 +12,50 @@ import { moneyFromCents } from "@/lib/format";
 import { ErrorState, LoadingState } from "@/components/store/PageState";
 import { useStoreContext } from "@/components/store/StoreProviders";
 
+type Invoice = { id: number; number: string; amountCents: number; status: string; dueDate: string | null; paidAt: string | null; paymentMethod: string | null; paymentUrl?: string | null; createdAt: string | null };
 type SubscriptionData = {
-  dataState: "ready" | "empty";
-  generatedAt: string;
-  subscription: null | {
-    status: string;
-    cycle: string;
-    planName: string;
-    planSlug: string;
-    currentPeriodEnd: string | null;
-    trialEnd: string | null;
-    monthlyPriceCents: number;
-    features: Array<string> | Record<string, unknown>;
-  };
-  plans: Array<{
-    name: string;
-    slug: string;
-    monthlyPriceCents: number;
-    annualPriceCents: number;
-    trialDays: number;
-    features: Array<string> | Record<string, unknown>;
-  }>;
+  dataState: "ready" | "empty"; generatedAt: string;
+  checkout?: { mode: "transparent" | "legacy"; manualBilling: boolean; publicKey: string };
+  subscription: null | { id: number; status: string; cycle: string; planName: string; planSlug: string; currentPeriodStart: string | null; currentPeriodEnd: string | null; nextInvoiceDate: string | null; trialEnd: string | null; monthlyPriceCents: number; annualPriceCents: number; features: string[]; updatedAt: string | null };
+  salesAccess: { canRegisterSales: boolean; salesBlocked: boolean; reason: string | null; status: string | null };
+  invoices: Invoice[];
+  plans: Array<{ id: number; name: string; slug: string; monthlyPriceCents: number; annualPriceCents: number; trialDays: number; recurrence: string; features: string[] }>;
 };
 const codeSchema = z.object({ code: z.string().trim().min(4, "Informe o código recebido.").max(32) });
+const statusLabel: Record<string, string> = { ativa: "Ativa", trial: "Período de teste", pendente: "Aguardando pagamento", inadimplente: "Em atraso", suspensa: "Suspensa", pausada: "Pausada", cancelada: "Cancelada", paid: "Paga", pending: "Pendente", failed: "Falhou" };
+const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" }).format(new Date(value)) : "—";
+const requestKey = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
 export default function SubscriptionPage() {
   const context = useStoreContext();
   const queryClient = useQueryClient();
+  const [selectedPlan, setSelectedPlan] = useState("");
+  const [cycle, setCycle] = useState("monthly");
+  const [reason, setReason] = useState("");
   const form = useForm<z.infer<typeof codeSchema>>({ resolver: zodResolver(codeSchema), defaultValues: { code: "" } });
   const query = useQuery({ queryKey: ["subscription"], queryFn: () => storeFetch<SubscriptionData>("subscription") });
-  const redeem = useMutation({
-    mutationFn: ({ code }: z.infer<typeof codeSchema>) =>
-      storeFetch<{ planName: string; status: string }>("subscription/redeem", {
-        method: "POST",
-        headers: { "X-CSRF-Token": context.csrfToken },
-        body: JSON.stringify({ code: code.toUpperCase(), csrfToken: context.csrfToken }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["subscription"] });
-      form.reset();
-    },
-  });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["subscription"] });
+  const redeem = useMutation({ mutationFn: ({ code }: z.infer<typeof codeSchema>) => storeFetch("subscription/redeem", { method: "POST", headers: { "X-CSRF-Token": context.csrfToken }, body: JSON.stringify({ code: code.toUpperCase(), csrfToken: context.csrfToken }) }), onSuccess: () => { refresh(); form.reset(); } });
+  const start = useMutation({ mutationFn: () => storeFetch<{ checkoutUrl?: string; paymentUrl?: string; invoiceId?: number }>("subscription/start", { method: "POST", headers: { "X-CSRF-Token": context.csrfToken, "X-Idempotency-Key": requestKey() }, body: JSON.stringify({ planSlug: selectedPlan, cycle, csrfToken: context.csrfToken }) }), onSuccess: (data) => { refresh(); const destination = data.paymentUrl || data.checkoutUrl; if (destination) window.location.assign(destination); } });
+  const changePlan = useMutation({ mutationFn: () => storeFetch("subscription/change-plan", { method: "POST", headers: { "X-CSRF-Token": context.csrfToken, "X-Idempotency-Key": requestKey() }, body: JSON.stringify({ planSlug: selectedPlan, cycle, csrfToken: context.csrfToken }) }), onSuccess: refresh });
+  const checkout = useMutation({ mutationFn: (invoiceId: number) => storeFetch<{ checkoutUrl: string }>("subscription/checkout", { method: "POST", headers: { "X-CSRF-Token": context.csrfToken, "X-Idempotency-Key": requestKey() }, body: JSON.stringify({ invoiceId, csrfToken: context.csrfToken }) }), onSuccess: (data) => { if (data.checkoutUrl) window.location.assign(data.checkoutUrl); } });
+  const pixCheckout = useMutation({ mutationFn: () => storeFetch<{ checkoutUrl: string }>("subscription/pix", { method: "POST", headers: { "X-CSRF-Token": context.csrfToken, "X-Idempotency-Key": requestKey() }, body: JSON.stringify({ csrfToken: context.csrfToken }) }), onSuccess: (data) => { if (data.checkoutUrl) window.location.assign(data.checkoutUrl); } });
+  const action = useMutation({ mutationFn: (name: "pause" | "cancel") => storeFetch("subscription/action", { method: "POST", headers: { "X-CSRF-Token": context.csrfToken, "X-Idempotency-Key": requestKey() }, body: JSON.stringify({ action: name, reason: reason || "Solicitação do titular", updatedAt: query.data?.subscription?.updatedAt, csrfToken: context.csrfToken }) }), onSuccess: () => { setReason(""); refresh(); } });
   if (query.isLoading) return <LoadingState />;
-  if (query.isError || !query.data)
-    return <ErrorState message={query.error?.message ?? "Erro inesperado."} retry={() => query.refetch()} />;
-  const { subscription, plans } = query.data;
-  const features = subscription ? normalizeFeatures(subscription.features) : [];
-
-  return (
-    <div className="store-page store-stack">
-      <section className="store-page-head">
-        <div><h2>Plano da sua loja</h2><p>Consulte os recursos ativos e resgate um código fornecido pela equipe Klube Cash.</p></div>
-        {subscription && <span className={`store-status ${["ativa", "trial"].includes(subscription.status) ? "ativo" : "pendente"}`}>{subscription.status}</span>}
-      </section>
-      <div className="store-alert">
-        Cobranças e PIX de assinatura não estão disponíveis nesta etapa. Nenhuma cobrança será iniciada por esta tela.
-      </div>
-      {!subscription && (
-        <section className="store-panel" style={{ background: "linear-gradient(135deg,var(--store-card),var(--store-soft))" }}>
-          <div className="store-grid store-grid-2">
-            <div><span className="store-stat-icon"><KeyRound size={20} /></span><h3 style={{ fontSize: 24, marginBottom: 8 }}>Ative seu plano com um código</h3><p style={{ color: "var(--store-muted)", fontSize: 13, lineHeight: 1.6 }}>Use somente o código fornecido pelo administrador.</p></div>
-            <form className="store-form" onSubmit={form.handleSubmit((values) => redeem.mutate(values))}>
-              <label className="store-field"><span>Código do plano</span><input className="store-input store-code" {...form.register("code")} placeholder="KLUBE-XXXX" />{form.formState.errors.code && <small className="store-error">{form.formState.errors.code.message}</small>}</label>
-              {redeem.isError && <div className="store-alert store-alert-error">{redeem.error.message}</div>}
-              {redeem.isSuccess && <div className="store-alert store-alert-success">Plano ativado com sucesso.</div>}
-              <button className="store-button store-button-primary" disabled={redeem.isPending}><Sparkles size={16} />{redeem.isPending ? "Ativando..." : "Ativar plano"}</button>
-            </form>
-          </div>
-        </section>
-      )}
-      {subscription && (
-        <section className="store-panel">
-          <div className="store-panel-head"><div><h3><BadgeCheck size={18} /> {subscription.planName}</h3><p>Plano atual da sua loja</p></div><strong style={{ fontSize: 24 }}>{moneyFromCents(subscription.monthlyPriceCents)}<small style={{ fontSize: 11, color: "var(--store-muted)" }}>/mês</small></strong></div>
-          <div className="store-grid store-grid-3">
-            {features.map((feature) => <div className="store-customer-card" key={feature}><Check size={16} style={{ color: "var(--store-green)" }} /><h4 style={{ marginTop: 8 }}>{feature}</h4></div>)}
-          </div>
-        </section>
-      )}
-      <section>
-        <div className="store-panel-head"><div><h3>Planos disponíveis</h3><p>Visão informativa; mudanças são feitas por código ou pelo suporte.</p></div></div>
-        <div className="store-grid store-grid-3">
-          {plans.map((plan) => <article className="store-panel" key={plan.slug}><span className="store-stat-label">{plan.trialDays > 0 ? `${plan.trialDays} dias de teste` : "Plano Klube Cash"}</span><h3 style={{ fontSize: 20, marginBottom: 4 }}>{plan.name}</h3><strong style={{ fontSize: 24 }}>{moneyFromCents(plan.monthlyPriceCents)}<small style={{ fontSize: 11, color: "var(--store-muted)" }}>/mês</small></strong></article>)}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function normalizeFeatures(features: Array<string> | Record<string, unknown>) {
-  return Array.isArray(features)
-    ? features.map(String)
-    : Object.entries(features).map(([key, value]) => `${key.replaceAll("_", " ")}: ${String(value)}`);
+  if (query.isError || !query.data) return <ErrorState message={query.error?.message ?? "Erro inesperado."} retry={() => query.refetch()} />;
+  const { subscription, plans, invoices, salesAccess } = query.data;
+  const manualBilling = query.data.checkout?.manualBilling === true;
+  const pendingInvoice = invoices.find((invoice) => invoice.status === "pending");
+  const features = subscription?.features ?? [];
+  return <div className="store-page store-stack">
+    <section className="store-page-head"><div><h2>Plano e faturamento</h2><p>Gerencie a assinatura da sua loja sem perder o histórico financeiro.</p></div>{subscription && <span className={`store-status ${salesAccess.canRegisterSales ? "ativo" : "pendente"}`}>{statusLabel[subscription.status] ?? subscription.status}</span>}</section>
+    {subscription && !salesAccess.canRegisterSales && <div className="store-alert store-alert-error"><ShieldAlert size={17} /><span><strong>Novas vendas bloqueadas.</strong> Seu painel, clientes, histórico e faturas continuam disponíveis. Regularize a assinatura para liberar o registro de vendas.</span></div>}
+    {subscription && salesAccess.canRegisterSales && <div className="store-alert store-alert-success"><BadgeCheck size={17} /> Assinatura liberada para registrar novas vendas.</div>}
+    {subscription ? <>
+      <section className="store-panel"><div className="store-panel-head"><div><h3><BadgeCheck size={18} /> {subscription.planName}</h3><p>Ciclo {subscription.cycle === "yearly" ? "anual" : "mensal"} · válida até {formatDate(subscription.currentPeriodEnd)}</p></div><strong style={{ fontSize: 24 }}>{moneyFromCents(subscription.cycle === "yearly" ? subscription.annualPriceCents : subscription.monthlyPriceCents)}<small style={{ fontSize: 11, color: "var(--store-muted)" }}>/{subscription.cycle === "yearly" ? "ano" : "mês"}</small></strong></div><div className="store-grid store-grid-3">{features.map((feature) => <div className="store-customer-card" key={feature}><Check size={16} style={{ color: "var(--store-green)" }} /><h4 style={{ marginTop: 8 }}>{feature}</h4></div>)}</div>{["pendente", "inadimplente"].includes(subscription.status) && <div className="store-alert store-alert-warning"><CreditCard size={17} /><span><strong>Regularize sua assinatura.</strong> O pagamento é manual e será confirmado pelo Mercado Pago.</span>{manualBilling && pendingInvoice ? <Link className="store-button store-button-primary" href={`/store/meu-plano/pagamento?invoiceId=${pendingInvoice.id}`}>Pagar agora</Link> : <button className="store-button store-button-primary" onClick={() => pixCheckout.mutate()} disabled={pixCheckout.isPending}>{pixCheckout.isPending ? "Gerando link..." : "Pagar com PIX"}</button>}</div>}<div className="store-form" style={{ marginTop: 20 }}><label className="store-field"><span>Motivo (obrigatório para interromper)</span><input className="store-input" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Ex.: pausa temporária da operação" /></label><div className="store-actions"><button className="store-button" onClick={() => action.mutate("pause")} disabled={action.isPending || subscription.status === "suspensa"}>Pausar assinatura</button><button className="store-button" onClick={() => action.mutate("cancel")} disabled={action.isPending || subscription.status === "cancelada"}>Cancelar assinatura</button></div>{!salesAccess.canRegisterSales && <p className="store-muted store-reactivation-note">A reativação ocorre automaticamente após a confirmação de um pagamento válido. Nenhuma ação manual libera vendas.</p>}</div>{action.isError && <div className="store-alert store-alert-error">{action.error.message}</div>}{pixCheckout.isError && <div className="store-alert store-alert-error">{pixCheckout.error.message}</div>}</section>
+      <section className="store-panel"><div className="store-panel-head"><div><h3><CreditCard size={18} /> Faturas</h3><p>Histórico preservado; cada ciclo é pago manualmente no KlubeCash.</p></div></div>{invoices.length ? <div className="store-table-wrap"><table className="store-table"><thead><tr><th>Fatura</th><th>Valor</th><th>Vencimento</th><th>Status</th><th /></tr></thead><tbody>{invoices.map((invoice) => <tr key={invoice.id}><td>{invoice.number || `#${invoice.id}`}</td><td>{moneyFromCents(invoice.amountCents)}</td><td>{formatDate(invoice.dueDate)}</td><td>{statusLabel[invoice.status] ?? invoice.status}</td><td>{invoice.status === "pending" && (manualBilling ? <Link className="store-button store-button-primary" href={`/store/meu-plano/pagamento?invoiceId=${invoice.id}`}>Pagar fatura</Link> : <button className="store-button store-button-primary" onClick={() => checkout.mutate(invoice.id)} disabled={checkout.isPending}>Pagar fatura</button>)}</td></tr>)}</tbody></table></div> : <p className="store-muted">Nenhuma fatura registrada para esta assinatura.</p>}{checkout.isError && <div className="store-alert store-alert-error">{checkout.error.message}</div>}</section>
+      <section className="store-panel"><div className="store-panel-head"><div><h3>Troca de plano</h3><p>A alteração será agendada para a próxima renovação, sem cobrança proporcional.</p></div></div><div className="store-grid store-grid-2"><select className="store-select" value={selectedPlan} onChange={(event) => setSelectedPlan(event.target.value)}><option value="">Selecione um plano</option>{plans.map((plan) => <option value={plan.slug} key={plan.id}>{plan.name} · {moneyFromCents(cycle === "yearly" ? plan.annualPriceCents : plan.monthlyPriceCents)}</option>)}</select><select className="store-select" value={cycle} onChange={(event) => setCycle(event.target.value)}><option value="monthly">Mensal</option><option value="yearly">Anual</option></select></div><button className="store-button store-button-primary" style={{ marginTop: 14 }} disabled={!selectedPlan || changePlan.isPending} onClick={() => changePlan.mutate()}><Sparkles size={16} />{changePlan.isPending ? "Agendando..." : "Agendar troca de plano"}</button>{changePlan.isError && <div className="store-alert store-alert-error">{changePlan.error.message}</div>}</section>
+    </> : <section className="store-panel"><h3>Ative o plano da sua loja</h3><p className="store-muted">Escolha um plano e faça o primeiro pagamento manual no Checkout Transparente.</p><div className="store-grid store-grid-3">{plans.map((plan) => <article className="store-customer-card" key={plan.id}><h4>{plan.name}</h4><strong>{moneyFromCents(plan.monthlyPriceCents)}<small>/mês</small></strong><button className="store-button store-button-primary" style={{ marginTop: 12 }} onClick={() => { setSelectedPlan(plan.slug); setCycle("monthly"); }}>Selecionar</button></article>)}</div><button className="store-button store-button-primary" style={{ marginTop: 14 }} disabled={!selectedPlan || start.isPending} onClick={() => start.mutate()}><CreditCard size={16} />{start.isPending ? "Preparando pagamento..." : "Continuar para pagamento"}</button>{start.isError && <div className="store-alert store-alert-error">{start.error.message}</div>}</section>}
+    {!subscription && <section className="store-panel"><div className="store-grid store-grid-2"><div><span className="store-stat-icon"><KeyRound size={20} /></span><h3>Resgatar código</h3><p className="store-muted">Use somente um código fornecido pela equipe KlubeCash.</p></div><form className="store-form" onSubmit={form.handleSubmit((values) => redeem.mutate(values))}><label className="store-field"><span>Código do plano</span><input className="store-input store-code" {...form.register("code")} placeholder="KLUBE-XXXX" />{form.formState.errors.code && <small className="store-error">{form.formState.errors.code.message}</small>}</label>{redeem.isError && <div className="store-alert store-alert-error">{redeem.error.message}</div>}<button className="store-button store-button-primary" disabled={redeem.isPending}><Sparkles size={16} />{redeem.isPending ? "Ativando..." : "Ativar plano"}</button></form></div></section>}
+  </div>;
 }

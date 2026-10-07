@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/app/recuperar-senha/recovery.module.css";
+import { Klubinho } from "./Klubinho";
 
 type Theme = "light" | "dark";
 type Feedback = { type: "error" | "success"; message: string } | null;
@@ -160,7 +161,7 @@ export default function RecoveryExperience({ token, requestSent, initialContext 
 
   useEffect(() => {
     if (context) {
-      document.title = `${context.validToken ? "Redefinir Senha" : "Recuperar Senha"} - Klube Cash`;
+      document.title = `${context.validToken ? "Redefinir Senha" : "Recuperar Senha"} - KlubeCash`;
     }
   }, [context]);
 
@@ -265,8 +266,8 @@ export default function RecoveryExperience({ token, requestSent, initialContext 
     <main className={styles.root}>
       <div className={styles.background} aria-hidden="true"><span /><span /><span /></div>
       <header className={styles.topbar}>
-        <Link href="/" className={styles.brandLink} aria-label="Klube Cash - página inicial">
-          <Image src="/assets/images/logolaranja.png" alt="Klube Cash" width={991} height={383} unoptimized priority />
+        <Link href="/" className={styles.brandLink} aria-label="KlubeCash - página inicial">
+          <Image src="/assets/images/logolaranja.png" alt="KlubeCash" width={991} height={383} unoptimized priority />
         </Link>
         <div className={styles.topbarActions}>
           <Link href="/login" className={styles.backLink}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg><span>Voltar ao login</span></Link>
@@ -359,7 +360,14 @@ export default function RecoveryExperience({ token, requestSent, initialContext 
 
         <aside className={styles.storyPanel} aria-label="Informações de recuperação de senha">
           <div className={styles.storyContent}>
-            <Image src="/assets/images/logobranco.png" alt="Klube Cash" width={991} height={383} className={styles.whiteLogo} unoptimized priority />
+            <Image src="/assets/images/logobranco.png" alt="KlubeCash" width={991} height={383} className={styles.whiteLogo} unoptimized priority />
+            <div className={styles.mascotSpotlight}>
+              <Klubinho pose="aceno" size={205} className={styles.authKlubinho} priority />
+              <div className={styles.mascotCopy}>
+                <span>ESTAMOS COM VOCÊ</span>
+                <p>Seu acesso seguro começa aqui.</p>
+              </div>
+            </div>
             {validToken ? (
               <div className={styles.securityTips}><span className={styles.storyIcon}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.8 8.4 7 10 4.2-1.6 7-5.4 7-10V6l-7-3Z" /><path d="m9 12 2 2 4-4" /></svg></span><h2>Dicas para uma senha segura</h2><p>Use pelo menos 8 caracteres, inclua letras maiúsculas e minúsculas, números e símbolos. Evite informações pessoais óbvias.</p><ul><li><span />Combine tipos de caracteres</li><li><span />Use uma senha exclusiva</li><li><span />Não compartilhe sua senha</li></ul></div>
             ) : (

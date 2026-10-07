@@ -11,6 +11,7 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type']) || $_SESSION[
 
 require_once '../../config/database.php';
 require_once '../../controllers/ClientController.php';
+require_once __DIR__ . '/../../services/Giftback/GiftbackClientReadService.php';
 
 $userId = $_SESSION['user_id'];
 $userName = $_SESSION['user_name'] ?? 'Cliente';
@@ -18,6 +19,8 @@ $userName = $_SESSION['user_name'] ?? 'Cliente';
 // Obter dados do dashboard (mantendo a lógica original)
 try {
     $db = Database::getConnection();
+    (new \App\Services\Giftback\GiftbackLedger($db))->settleUser((int) $userId);
+    $giftbackReader = new \App\Services\Giftback\GiftbackClientReadService($db);
     
     // Saldo total de cashback disponível
     $saldoStmt = $db->prepare("
@@ -75,6 +78,7 @@ try {
     // Saldos por loja
     $balanceStmt = $db->prepare("
         SELECT 
+            cs.loja_id,
             cs.saldo_disponivel,
             l.nome_fantasia,
             l.logo,
@@ -90,9 +94,16 @@ try {
     ");
     $balanceStmt->execute([$userId]);
     $storeBalances = $balanceStmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($storeBalances as &$storeBalance) {
+        $storeBalance['giftback'] = $giftbackReader->wallet((int) $userId, (int) $storeBalance['loja_id']);
+    }
+    unset($storeBalance);
     
-} catch (PDOException $e) {
-    $error = "Erro ao carregar seus dados: " . $e->getMessage();
+} catch (Exception $e) {
+    error_log('Erro ao carregar dashboard: ' . $e->getMessage());
+    $error = 'Não foi possível atualizar seu saldo. Tente novamente em instantes.';
+    $saldoTotal = $saldoPendente = $totalGanho = $saldoUsado = 0;
+    $recentTransactions = $storeBalances = [];
 }
 ?>
 
@@ -333,6 +344,9 @@ try {
                                         <div class="store-name"><?php echo htmlspecialchars($balance['nome_fantasia']); ?></div>
                                         <div class="balance-amount">R$ <?php echo number_format($balance['saldo_disponivel'], 2, ',', '.'); ?></div>
                                         <div class="balance-info"><?php echo $balance['total_compras']; ?> compra(s)</div>
+                                        <?php if (!empty($balance['giftback']['nextExpirationDate'])): ?>
+                                            <div class="balance-info">R$ <?= number_format($balance['giftback']['nextExpirationCents'] / 100, 2, ',', '.') ?> válidos até <?= date('d/m/Y', strtotime($balance['giftback']['nextExpirationDate'])) ?>, fim do dia (Brasília).</div>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
