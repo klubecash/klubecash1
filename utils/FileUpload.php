@@ -350,6 +350,9 @@ class FileUpload {
      * @return string URL base
      */
     private function getBaseUrl() {
+        if (defined('SITE_URL')) {
+            return rtrim((string) SITE_URL, '/');
+        }
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? "https://" : "http://";
         $host = $_SERVER['HTTP_HOST'];
         

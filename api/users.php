@@ -25,6 +25,12 @@ $allowed_origins = [
     'https://www.klubecash.com',
     'https://sdk.mercadopago.com'
 ];
+$configuredSiteUrl = trim((string) getenv('SITE_URL'));
+$configuredSite = $configuredSiteUrl !== '' ? parse_url($configuredSiteUrl) : false;
+if (is_array($configuredSite) && ($configuredSite['scheme'] ?? '') === 'https' && !empty($configuredSite['host'])) {
+    $allowed_origins[] = 'https://' . $configuredSite['host']
+        . (isset($configuredSite['port']) ? ':' . $configuredSite['port'] : '');
+}
 if (!defined('USERS_API_ALLOWED_ORIGINS')) {
     define('USERS_API_ALLOWED_ORIGINS', $allowed_origins);
 }
