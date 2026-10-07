@@ -11,6 +11,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 FROM node:24-alpine
+LABEL org.opencontainers.image.source="https://github.com/klubecash/klubecash1"
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

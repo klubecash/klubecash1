@@ -1,4 +1,5 @@
 FROM php:8.4-fpm-alpine
+LABEL org.opencontainers.image.source="https://github.com/klubecash/klubecash1"
 
 RUN apk add --no-cache ca-certificates icu-libs libcurl libstdc++ \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS icu-dev curl-dev oniguruma-dev \

@@ -32,6 +32,16 @@ jobs:
         working-directory: KlubeCashNew
       - run: php scripts/quality/php-lint.php
       - run: php scripts/quality/check-routes.php
+      - name: Validate deployment Compose syntax
+        run: docker compose -f deploy/compose.coolify.yml config --quiet
+        env:
+          KLUBCASH_IMAGE_TAG: test-sha
+          KLUBCASH_DB_PASSWORD: test-only
+          KLUBCASH_JWT_SECRET: test-only
+          KLUBCASH_SMTP_HOST: smtp.example.test
+          KLUBCASH_SMTP_USERNAME: test-only
+          KLUBCASH_SMTP_PASSWORD: test-only
+          KLUBCASH_SMTP_FROM_EMAIL: test@example.test
 
   images:
     needs: validate
