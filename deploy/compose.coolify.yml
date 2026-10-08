@@ -44,6 +44,7 @@ services:
   php:
     image: ghcr.io/klubecash/klubecash1-php:${KLUBCASH_IMAGE_TAG:?Defina o SHA da imagem validada}
     restart: unless-stopped
+    command: ["sh", "-lc", "chown www-data:www-data /app/uploads /app/logs && exec php-fpm -F"]
     environment:
       SITE_URL: https://vps.klubecash.com
       SESSION_DRIVER: database
