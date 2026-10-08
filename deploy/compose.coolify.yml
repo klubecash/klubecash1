@@ -5,7 +5,7 @@ services:
     environment:
       NODE_ENV: production
       PHP_BACKEND_URL: http://legacy-http:8080
-      SITE_URL: https://vps.klubecash.com
+      SITE_URL: ${KLUBCASH_SITE_URL:-https://vps.klubecash.com}
       STORE_UI_MODE: next
       ADMIN_UI_MODE: next
     expose:
@@ -46,7 +46,7 @@ services:
     restart: unless-stopped
     command: ["sh", "-lc", "chown www-data:www-data /app/uploads /app/logs && exec php-fpm -F"]
     environment:
-      SITE_URL: https://vps.klubecash.com
+      SITE_URL: ${KLUBCASH_SITE_URL:-https://vps.klubecash.com}
       SESSION_DRIVER: database
       SESSION_NAME: KLCSESSID
       SESSION_COOKIE_SECURE: "true"
@@ -72,7 +72,7 @@ services:
       BILLING_PROVIDER: mercadopago
       CHECKOUT_MODE: transparent
       MANUAL_BILLING_ENABLED: "false"
-      BILLING_WRITES_ENABLED: "false"
+      BILLING_WRITES_ENABLED: "${KLUBCASH_BILLING_WRITES_ENABLED:-false}"
       COMMERCIAL_SALES_GATE_ENABLED: "true"
       WAHA_BASE_URL: ${KLUBCASH_WAHA_BASE_URL:-}
       WAHA_API_KEY: ${KLUBCASH_WAHA_API_KEY:-}
@@ -80,11 +80,11 @@ services:
       WAHA_WEBHOOK_HMAC_KEY: ${KLUBCASH_WAHA_WEBHOOK_HMAC_KEY:-}
       WHATSAPP_MENU_HASH_KEY: ${KLUBCASH_WHATSAPP_MENU_HASH_KEY:-}
       WHATSAPP_PUBLIC_NUMBER: ${KLUBCASH_WHATSAPP_PUBLIC_NUMBER:-}
-      WHATSAPP_MENU_ENABLED: "false"
-      WHATSAPP_MERCHANT_AUTH_ENABLED: "false"
-      WHATSAPP_SALES_ENABLED: "false"
-      WAHA_MANAGE_WEBHOOK: "false"
-      VPS_WORKERS_ENABLED: "false"
+      WHATSAPP_MENU_ENABLED: "${KLUBCASH_WHATSAPP_MENU_ENABLED:-false}"
+      WHATSAPP_MERCHANT_AUTH_ENABLED: "${KLUBCASH_WHATSAPP_MERCHANT_AUTH_ENABLED:-false}"
+      WHATSAPP_SALES_ENABLED: "${KLUBCASH_WHATSAPP_SALES_ENABLED:-false}"
+      WAHA_MANAGE_WEBHOOK: "${KLUBCASH_WAHA_MANAGE_WEBHOOK:-false}"
+      VPS_WORKERS_ENABLED: "${KLUBCASH_VPS_WORKERS_ENABLED:-false}"
       CRON_SECRET: ${KLUBCASH_VPS_CRON_SECRET:-}
     volumes:
       - uploads-data:/app/uploads

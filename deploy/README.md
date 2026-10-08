@@ -11,3 +11,9 @@ O volume `uploads-data` é persistente e precisa receber os uploads já referenc
 Não aplicar migrações no MySQL atual até obter backup recuperável fora da VPS, ensaiar restauração e migrações em banco isolado, e reconciliar as carteiras. A ausência de backups agendados no Coolify não comprova que haja outro backup. Após o ensaio, aplicar somente objetos aditivos comprovadamente ausentes; registrar o esquema e os saldos antes/depois.
 
 Validar HTTPS, `/api/health`, assets, sessões dos três perfis, CSRF, carteira, equipe, vendas, SMTP com destinatário de teste, WAHA sem registrar webhook, pagamentos somente em sandbox, uploads, logs, consumo de CPU/RAM/disco e reinícios. Não apontar `www` ou habilitar workers até uma virada separada e coordenada.
+
+## Virada para o domínio principal
+
+O Compose aceita `KLUBCASH_SITE_URL` e as flags `KLUBCASH_BILLING_WRITES_ENABLED`, `KLUBCASH_VPS_WORKERS_ENABLED`, `KLUBCASH_WAHA_MANAGE_WEBHOOK` e `KLUBCASH_WHATSAPP_*_ENABLED`. Todas mantêm os valores de validação por padrão; definir uma variável no Coolify não altera a Vercel. Não habilitar cobranças sem configurar e testar as credenciais de produção do Mercado Pago e o segredo do webhook. Não habilitar os workers enquanto os crons da Vercel estiverem ativos, para evitar processamento duplicado.
+
+Antes de alterar o DNS, conferir os domínios aceitos no Coolify, a emissão de TLS para `www.klubecash.com`, a configuração de uploads, as URLs externas e a capacidade da VPS com MySQL e WAHA em execução. Coordenar a troca dos processadores e verificar notificações, vencimentos e webhooks após a mudança. Manter a Vercel operacional como retorno até a estabilidade ser comprovada.
