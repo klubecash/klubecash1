@@ -21,7 +21,8 @@ if (getenv('VPS_WORKERS_ENABLED') === 'false') {
     exit;
 }
 
-$secret = trim((string) getenv('CRON_SECRET'));
+require_once __DIR__ . '/../services/Security/VpsRuntimeKeys.php';
+$secret = \App\Services\Security\VpsRuntimeKeys::cronSecret();
 $authorization = trim((string) ($_SERVER['HTTP_AUTHORIZATION'] ?? ''));
 if ($secret === '') {
     http_response_code(503);

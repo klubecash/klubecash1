@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\WhatsApp;
 
+use App\Services\Security\VpsRuntimeKeys;
 use RuntimeException;
 
 final class WhatsAppMenuConfig
@@ -26,8 +27,9 @@ final class WhatsAppMenuConfig
         $menu = self::flag('WHATSAPP_MENU_ENABLED');
         $merchant = $menu && self::flag('WHATSAPP_MERCHANT_AUTH_ENABLED');
         $sales = $merchant && self::flag('WHATSAPP_SALES_ENABLED');
-        $hashKey = trim((string) getenv('WHATSAPP_MENU_HASH_KEY'));
-        if ($hashKey === '') {
+        require_once dirname(__DIR__) . '/Security/VpsRuntimeKeys.php';
+        $hashKey = VpsRuntimeKeys::whatsAppMenuHashKey();
+        if ($hashKey === '' && getenv('VPS_DERIVE_RUNTIME_KEYS') !== 'true') {
             $hashKey = trim((string) getenv('WAHA_WEBHOOK_HMAC_KEY'));
         }
         $siteUrl = rtrim((string) (getenv('SITE_URL') ?: 'https://www.klubecash.com'), '/');

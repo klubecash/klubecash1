@@ -8,7 +8,8 @@ if (getenv('VPS_WORKERS_ENABLED') === 'false') {
     echo json_encode(['success' => false, 'message' => 'Processador desativado neste ambiente.']);
     exit;
 }
-$secret = trim((string) getenv('CRON_SECRET'));
+require_once __DIR__ . '/../services/Security/VpsRuntimeKeys.php';
+$secret = \App\Services\Security\VpsRuntimeKeys::cronSecret();
 if ($secret === '' || !hash_equals('Bearer ' . $secret, (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? ''))) {
     http_response_code($secret === '' ? 503 : 401);
     echo json_encode(['success' => false, 'message' => 'Processador interno indisponível ou acesso não autorizado.']);

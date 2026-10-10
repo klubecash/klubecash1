@@ -23,9 +23,10 @@ if (getenv('VPS_WORKERS_ENABLED') !== 'true') {
     exit(0);
 }
 
-$secret = trim((string) getenv('CRON_SECRET'));
+require_once dirname(__DIR__, 2) . '/services/Security/VpsRuntimeKeys.php';
+$secret = \App\Services\Security\VpsRuntimeKeys::cronSecret();
 if (strlen($secret) < 32) {
-    fwrite(STDERR, "CRON_SECRET da VPS ausente ou curto demais.\n");
+    fwrite(STDERR, "Chave interna do worker da VPS indisponivel.\n");
     exit(1);
 }
 
