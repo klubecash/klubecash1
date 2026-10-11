@@ -434,7 +434,7 @@ final class StoreReadService
                 'averageTicketCents' => $sales ? (int) round($gross / $sales) : 0,
                 'customersCount' => (int) ($totalRow['customers_count'] ?? 0),
                 'cancelledCount' => array_sum(array_column($report['items'], 'cancelledCount')),
-                'recordedSalesCount' => (int) $recorded->fetchColumn()],
+                'recordedSalesCount' => $forcedSellerId === null ? (int) $recorded->fetchColumn() : null],
             'branches' => $report['items'],
             'monthlySales' => array_map(static fn (array $row): array => ['month' => $row['month'],
                 'salesCount' => (int) $row['sales_count'], 'grossAmountCents' => StoreMoney::toCents($row['gross_total'])], $monthly->fetchAll(PDO::FETCH_ASSOC)),

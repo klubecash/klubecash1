@@ -216,7 +216,7 @@ try {
         header('Content-Disposition: attachment; filename="' . ($format === 'items' ? 'itens-vendas' : 'vendas-filiais') . '-klubecash.csv"');
         $output = fopen('php://output', 'wb'); fputs($output, "\xEF\xBB\xBF");
         fputcsv($output, $format === 'items'
-            ? ['ID da venda','Código','Filial','Vendedor','Item','Quantidade','Preço unitário','Total do item','Status','Data']
+            ? ['ID da venda','Código','Filial','Cliente','Vendedor','Registrado por','Item','Quantidade','Preço unitário','Total do item','Status','Data']
             : ['ID','Código','Filial','Cliente','Vendedor','Registrado por','Canal','Descrição','Valor','Saldo usado','Fora do saldo','Giftback','Status','Data']);
         $safe = static fn (string $value): string => preg_match('/^[=+@\-]/', $value) ? "'" . $value : $value;
         $money = static fn (int $cents): string => number_format($cents / 100, 2, '.', '');
@@ -226,7 +226,8 @@ try {
             foreach ($report['items'] as $item) {
                 if ($format === 'items') {
                     foreach ($bySale[$item['id']] ?? [] as $line) {
-                        fputcsv($output, [$item['id'],$safe($item['code']),$safe($item['storeName']),$safe($item['sellerName']),
+                        fputcsv($output, [$item['id'],$safe($item['code']),$safe($item['storeName']),$safe($item['customerName']),
+                            $safe($item['sellerName']),$safe($item['recordedByName']),
                             $safe((string) $line['item_name']),(int) $line['quantity'],$money((int) $line['unit_price_cents']),
                             $money((int) $line['total_cents']),$item['status'],$item['occurredAt']]);
                     }

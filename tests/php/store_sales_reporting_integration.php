@@ -51,14 +51,17 @@ try {
     putenv('DB_DATABASE=' . $schema); putenv('DB_USERNAME=' . (getenv('GIFTBACK_TEST_USER') ?: 'root'));
     putenv('DB_PASSWORD=' . (getenv('GIFTBACK_TEST_PASSWORD') ?: ''));
     putenv('DB_SSL_MODE=disable');
-    $argv = ['migration']; ob_start(); include __DIR__ . '/../../database/migrations/run_store_sale_items_migration.php';
-    $dryRun = json_decode((string) ob_get_clean(), true);
+    $runMigration = static function (bool $apply): array {
+        $argv = $apply ? ['migration', '--apply'] : ['migration'];
+        ob_start();
+        include __DIR__ . '/../../database/migrations/run_store_sale_items_migration.php';
+        return json_decode((string) ob_get_clean(), true);
+    };
+    $dryRun = $runMigration(false);
     $check($dryRun['mode'] === 'dry-run' && $dryRun['changes'] === ['store_sale_items'], 'migration dry-run identifies missing table');
-    $argv = ['migration', '--apply']; ob_start(); include __DIR__ . '/../../database/migrations/run_store_sale_items_migration.php';
-    $applied = json_decode((string) ob_get_clean(), true);
+    $applied = $runMigration(true);
     $check($applied['mode'] === 'applied' && $applied['changes'] === ['store_sale_items'], 'additive migration creates item table');
-    ob_start(); include __DIR__ . '/../../database/migrations/run_store_sale_items_migration.php';
-    $again = json_decode((string) ob_get_clean(), true);
+    $again = $runMigration(true);
     $check($again['changes'] === [], 'migration is repeatable');
     $db->exec("INSERT INTO store_sale_items(transaction_id,line_number,item_name,quantity,unit_price_cents,total_cents) VALUES(101,1,'Serviço',2,5000,10000)");
     $read = new StoreReadService($db);

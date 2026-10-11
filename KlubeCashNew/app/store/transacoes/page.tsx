@@ -112,8 +112,10 @@ export default function TransactionsPage() {
           </p>
         </div>
         <div className="store-head-actions">
-          <a className="store-button" href={`/api/store/v2/transactions/export?${params.toString()}&format=sales`}>Exportar vendas</a>
-          <a className="store-button" href={`/api/store/v2/transactions/export?${params.toString()}&format=items`}>Exportar itens</a>
+          {data.pagination.totalItems <= 50000 && <>
+            <a className="store-button" href={`/api/store/v2/transactions/export?${params.toString()}&format=sales`}>Exportar vendas</a>
+            <a className="store-button" href={`/api/store/v2/transactions/export?${params.toString()}&format=items`}>Exportar itens</a>
+          </>}
           <button className="store-button" onClick={() => setFilterOpen(true)}>
             <Filter size={16} /> Filtros
           </button>
@@ -122,6 +124,7 @@ export default function TransactionsPage() {
           </Link>
         </div>
       </section>
+      {data.pagination.totalItems > 50000 && <div className="store-alert" role="alert">Este recorte contém mais de 50.000 vendas. Reduza o período ou escolha uma filial para exportar.</div>}
       <section className="store-grid store-grid-4">
         <Stat label="Vendas" value={number(data.summary.salesCount)} />
         <Stat label="Valor movimentado" value={moneyFromCents(data.summary.grossAmountCents)} />

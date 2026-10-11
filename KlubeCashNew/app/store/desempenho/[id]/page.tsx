@@ -10,7 +10,7 @@ import { useStoreContext, useStoreView } from "@/components/store/StoreProviders
 
 type Branch = { storeId: number; storeName: string; salesCount: number; grossAmountCents: number; balanceRedeemedCents: number; giftbackIssuedCents: number; cancelledCount: number };
 type Performance = { sellerId: number | null; sellerName: string;
-  summary: { salesCount: number; recordedSalesCount: number; grossAmountCents: number; outsideBalanceCents: number;
+  summary: { salesCount: number; recordedSalesCount: number | null; grossAmountCents: number; outsideBalanceCents: number;
     balanceRedeemedCents: number; giftbackIssuedCents: number; averageTicketCents: number; customersCount: number; cancelledCount: number };
   branches: Branch[]; monthlySales: Array<{ month: string; salesCount: number; grossAmountCents: number }> };
 
@@ -35,7 +35,7 @@ export default function PersonPerformancePage() {
       <Stat label="Giftback concedido" value={moneyFromCents(s.giftbackIssuedCents)} /><Stat label="Ticket médio" value={moneyFromCents(s.averageTicketCents)} />
       <Stat label="Clientes únicos" value={String(s.customersCount)} /><Stat label="Cancelamentos" value={String(s.cancelledCount)} />
     </section>
-    <section className="store-panel"><h3>Vendeu × registrou</h3><p>{s.salesCount} venda(s) atribuída(s) como vendedor; {s.recordedSalesCount} venda(s) aprovada(s) registrada(s) por esta conta, inclusive para outros vendedores. São papéis diferentes; não somamos os dois números.</p></section>
+    {s.recordedSalesCount !== null && <section className="store-panel"><h3>Vendeu × registrou</h3><p>{s.salesCount} venda(s) atribuída(s) como vendedor; {s.recordedSalesCount} venda(s) aprovada(s) registrada(s) por esta conta, inclusive para outros vendedores. São papéis diferentes; não somamos os dois números.</p></section>}
     <section className="store-panel"><h3>Por filial</h3><div className="store-table-wrap"><table className="store-table"><thead><tr><th>Filial</th><th>Vendas</th><th>Valor</th><th>Saldo usado</th><th>Giftback</th><th>Cancelamentos</th></tr></thead><tbody>
       {data.branches.map((branch) => <tr key={branch.storeId}><td>{branch.storeName}</td><td>{branch.salesCount}</td><td>{moneyFromCents(branch.grossAmountCents)}</td><td>{moneyFromCents(branch.balanceRedeemedCents)}</td><td>{moneyFromCents(branch.giftbackIssuedCents)}</td><td>{branch.cancelledCount}</td></tr>)}
     </tbody></table></div></section>
