@@ -30,6 +30,11 @@ type Transaction = {
   storeName: string;
   sellerName: string;
   recordedByName: string;
+  sourceChannel?: string;
+  items?: Array<{ name: string; quantity: number; unitPriceCents: number; totalCents: number }>;
+  attributionEvents?: Array<{ id: number; previousSellerId: number | null; newSellerId: number; occurredAt: string }>;
+  giftbackMovements?: Array<{ id: number; type: string; amountCents: number; deltaCents: number; storeName: string; occurredAt: string }>;
+  lifecycleEvents?: Array<{ id: number; type: string; occurredAt: string }>;
 };
 type TransactionsData = {
   dataState: "ready" | "empty";
@@ -107,7 +112,10 @@ export default function TransactionsPage() {
           </p>
         </div>
         <div className="store-head-actions">
-          <a className="store-button" href={`/api/store/v2/transactions/export?${params.toString()}`}>Exportar CSV</a>
+          {data.pagination.totalItems <= 50000 && <>
+            <a className="store-button" href={`/api/store/v2/transactions/export?${params.toString()}&format=sales`}>Exportar vendas</a>
+            <a className="store-button" href={`/api/store/v2/transactions/export?${params.toString()}&format=items`}>Exportar itens</a>
+          </>}
           <button className="store-button" onClick={() => setFilterOpen(true)}>
             <Filter size={16} /> Filtros
           </button>
@@ -116,6 +124,7 @@ export default function TransactionsPage() {
           </Link>
         </div>
       </section>
+      {data.pagination.totalItems > 50000 && <div className="store-alert" role="alert">Este recorte contém mais de 50.000 vendas. Reduza o período ou escolha uma filial para exportar.</div>}
       <section className="store-grid store-grid-4">
         <Stat label="Vendas" value={number(data.summary.salesCount)} />
         <Stat label="Valor movimentado" value={moneyFromCents(data.summary.grossAmountCents)} />
@@ -130,7 +139,15 @@ export default function TransactionsPage() {
           </div>
         </div>
         {data.items.length ? (
-          <div className="store-table-wrap">
+          <><div className="store-mobile-only">
+            {data.items.map((item) => <article className="store-customer-card" key={item.id}>
+              <h4>{item.customerName} · {moneyFromCents(item.grossAmountCents)}</h4>
+              <p>{item.storeName} · {dateTime(item.occurredAt)}</p>
+              <p>Vendeu: {item.sellerName}<br />Registrou: {item.recordedByName}</p>
+              <p>Saldo usado: {moneyFromCents(item.balanceUsedCents)} · Giftback: {moneyFromCents(item.cashbackGrantedCents)}</p>
+              <button className="store-button" onClick={() => setDetailId(item.id)}>Ver venda completa</button>
+            </article>)}
+          </div><div className="store-table-wrap store-desktop-only">
             <table className="store-table">
               <thead>
                 <tr>
@@ -175,7 +192,7 @@ export default function TransactionsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </div></>
         ) : (
           <EmptyState
             title="Nenhuma venda encontrada"
@@ -227,13 +244,27 @@ export default function TransactionsPage() {
                 <Row label="Vendedor" value={detail.data.sellerName} />
                 <Row label="Registrado por" value={detail.data.recordedByName} />
                 <Row label="Código" value={detail.data.code} />
+                <Row label="Canal" value={({ manual: "Manual", csv: "Importação CSV", whatsapp: "WhatsApp" } as Record<string, string>)[detail.data.sourceChannel ?? ""] ?? "Registro legado"} />
                 <Row label="Data" value={dateTime(detail.data.occurredAt)} />
                 <Row label="Valor da venda" value={moneyFromCents(detail.data.grossAmountCents)} />
                 <Row label="Saldo usado" value={moneyFromCents(detail.data.balanceUsedCents)} />
-                <Row label="Valor pago" value={moneyFromCents(detail.data.paidAmountCents)} />
+                <Row label="Valor fora do saldo" value={moneyFromCents(detail.data.paidAmountCents)} />
                 <Row label="Giftback do cliente" value={moneyFromCents(detail.data.cashbackGrantedCents)} />
                 <Row label="Status" value={statusLabel(detail.data)} />
                 {detail.data.description && <Row label="Descrição" value={detail.data.description} />}
+                <h4>Itens informados</h4>
+                {detail.data.items?.length ? detail.data.items.map((item, index) =>
+                  <Row key={index} label={`${item.quantity} × ${item.name} · ${moneyFromCents(item.unitPriceCents)} cada`} value={moneyFromCents(item.totalCents)} />)
+                  : <p>Itens não informados nesta venda.</p>}
+                {Boolean(detail.data.attributionEvents?.length) && <><h4>Correções registradas</h4>
+                  {detail.data.attributionEvents?.map((event) => <p key={event.id}>Vendedor corrigido em {dateTime(event.occurredAt)}. Registro auditado pela KlubeCash.</p>)}</>}
+                {Boolean(detail.data.lifecycleEvents?.length) && <><h4>Histórico da venda</h4>
+                  {detail.data.lifecycleEvents?.map((event) => <p key={event.id}>{event.type === "transaction.reverse" ? "Estorno" : "Alteração de status legado"} em {dateTime(event.occurredAt)}.</p>)}</>}
+                <h4>Movimentações de giftback relacionadas</h4>
+                {detail.data.giftbackMovements?.length ? detail.data.giftbackMovements.map((event) =>
+                  <Row key={event.id} label={`${event.type} · ${event.storeName} · ${dateTime(event.occurredAt)}`} value={`${event.deltaCents < 0 ? "−" : "+"}${moneyFromCents(Math.abs(event.deltaCents))}`} />)
+                  : <p>Sem movimentações registradas para esta venda.</p>}
+                <small>Valor fora do saldo = valor da venda menos giftback utilizado; não comprova a liquidação do pagamento.</small>
               </div>
             )}
           </div>

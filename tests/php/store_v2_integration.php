@@ -70,6 +70,7 @@ function cleanupFixture(PDO $db, array $fixture): void
         'DELETE FROM store_event_outbox WHERE loja_id=:store_id',
         'DELETE FROM cashback_movimentacoes WHERE loja_id=:store_id',
         'DELETE FROM transacoes_saldo_usado WHERE loja_id=:store_id',
+        'DELETE i FROM store_sale_items i JOIN transacoes_cashback t ON t.id=i.transaction_id WHERE t.loja_id=:store_id',
         'DELETE FROM transacoes_cashback WHERE loja_id=:store_id',
         'DELETE FROM store_idempotency_keys WHERE loja_id=:store_id',
         'DELETE FROM cashback_saldos WHERE loja_id=:store_id',
@@ -158,6 +159,10 @@ try {
         'balanceUsedCents' => 2000,
         'code' => strtoupper(substr($runId, -12)) . '-A',
         'description' => 'Fixture atômica ' . $runId,
+        'items' => [
+            ['name' => 'Serviço A', 'quantity' => 2, 'unitPriceCents' => 3000],
+            ['name' => 'Serviço B', 'quantity' => 1, 'unitPriceCents' => 4000],
+        ],
         'occurredAt' => date(DATE_ATOM),
     ];
 
@@ -178,6 +183,9 @@ try {
     expectTrue((float) $storedSale['valor_admin'] === 0.0 && (float) $storedSale['valor_loja'] === 0.0, 'Uma comissão foi criada na venda nova.');
     expectTrue(!empty($storedSale['cashback_credited_at']), 'O crédito não foi marcado como concluído.');
     expectTrue((int) scalar($db, 'SELECT COUNT(*) FROM cashback_movimentacoes WHERE loja_id=:store', [':store' => $fixture['storeId']]) === 2, 'Débito e crédito não foram registrados atomicamente.');
+    expectTrue((int) scalar($db, 'SELECT COUNT(*) FROM store_sale_items WHERE transaction_id=:id', [':id' => $sale['id']]) === 2, 'Itens não foram persistidos com a venda.');
+    $saleDetail = $read->transaction($fixture['storeId'], (int) $sale['id']);
+    expectTrue(count($saleDetail['items']) === 2 && $saleDetail['items'][0]['totalCents'] === 6000, 'Detalhe da venda não mostrou os itens em centavos.');
 
     $replay = $transactions->create($fixture['storeId'], $fixture['ownerId'], $salePayload, $runId . ':sale-a');
     expectTrue($replay['id'] === $sale['id'] && $replay['replayed'] === true, 'A repetição idempotente duplicou ou não recuperou o resultado.');
@@ -190,6 +198,16 @@ try {
         throw new RuntimeException('A chave idempotente reutilizada com outro conteúdo foi aceita.');
     } catch (StoreApiException $exception) {
         expectTrue($exception->httpStatus === 409, 'O conflito de idempotência não retornou 409.');
+    }
+
+    try {
+        $invalidItems = $salePayload;
+        $invalidItems['code'] = strtoupper(substr($runId, -12)) . '-I';
+        $invalidItems['items'][0]['unitPriceCents'] = 3100;
+        $transactions->create($fixture['storeId'], $fixture['ownerId'], $invalidItems, $runId . ':invalid-items');
+        throw new RuntimeException('Soma divergente dos itens foi aceita.');
+    } catch (StoreApiException $exception) {
+        expectTrue($exception->httpStatus === 422, 'Soma divergente dos itens não retornou 422.');
     }
 
     try {

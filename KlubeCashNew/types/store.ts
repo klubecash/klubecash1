@@ -53,6 +53,10 @@ export type DashboardData = {
     salesCount: number;
     grossAmountCents: number;
     cashbackGrantedCents: number;
+    balanceUsedCents: number;
+    outsideBalanceCents: number;
+    averageTicketCents: number;
+    cancelledCount: number;
     customersCount: number;
     lastTransactionAt: string | null;
   };
