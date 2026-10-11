@@ -31,8 +31,6 @@ try {
             codigo_transacao VARCHAR(50),descricao TEXT,valor_total DECIMAL(10,2),valor_cliente DECIMAL(10,2),
             status VARCHAR(30),data_transacao DATETIME,financial_model VARCHAR(40)) ENGINE=InnoDB;
         CREATE TABLE transacoes_saldo_usado(transacao_id INT,valor_usado DECIMAL(10,2)) ENGINE=InnoDB;
-        CREATE TABLE store_sale_items(id BIGINT AUTO_INCREMENT PRIMARY KEY,transaction_id INT,line_number INT,item_name VARCHAR(200),
-            quantity INT,unit_price_cents BIGINT,total_cents BIGINT) ENGINE=InnoDB;
         CREATE TABLE store_sale_attribution_events(id BIGINT AUTO_INCREMENT PRIMARY KEY,transaction_id INT,previous_seller_id INT NULL,
             new_seller_id INT,occurred_at DATETIME) ENGINE=InnoDB;
         CREATE TABLE cashback_movimentacoes(id INT PRIMARY KEY,loja_id INT,tipo_operacao VARCHAR(30),valor DECIMAL(10,2),saldo_anterior DECIMAL(10,2),saldo_atual DECIMAL(10,2),
@@ -47,9 +45,22 @@ try {
             (103,1,1,11,10,'Ana','Gestor','manual','A103','Cancelada',80.00,0.00,'cancelado','2026-10-03 10:00:00','subscription_cashback'),
             (104,1,2,NULL,NULL,NULL,NULL,NULL,'A104','Legada',20.00,1.00,'aprovado','2026-10-04 10:00:00','commission_legacy');
         INSERT INTO transacoes_saldo_usado VALUES(101,20.00),(102,0.00);
-        INSERT INTO store_sale_items(transaction_id,line_number,item_name,quantity,unit_price_cents,total_cents) VALUES(101,1,'Serviço',2,5000,10000);
         INSERT INTO cashback_movimentacoes VALUES(1,1,'credito',5.00,0.00,5.00,'2026-10-01 10:01:00',101,NULL);
         INSERT INTO admin_audit_logs(entity_type,entity_id,action,result,created_at) VALUES('transaction','103','transaction.reverse','success','2026-10-03 11:00:00')");
+    putenv('DB_HOST=127.0.0.1'); putenv('DB_PORT=' . (int) substr(strrchr($dsn, '='), 1));
+    putenv('DB_DATABASE=' . $schema); putenv('DB_USERNAME=' . (getenv('GIFTBACK_TEST_USER') ?: 'root'));
+    putenv('DB_PASSWORD=' . (getenv('GIFTBACK_TEST_PASSWORD') ?: ''));
+    putenv('DB_SSL_MODE=disable');
+    $argv = ['migration']; ob_start(); include __DIR__ . '/../../database/migrations/run_store_sale_items_migration.php';
+    $dryRun = json_decode((string) ob_get_clean(), true);
+    $check($dryRun['mode'] === 'dry-run' && $dryRun['changes'] === ['store_sale_items'], 'migration dry-run identifies missing table');
+    $argv = ['migration', '--apply']; ob_start(); include __DIR__ . '/../../database/migrations/run_store_sale_items_migration.php';
+    $applied = json_decode((string) ob_get_clean(), true);
+    $check($applied['mode'] === 'applied' && $applied['changes'] === ['store_sale_items'], 'additive migration creates item table');
+    ob_start(); include __DIR__ . '/../../database/migrations/run_store_sale_items_migration.php';
+    $again = json_decode((string) ob_get_clean(), true);
+    $check($again['changes'] === [], 'migration is repeatable');
+    $db->exec("INSERT INTO store_sale_items(transaction_id,line_number,item_name,quantity,unit_price_cents,total_cents) VALUES(101,1,'Serviço',2,5000,10000)");
     $read = new StoreReadService($db);
     $report = $read->sellerReport([1,2], null, '2026-10-01', '2026-10-31', '11');
     $check(count($report['items']) === 2 && $report['people'][0]['salesCount'] === 2, 'one seller in two branches without duplicate sales');
