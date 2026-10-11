@@ -95,7 +95,7 @@ async function proxy(
         : await request.arrayBuffer(),
       cache: "no-store",
       redirect: "manual",
-      signal: AbortSignal.timeout(35_000),
+      signal: AbortSignal.timeout(requestedPath === "v2/transactions/export" ? 300_000 : 35_000),
     });
     const response = new NextResponse(backend.body, {
       status: backend.status,
@@ -107,6 +107,9 @@ async function proxy(
           "private, no-store, no-cache, must-revalidate, max-age=0",
         ...(backend.headers.get("x-request-id")
           ? { "x-request-id": backend.headers.get("x-request-id") as string }
+          : {}),
+        ...(requestedPath === "v2/transactions/export" && backend.headers.get("content-disposition")
+          ? { "content-disposition": backend.headers.get("content-disposition") as string }
           : {}),
       },
     });
