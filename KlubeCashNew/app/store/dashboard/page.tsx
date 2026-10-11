@@ -94,6 +94,12 @@ export default function DashboardPage() {
           icon={<BadgeDollarSign size={20} />}
         />
       </section>
+      <section className="store-grid store-grid-4">
+        <Stat label="Saldo utilizado" value={moneyFromCents(summary.balanceUsedCents)} note="Giftback nas vendas aprovadas" icon={<HandCoins size={20} />} />
+        <Stat label="Fora do saldo" value={moneyFromCents(summary.outsideBalanceCents)} note="Não comprova pagamento liquidado" icon={<BadgeDollarSign size={20} />} />
+        <Stat label="Ticket médio" value={moneyFromCents(summary.averageTicketCents)} note="Vendas aprovadas" icon={<ShoppingBag size={20} />} />
+        <Stat label="Cancelamentos" value={number(summary.cancelledCount)} note="Não entram no faturamento" icon={<ShoppingBag size={20} />} />
+      </section>
       <section className="store-grid store-grid-2">
         <div className="store-panel">
           <div className="store-panel-head">

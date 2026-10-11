@@ -123,7 +123,12 @@ export default function EmployeesPage() {
         </div>
         {remove.isError && <div className="store-alert store-alert-error">{remove.error.message}</div>}
         {data.items.length ? (
-          <div className="store-table-wrap">
+          <><div className="store-mobile-only">
+            {data.items.map((item) => <article className="store-customer-card" key={item.id}>
+              <h4>{item.name}</h4><p>{item.email}</p><p>{item.subtype} · {item.status} nesta filial</p>
+              <Link className="store-button" href={`/store/desempenho/${item.id}`}>Ver desempenho</Link>
+            </article>)}
+          </div><div className="store-table-wrap store-desktop-only">
             <table className="store-table">
               <thead><tr><th>Funcionário</th><th>Telefone</th><th>Função</th><th>Cadastro</th><th>Status</th><th /></tr></thead>
               <tbody>{data.items.map((item) => (
@@ -134,6 +139,7 @@ export default function EmployeesPage() {
                   <td>{dateTime(item.createdAt)}</td>
                   <td><span className={`store-status ${item.status}`}>{item.status}</span></td>
                   <td><div style={{ display: "flex", gap: 6 }}>
+                    <Link className="store-button" href={`/store/desempenho/${item.id}`}>Desempenho</Link>
                     {!item.networkManager && <button className="store-button store-icon-button" aria-label="Editar" onClick={() => setEditing(item)}><Edit3 size={15} /></button>}
                     {context.permissions.deactivateEmployees && item.status === "ativo" && !item.networkManager && (
                       <button className="store-button store-icon-button store-button-danger" aria-label="Desativar" onClick={() => { if (confirm(`Desativar ${item.name}?`)) remove.mutate(item.id); }}><Trash2 size={15} /></button>
@@ -142,7 +148,7 @@ export default function EmployeesPage() {
                 </tr>
               ))}</tbody>
             </table>
-          </div>
+          </div></>
         ) : <EmptyState title="Nenhum funcionário encontrado" message="A integração está ativa. Cadastre a primeira pessoa ou ajuste a busca." />}
         {data.pagination.totalPages > 1 && <div className="store-pagination"><button className="store-button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Anterior</button><span>Página {data.pagination.page} de {data.pagination.totalPages}</span><button className="store-button" disabled={page >= data.pagination.totalPages} onClick={() => setPage(page + 1)}>Próxima</button></div>}
       </section>

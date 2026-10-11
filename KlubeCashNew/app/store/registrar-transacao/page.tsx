@@ -10,7 +10,7 @@ import {
   ShieldAlert,
   UserPlus,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { storeFetch } from "@/lib/client-api";
@@ -56,6 +56,7 @@ const schema = z.object({
 });
 type SaleForm = z.infer<typeof schema>;
 type SaleInput = z.input<typeof schema>;
+type SaleItem = { name: string; quantity: string; unitPrice: string };
 
 const saleCode = () => `VENDA-${Date.now().toString(36).toUpperCase()}`;
 const saleDate = () => new Date().toISOString().slice(0, 16);
@@ -73,6 +74,8 @@ export default function RegisterTransactionPage() {
   const [visitor, setVisitor] = useState({ name: "", phone: "" });
   const [result, setResult] = useState<SaleResult | null>(null);
   const [sellerId, setSellerId] = useState<number | null>(null);
+  const [items, setItems] = useState<SaleItem[]>([]);
+  const [itemsError, setItemsError] = useState("");
   const sellers = useQuery({ queryKey: ["store-sellers", context.store.id],
     queryFn: () => storeFetch<{ items: Array<{ id: number; name: string; role: string }> }>("sellers"),
     enabled: Boolean(context.permissions.assignSeller) });
@@ -89,6 +92,12 @@ export default function RegisterTransactionPage() {
   const totalCents = cents(
     Number(useWatch({ control: form.control, name: "total" }) || 0),
   );
+  useEffect(() => {
+    if (items.length) {
+      const sum = items.reduce((amount, item) => amount + Number(item.quantity || 0) * cents(Number(item.unitPrice || 0)), 0);
+      form.setValue("total", sum / 100, { shouldValidate: true });
+    }
+  }, [items, form]);
   const balanceCents = cents(
     Number(useWatch({ control: form.control, name: "balanceAmount" }) || 0),
   );
@@ -156,6 +165,7 @@ export default function RegisterTransactionPage() {
           code: values.code,
           occurredAt: new Date(values.date).toISOString(),
           description: values.description,
+          items: items.map((item) => ({ name: item.name.trim(), quantity: Number(item.quantity), unitPriceCents: cents(Number(item.unitPrice)) })),
           sellerId: context.permissions.assignSeller ? (sellerId ?? context.user.id) : context.user.id,
           csrfToken: context.csrfToken,
         }),
@@ -190,6 +200,8 @@ export default function RegisterTransactionPage() {
     setNotice("");
     idempotencyKey.current = null;
     setSellerId(null);
+    setItems([]);
+    setItemsError("");
     form.reset({
       total: 0,
       code: saleCode(),
@@ -313,7 +325,13 @@ export default function RegisterTransactionPage() {
       {step === 2 && (
         <form
           className="store-panel store-form"
-          onSubmit={form.handleSubmit(() => setStep(3))}
+          onSubmit={form.handleSubmit(() => {
+            if (items.some((item) => !item.name.trim() || !Number.isInteger(Number(item.quantity)) || Number(item.quantity) < 1 || cents(Number(item.unitPrice)) < 1)) {
+              setItemsError("Preencha nome, quantidade inteira e preço positivo em cada item.");
+              return;
+            }
+            setItemsError(""); setStep(3);
+          })}
         >
           <div className="store-panel-head">
             <div>
@@ -339,8 +357,10 @@ export default function RegisterTransactionPage() {
                 type="number"
                 min="5"
                 step="0.01"
+                readOnly={items.length > 0}
                 {...form.register("total")}
               />
+              {items.length > 0 && <small className="store-help">Calculado pela soma dos itens.</small>}
             </Field>
             <Field label="Código da venda" error={form.formState.errors.code?.message}>
               <input className="store-input" {...form.register("code")} />
@@ -373,6 +393,22 @@ export default function RegisterTransactionPage() {
                 placeholder={`Compra na ${context.store.name}`}
               />
             </label>
+            <div className="store-field store-field-full">
+              <span>Itens da venda (opcional)</span>
+              <small className="store-help">Cada linha tem nome livre, quantidade e preço unitário. Sem itens, informe o total acima.</small>
+              {items.map((item, index) => <div className="store-actions" key={index} style={{ marginTop: 8 }}>
+                <input className="store-input" aria-label={`Nome do item ${index + 1}`} placeholder="Item ou serviço" maxLength={200} value={item.name}
+                  onChange={(event) => setItems((current) => current.map((line, position) => position === index ? { ...line, name: event.target.value } : line))} />
+                <input className="store-input" aria-label={`Quantidade do item ${index + 1}`} type="number" min="1" step="1" value={item.quantity}
+                  onChange={(event) => setItems((current) => current.map((line, position) => position === index ? { ...line, quantity: event.target.value } : line))} />
+                <input className="store-input" aria-label={`Preço unitário do item ${index + 1}`} type="number" min="0.01" step="0.01" value={item.unitPrice}
+                  onChange={(event) => setItems((current) => current.map((line, position) => position === index ? { ...line, unitPrice: event.target.value } : line))} />
+                <button type="button" className="store-button" onClick={() => setItems((current) => current.filter((_, position) => position !== index))}>Remover</button>
+              </div>)}
+              {itemsError && <small className="store-error" role="alert">{itemsError}</small>}
+              <button type="button" className="store-button" style={{ marginTop: 8 }} disabled={items.length >= 100}
+                onClick={() => setItems((current) => [...current, { name: "", quantity: "1", unitPrice: "" }])}>Adicionar item</button>
+            </div>
           </div>
           <div className="store-form-actions">
             <button type="button" className="store-button" onClick={() => setStep(1)}>
@@ -401,6 +437,7 @@ export default function RegisterTransactionPage() {
               <Row label="Registrado por" value={context.user.name} />
               <Row label="Código" value={form.getValues("code")} />
               <Row label="Valor da compra" value={moneyFromCents(totalCents)} />
+              {items.map((item, index) => <Row key={index} label={`${item.quantity} × ${item.name}`} value={moneyFromCents(Number(item.quantity) * cents(Number(item.unitPrice)))} />)}
               <Row label="Saldo utilizado" value={moneyFromCents(balanceCents)} />
               <Row label="Valor efetivamente pago" value={moneyFromCents(paidCents)} />
             </div>

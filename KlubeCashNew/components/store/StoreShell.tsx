@@ -322,7 +322,7 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
           {invitations.map((invite) => <div className="store-alert" key={invite.store_id}>
             Convite para {invite.store_name} ({invite.role}). <button type="button" className="store-button" onClick={() => void acceptInvitation(invite.store_id)}>Aceitar vínculo</button>
           </div>)}
-          {["/store/dashboard", "/store/transacoes", "/store/relatorios"].includes(pathname) && <StoreViewBar showStatus={pathname === "/store/transacoes"} />}
+          {(["/store/dashboard", "/store/transacoes", "/store/relatorios"].includes(pathname) || pathname.startsWith("/store/desempenho/")) && <StoreViewBar showStatus={pathname === "/store/transacoes"} />}
           {children}
         </main>
       </div>

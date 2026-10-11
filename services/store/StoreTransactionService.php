@@ -191,6 +191,13 @@ final class StoreTransactionService
             ]);
             $transactionId = (int) $this->db->lastInsertId();
 
+            if ($request['items'] !== []) {
+                $itemInsert = $this->db->prepare('INSERT INTO store_sale_items (transaction_id,line_number,item_name,quantity,unit_price_cents,total_cents) VALUES (?,?,?,?,?,?)');
+                foreach ($request['items'] as $index => $item) {
+                    $itemInsert->execute([$transactionId, $index + 1, $item['name'], $item['quantity'], $item['unitPriceCents'], $item['totalCents']]);
+                }
+            }
+
             $runningBalanceCents = $balance['availableCents'];
             if ($balanceUsedCents > 0) {
                 $debit = $ledger->spendNetwork($request['customerId'], $storeId, $walletStores, $balanceUsedCents, $transactionId, $actorId, $networkId);
@@ -256,7 +263,7 @@ final class StoreTransactionService
 
 
     /** @param array<string, mixed> $input
-     *  @return array{customerId:int,grossAmountCents:int,balanceUsedCents:int,code:string,description:string,occurredAt:string}
+     *  @return array<string,mixed>
      */
     private function validateInput(array $input): array
     {
@@ -266,10 +273,31 @@ final class StoreTransactionService
         $balanceUsedCents = (int) ($input['balanceUsedCents'] ?? 0);
         $code = strtoupper(trim((string) ($input['code'] ?? '')));
         $description = trim((string) ($input['description'] ?? ''));
+        $items = [];
+        $rawItems = $input['items'] ?? [];
+        if (!is_array($rawItems) || count($rawItems) > 100) {
+            $errors['items'] = ['Informe no máximo 100 itens.'];
+            $rawItems = [];
+        }
+        foreach ($rawItems as $index => $raw) {
+            if (!is_array($raw)) { $errors['items'] = ['Item inválido.']; break; }
+            $name = trim((string) ($raw['name'] ?? ''));
+            $quantity = filter_var($raw['quantity'] ?? null, FILTER_VALIDATE_INT);
+            $unit = filter_var($raw['unitPriceCents'] ?? null, FILTER_VALIDATE_INT);
+            if ($name === '' || strlen($name) > 200 || $quantity === false || $quantity < 1 || $quantity > 100000
+                || $unit === false || $unit < 1 || $unit > 100000000) {
+                $errors['items'] = ['Confira nome, quantidade e preço de cada item.'];
+                break;
+            }
+            $items[] = ['name' => $name, 'quantity' => $quantity, 'unitPriceCents' => $unit, 'totalCents' => $quantity * $unit];
+        }
+        if ($items !== [] && array_sum(array_column($items, 'totalCents')) !== $grossAmountCents) {
+            $errors['items'] = ['A soma dos itens deve ser igual ao valor total da venda.'];
+        }
         if ($customerId <= 0) {
             $errors['customerId'] = ['Selecione um cliente válido.'];
         }
-        if ($grossAmountCents <= 0) {
+        if ($grossAmountCents <= 0 || $grossAmountCents > 9999999999) {
             $errors['grossAmountCents'] = ['Informe um valor de venda válido.'];
         }
         if ($balanceUsedCents < 0) {
@@ -298,6 +326,7 @@ final class StoreTransactionService
             'balanceUsedCents' => $balanceUsedCents,
             'code' => $code,
             'description' => $description,
+            'items' => $items,
             'occurredAt' => $occurredAt->format('Y-m-d H:i:s'),
         ];
     }

@@ -183,13 +183,21 @@ try {
             (string) ($_GET['search'] ?? ''), max(1, (int) ($_GET['page'] ?? 1))));
     }
     if ($method === 'GET' && $resource === 'dashboard') {
-        $sellerId = $forcedSellerId ?? (isset($_GET['sellerId']) && $_GET['sellerId'] !== '' ? (int) $_GET['sellerId'] : null);
+        $sellerValue = (string) ($_GET['sellerId'] ?? '');
+        $sellerId = $forcedSellerId ?? ($sellerValue !== '' && $sellerValue !== 'unknown' ? (int) $sellerValue : null);
+        if ($sellerValue !== '' && $sellerValue !== 'unknown' && $sellerId <= 0) { throw new StoreApiException('Vendedor inválido.', 422); }
         storeV2Respond(200, true, $read->dashboard($storeId, $scopeStores, $sellerId,
-            storeV2Filters(['startDate', 'endDate', 'status'])));
+            storeV2Filters(['startDate', 'endDate', 'status', 'sellerId'])));
     }
     if ($method === 'GET' && $resource === 'reports/sellers') {
         storeV2Respond(200, true, $read->sellerReport($scopeStores,
-            $forcedSellerId ?? (isset($_GET['sellerId']) && $_GET['sellerId'] !== '' ? (int) $_GET['sellerId'] : null),
+            $forcedSellerId,
+            isset($_GET['startDate']) ? (string) $_GET['startDate'] : null,
+            isset($_GET['endDate']) ? (string) $_GET['endDate'] : null,
+            isset($_GET['sellerId']) ? (string) $_GET['sellerId'] : null));
+    }
+    if ($method === 'GET' && count($segments) === 3 && $segments[0] === 'reports' && $segments[1] === 'people') {
+        storeV2Respond(200, true, $read->personReport($scopeStores, $forcedSellerId, $segments[2],
             isset($_GET['startDate']) ? (string) $_GET['startDate'] : null,
             isset($_GET['endDate']) ? (string) $_GET['endDate'] : null));
     }
@@ -198,19 +206,39 @@ try {
         storeV2Respond(200, true, $read->giftbackReport($scopeStores));
     }
     if ($method === 'GET' && $resource === 'transactions/export') {
-        $report = $read->transactions($storeId,
-            storeV2Filters(['status', 'startDate', 'endDate', 'customer', 'minimumCents', 'maximumCents', 'sellerId']),
-            1, 5000, $scopeStores, $forcedSellerId);
+        $exportFilters = storeV2Filters(['status', 'startDate', 'endDate', 'customer', 'minimumCents', 'maximumCents', 'sellerId']);
+        $format = (string) ($_GET['format'] ?? 'sales');
+        if (!in_array($format, ['sales', 'items'], true)) { throw new StoreApiException('Formato de exportação inválido.', 422); }
+        $report = $read->transactions($storeId, $exportFilters, 1, 1000, $scopeStores, $forcedSellerId);
+        if ($report['pagination']['totalItems'] > 50000) { throw new StoreApiException('O recorte excede 50.000 vendas. Reduza o período ou a filial.', 422); }
         header_remove('Content-Type');
         header('Content-Type: text/csv; charset=UTF-8');
-        header('Content-Disposition: attachment; filename="vendas-filiais-klubecash.csv"');
+        header('Content-Disposition: attachment; filename="' . ($format === 'items' ? 'itens-vendas' : 'vendas-filiais') . '-klubecash.csv"');
         $output = fopen('php://output', 'wb'); fputs($output, "\xEF\xBB\xBF");
-        fputcsv($output, ['ID','Código','Filial','Cliente','Vendedor','Registrado por','Valor','Saldo usado','Giftback','Status','Data']);
+        fputcsv($output, $format === 'items'
+            ? ['ID da venda','Código','Filial','Cliente','Vendedor','Registrado por','Item','Quantidade','Preço unitário','Total do item','Status','Data']
+            : ['ID','Código','Filial','Cliente','Vendedor','Registrado por','Canal','Descrição','Valor','Saldo usado','Fora do saldo','Giftback','Status','Data']);
         $safe = static fn (string $value): string => preg_match('/^[=+@\-]/', $value) ? "'" . $value : $value;
-        foreach ($report['items'] as $item) {
-            fputcsv($output, [$item['id'],$safe($item['code']),$safe($item['storeName']),$safe($item['customerName']),
-                $safe($item['sellerName']),$safe($item['recordedByName']),$item['grossAmountCents'] / 100,
-                $item['balanceUsedCents'] / 100,$item['cashbackGrantedCents'] / 100,$item['status'],$item['occurredAt']]);
+        $money = static fn (int $cents): string => number_format($cents / 100, 2, '.', '');
+        for ($page = 1; $page <= $report['pagination']['totalPages']; $page++) {
+            if ($page > 1) { $report = $read->transactions($storeId, $exportFilters, $page, 1000, $scopeStores, $forcedSellerId); }
+            $bySale = $format === 'items' ? $read->saleItemsBatch(array_column($report['items'], 'id')) : [];
+            foreach ($report['items'] as $item) {
+                if ($format === 'items') {
+                    foreach ($bySale[$item['id']] ?? [] as $line) {
+                        fputcsv($output, [$item['id'],$safe($item['code']),$safe($item['storeName']),$safe($item['customerName']),
+                            $safe($item['sellerName']),$safe($item['recordedByName']),
+                            $safe((string) $line['item_name']),(int) $line['quantity'],$money((int) $line['unit_price_cents']),
+                            $money((int) $line['total_cents']),$item['status'],$item['occurredAt']]);
+                    }
+                } else {
+                    fputcsv($output, [$item['id'],$safe($item['code']),$safe($item['storeName']),$safe($item['customerName']),
+                        $safe($item['sellerName']),$safe($item['recordedByName']),$item['sourceChannel'],$safe($item['description']),
+                        $money($item['grossAmountCents']),$money($item['balanceUsedCents']),$money($item['paidAmountCents']),
+                        $money($item['cashbackGrantedCents']),$item['status'],$item['occurredAt']]);
+                }
+            }
+            fflush($output);
         }
         fclose($output); exit;
     }
@@ -228,6 +256,12 @@ try {
         storeV2Respond(200, true, $customers->search($storeId, (string) ($_GET['query'] ?? '')));
     }
     if ($method === 'GET' && $resource === 'sellers') {
+        if (($_GET['history'] ?? '') === '1') {
+            if ($forcedSellerId !== null) { throw new StoreApiException('Consulta restrita à gestão.', 403); }
+            storeV2Respond(200, true, $read->reportSellers($scopeStores,
+                isset($_GET['startDate']) ? (string) $_GET['startDate'] : null,
+                isset($_GET['endDate']) ? (string) $_GET['endDate'] : null));
+        }
         $sellerStores = implode(',', array_map('intval', $scopeStores));
         $sellerStmt = $db->prepare("SELECT DISTINCT u.id,u.nome name,
             CASE WHEN gm.user_id IS NOT NULL THEN 'gestor_rede' ELSE m.role END role

@@ -24,7 +24,7 @@ describe("visão compartilhada das filiais", () => {
   it("mantém rede, filial, vendedor e período entre montagens", async () => {
     const first = render(<StoreProviders context={context}><StoreViewBar showStatus /><QueryPreview /></StoreProviders>);
     fireEvent.change(screen.getByLabelText("Filial dos dados"), { target: { value: "network" } });
-    await waitFor(() => expect(fetchStore).toHaveBeenCalledWith("sellers&scope=network"));
+    await waitFor(() => expect(fetchStore).toHaveBeenCalledWith("sellers&history=1&scope=network"));
     await screen.findByRole("option", { name: "Vendedora" });
     fireEvent.change(screen.getByLabelText("Vendedor dos dados"), { target: { value: "22" } });
     fireEvent.change(screen.getByLabelText("Data inicial dos dados"), { target: { value: "2026-10-01" } });

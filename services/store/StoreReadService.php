@@ -79,8 +79,9 @@ final class StoreReadService
     {
         $ids = array_values(array_unique(array_map('intval', $scopeStores ?? [$storeId])));
         $storeList = implode(',', $ids ?: [$storeId]);
-        $sellerClause = $sellerId === null ? '' : ' AND vendedor_id=' . (int) $sellerId;
-        $recentSellerClause = $sellerId === null ? '' : ' AND t.vendedor_id=' . (int) $sellerId;
+        $unknown = ($filters['sellerId'] ?? '') === 'unknown' && $sellerId === null;
+        $sellerClause = $unknown ? ' AND vendedor_id IS NULL' : ($sellerId === null ? '' : ' AND vendedor_id=' . (int) $sellerId);
+        $recentSellerClause = $unknown ? ' AND t.vendedor_id IS NULL' : ($sellerId === null ? '' : ' AND t.vendedor_id=' . (int) $sellerId);
         $dateClause = '';
         $recentDateClause = '';
         foreach (['startDate' => '>=', 'endDate' => '<='] as $key => $operator) {
@@ -98,6 +99,8 @@ final class StoreReadService
             if (!in_array($filters['status'], ['aprovado', 'cancelado', 'pendente'], true)) { throw new StoreApiException('Status inválido.', 422); }
             $recentStatusClause = " AND t.status='" . $filters['status'] . "'";
         }
+        $monthlyWindowClause = $dateClause === ''
+            ? " AND data_transacao>=DATE_FORMAT(DATE_SUB(CURRENT_DATE(),INTERVAL 5 MONTH),'%Y-%m-01') " : '';
         // Um único round-trip ao banco remoto substitui as três consultas
         // sequenciais que faziam o dashboard levar vários segundos.
         $statement = $this->db->prepare(
@@ -118,7 +121,7 @@ final class StoreReadService
             . "(SELECT COALESCE(JSON_ARRAYAGG(JSON_OBJECT('month',m.month,'sales',m.sales,'grossTotal',m.gross_total)),JSON_ARRAY()) "
             . "FROM (SELECT DATE_FORMAT(data_transacao,'%Y-%m') month,COUNT(*) sales,COALESCE(SUM(valor_total),0) gross_total "
             . "FROM transacoes_cashback WHERE loja_id IN ({$storeList}) AND status='aprovado'{$sellerClause}{$dateClause} "
-            . "AND data_transacao>=DATE_FORMAT(DATE_SUB(CURRENT_DATE(),INTERVAL 5 MONTH),'%Y-%m-01') "
+            . $monthlyWindowClause
             . "GROUP BY DATE_FORMAT(data_transacao,'%Y-%m') ORDER BY month) m) monthly_json"
         );
         $statement->execute();
@@ -131,14 +134,21 @@ final class StoreReadService
             $monthsByKey[$row['month']] = $row;
         }
         $monthlyData = [];
-        for ($offset = 5; $offset >= 0; $offset--) {
-            $key = date('Y-m', strtotime("-{$offset} months"));
-            $row = $monthsByKey[$key] ?? null;
-            $monthlyData[] = [
-                'month' => $key,
-                'salesCount' => (int) ($row['sales'] ?? 0),
-                'grossAmountCents' => StoreMoney::toCents($row['grossTotal'] ?? 0),
-            ];
+        if ($dateClause !== '') {
+            foreach ($monthlyRows as $row) {
+                $monthlyData[] = ['month' => $row['month'], 'salesCount' => (int) $row['sales'],
+                    'grossAmountCents' => StoreMoney::toCents($row['grossTotal'])];
+            }
+        } else {
+            for ($offset = 5; $offset >= 0; $offset--) {
+                $key = date('Y-m', strtotime("-{$offset} months"));
+                $row = $monthsByKey[$key] ?? null;
+                $monthlyData[] = [
+                    'month' => $key,
+                    'salesCount' => (int) ($row['sales'] ?? 0),
+                    'grossAmountCents' => StoreMoney::toCents($row['grossTotal'] ?? 0),
+                ];
+            }
         }
 
         $recentData = array_map(fn (array $row): array => [
@@ -158,13 +168,23 @@ final class StoreReadService
 
         usort($recentData, static fn (array $left, array $right): int => strcmp((string) $right['occurredAt'], (string) $left['occurredAt']));
         $salesCount = (int) ($summaryData['salesCount'] ?? 0);
+        $metrics = $this->db->query("SELECT COALESCE(SUM(CASE WHEN t.status='aprovado' THEN su.balance_used ELSE 0 END),0) balance_used,
+            SUM(t.status='cancelado') cancelled_count
+            FROM transacoes_cashback t LEFT JOIN (SELECT transacao_id,SUM(valor_usado) balance_used FROM transacoes_saldo_usado GROUP BY transacao_id) su ON su.transacao_id=t.id
+            WHERE t.loja_id IN ({$storeList}){$recentSellerClause}{$recentDateClause}")->fetch(PDO::FETCH_ASSOC) ?: [];
+        $grossCents = StoreMoney::toCents($summaryData['grossTotal'] ?? 0);
+        $balanceCents = StoreMoney::toCents($metrics['balance_used'] ?? 0);
         return [
             'dataState' => $salesCount > 0 ? 'ready' : 'empty',
             'generatedAt' => date(DATE_ATOM),
             'summary' => [
                 'salesCount' => $salesCount,
-                'grossAmountCents' => StoreMoney::toCents($summaryData['grossTotal'] ?? 0),
+                'grossAmountCents' => $grossCents,
                 'cashbackGrantedCents' => StoreMoney::toCents($summaryData['cashbackTotal'] ?? 0),
+                'balanceUsedCents' => $balanceCents,
+                'outsideBalanceCents' => max(0, $grossCents - $balanceCents),
+                'averageTicketCents' => $salesCount ? (int) round($grossCents / $salesCount) : 0,
+                'cancelledCount' => (int) ($metrics['cancelled_count'] ?? 0),
                 'customersCount' => (int) ($summaryData['customersCount'] ?? 0),
                 'lastTransactionAt' => $this->iso($summaryData['lastTransactionAt'] ?? null),
             ],
@@ -182,18 +202,29 @@ final class StoreReadService
         $conditions = ['t.loja_id IN (' . implode(',', $ids ?: [$storeId]) . ')'];
         $params = [];
         if ($forcedSellerId !== null) { $conditions[] = 't.vendedor_id=:seller_id'; $params[':seller_id'] = $forcedSellerId; }
-        elseif (($filters['sellerId'] ?? '') !== '') { $conditions[] = 't.vendedor_id=:seller_id'; $params[':seller_id'] = (int) $filters['sellerId']; }
+        elseif (($filters['sellerId'] ?? '') === 'unknown') { $conditions[] = 't.vendedor_id IS NULL'; }
+        elseif (($filters['sellerId'] ?? '') !== '') {
+            $sellerId = filter_var($filters['sellerId'], FILTER_VALIDATE_INT);
+            if ($sellerId === false || $sellerId < 1) { throw new StoreApiException('Vendedor inválido.', 422); }
+            $conditions[] = 't.vendedor_id=:seller_id'; $params[':seller_id'] = $sellerId;
+        }
         if (($filters['status'] ?? '') !== '') {
+            if (!in_array($filters['status'], ['aprovado', 'cancelado', 'pendente'], true)) { throw new StoreApiException('Status inválido.', 422); }
             $conditions[] = 't.status=:status';
             $params[':status'] = $filters['status'];
         }
         if (($filters['startDate'] ?? '') !== '') {
+            $this->assertDate($filters['startDate']);
             $conditions[] = 't.data_transacao>=:start_date';
             $params[':start_date'] = $filters['startDate'] . ' 00:00:00';
         }
         if (($filters['endDate'] ?? '') !== '') {
+            $this->assertDate($filters['endDate']);
             $conditions[] = 't.data_transacao<=:end_date';
             $params[':end_date'] = $filters['endDate'] . ' 23:59:59';
+        }
+        if (isset($params[':start_date'], $params[':end_date']) && $params[':start_date'] > $params[':end_date']) {
+            throw new StoreApiException('A data inicial deve ser anterior à final.', 422);
         }
         if (($filters['customer'] ?? '') !== '') {
             $conditions[] = '(u.nome LIKE :customer OR u.email LIKE :customer)';
@@ -227,7 +258,7 @@ final class StoreReadService
 
         $query = $this->db->prepare(
             'SELECT t.id,t.codigo_transacao,t.descricao,t.valor_total,t.valor_cliente,t.status,t.data_transacao,'
-            . "COALESCE(t.financial_model,'commission_legacy') financial_model,u.nome customer_name,u.email customer_email,"
+            . "COALESCE(t.financial_model,'commission_legacy') financial_model,t.source_channel,u.nome customer_name,u.email customer_email,"
             . "t.loja_id,l.nome_fantasia store_name,t.vendedor_id,t.vendedor_nome_snapshot,t.criado_por,t.registrado_por_nome_snapshot,"
             . 'COALESCE(su.balance_used,0) balance_used FROM transacoes_cashback t '
             . 'JOIN usuarios u ON u.id=t.usuario_id JOIN lojas l ON l.id=t.loja_id '
@@ -264,7 +295,7 @@ final class StoreReadService
         $sellerCondition = $forcedSellerId === null ? '' : ' AND t.vendedor_id=' . (int) $forcedSellerId;
         $statement = $this->db->prepare(
             'SELECT t.id,t.codigo_transacao,t.descricao,t.valor_total,t.valor_cliente,t.status,t.data_transacao,'
-            . "COALESCE(t.financial_model,'commission_legacy') financial_model,u.nome customer_name,u.email customer_email,"
+            . "COALESCE(t.financial_model,'commission_legacy') financial_model,t.source_channel,u.nome customer_name,u.email customer_email,"
             . "t.loja_id,l.nome_fantasia store_name,t.vendedor_id,t.vendedor_nome_snapshot,t.criado_por,t.registrado_por_nome_snapshot,"
             . 'COALESCE(su.balance_used,0) balance_used FROM transacoes_cashback t '
             . 'JOIN usuarios u ON u.id=t.usuario_id JOIN lojas l ON l.id=t.loja_id '
@@ -276,35 +307,168 @@ final class StoreReadService
         if (!$row) {
             throw new StoreApiException('Venda não encontrada.', 404);
         }
-        return $this->transactionRow($row);
+        $detail = $this->transactionRow($row);
+        $items = $this->db->prepare('SELECT line_number,item_name,quantity,unit_price_cents,total_cents FROM store_sale_items WHERE transaction_id=? ORDER BY line_number');
+        $items->execute([$transactionId]);
+        $detail['items'] = array_map(static fn (array $item): array => [
+            'name' => (string) $item['item_name'], 'quantity' => (int) $item['quantity'],
+            'unitPriceCents' => (int) $item['unit_price_cents'], 'totalCents' => (int) $item['total_cents'],
+        ], $items->fetchAll(PDO::FETCH_ASSOC));
+        $audit = $this->db->prepare('SELECT e.id,e.previous_seller_id,e.new_seller_id,e.occurred_at FROM store_sale_attribution_events e WHERE e.transaction_id=? ORDER BY e.id');
+        $audit->execute([$transactionId]);
+        $detail['attributionEvents'] = array_map(fn (array $event): array => [
+            'id' => (int) $event['id'], 'previousSellerId' => $event['previous_seller_id'] === null ? null : (int) $event['previous_seller_id'],
+            'newSellerId' => (int) $event['new_seller_id'], 'occurredAt' => $this->iso($event['occurred_at']),
+        ], $audit->fetchAll(PDO::FETCH_ASSOC));
+        $movement = $this->db->prepare('SELECT m.id,m.tipo_operacao,m.valor,m.saldo_anterior,m.saldo_atual,m.data_operacao,m.loja_id,l.nome_fantasia store_name
+            FROM cashback_movimentacoes m JOIN lojas l ON l.id=m.loja_id
+            WHERE m.transacao_origem_id=:origin_id OR m.transacao_uso_id=:usage_id ORDER BY m.id');
+        $movement->execute([':origin_id' => $transactionId, ':usage_id' => $transactionId]);
+        $detail['giftbackMovements'] = array_map(fn (array $event): array => [
+            'id' => (int) $event['id'], 'type' => (string) $event['tipo_operacao'],
+            'amountCents' => StoreMoney::toCents($event['valor']), 'storeName' => (string) $event['store_name'],
+            'deltaCents' => StoreMoney::toCents($event['saldo_atual']) - StoreMoney::toCents($event['saldo_anterior']),
+            'occurredAt' => $this->iso($event['data_operacao']),
+        ], $movement->fetchAll(PDO::FETCH_ASSOC));
+        $lifecycle = $this->db->prepare("SELECT id,action,created_at FROM admin_audit_logs
+            WHERE entity_type='transaction' AND entity_id=? AND result='success'
+              AND action IN ('transaction.reverse','transaction.legacy_status') ORDER BY id");
+        $lifecycle->execute([(string) $transactionId]);
+        $detail['lifecycleEvents'] = array_map(fn (array $event): array => [
+            'id' => (int) $event['id'], 'type' => (string) $event['action'], 'occurredAt' => $this->iso($event['created_at']),
+        ], $lifecycle->fetchAll(PDO::FETCH_ASSOC));
+        return $detail;
     }
 
-    public function sellerReport(array $scopeStores, ?int $forcedSellerId, ?string $startDate, ?string $endDate): array
+    public function sellerReport(array $scopeStores, ?int $forcedSellerId, ?string $startDate, ?string $endDate, ?string $selectedSeller = null): array
     {
         $ids = array_values(array_unique(array_map('intval', $scopeStores)));
         if ($ids === []) { throw new StoreApiException('Filial inválida.', 422); }
-        $where = ['t.loja_id IN (' . implode(',', $ids) . ')', "t.status='aprovado'"];
+        $where = ['t.loja_id IN (' . implode(',', $ids) . ')'];
         $params = [];
         if ($forcedSellerId !== null) { $where[] = 't.vendedor_id=?'; $params[] = $forcedSellerId; }
-        if ($startDate) { $where[] = 't.data_transacao>=?'; $params[] = $startDate . ' 00:00:00'; }
-        if ($endDate) { $where[] = 't.data_transacao<=?'; $params[] = $endDate . ' 23:59:59'; }
+        elseif ($selectedSeller === 'unknown') { $where[] = 't.vendedor_id IS NULL'; }
+        elseif ($selectedSeller !== null && $selectedSeller !== '') {
+            $id = filter_var($selectedSeller, FILTER_VALIDATE_INT);
+            if ($id === false || $id < 1) { throw new StoreApiException('Vendedor inválido.', 422); }
+            $where[] = 't.vendedor_id=?'; $params[] = $id;
+        }
+        if ($startDate) { $this->assertDate($startDate); $where[] = 't.data_transacao>=?'; $params[] = $startDate . ' 00:00:00'; }
+        if ($endDate) { $this->assertDate($endDate); $where[] = 't.data_transacao<=?'; $params[] = $endDate . ' 23:59:59'; }
+        if ($startDate && $endDate && $startDate > $endDate) { throw new StoreApiException('A data inicial deve ser anterior à final.', 422); }
         $stmt = $this->db->prepare('SELECT t.loja_id,l.nome_fantasia store_name,t.vendedor_id,
-            COALESCE(MAX(t.vendedor_nome_snapshot),\'Vendedor não identificado\') seller_name,
-            COUNT(*) sales_count,COALESCE(SUM(t.valor_total),0) gross_total,
-            COALESCE(SUM(t.valor_cliente),0) giftback_issued,
-            COALESCE(SUM(su.balance_used),0) balance_redeemed
+            COALESCE(NULLIF(MAX(t.vendedor_nome_snapshot),\'\'),\'Vendedor não identificado\') seller_name,
+            SUM(t.status=\'aprovado\') sales_count,
+            COALESCE(SUM(CASE WHEN t.status=\'aprovado\' THEN t.valor_total ELSE 0 END),0) gross_total,
+            COALESCE(SUM(CASE WHEN t.status=\'aprovado\' THEN t.valor_cliente ELSE 0 END),0) giftback_issued,
+            COALESCE(SUM(CASE WHEN t.status=\'aprovado\' THEN su.balance_used ELSE 0 END),0) balance_redeemed,
+            COUNT(DISTINCT CASE WHEN t.status=\'aprovado\' THEN t.usuario_id END) customers_count,
+            SUM(t.status=\'cancelado\') cancelled_count
             FROM transacoes_cashback t JOIN lojas l ON l.id=t.loja_id
             LEFT JOIN (SELECT transacao_id,SUM(valor_usado) balance_used FROM transacoes_saldo_usado GROUP BY transacao_id) su ON su.transacao_id=t.id
             WHERE ' . implode(' AND ', $where) . ' GROUP BY t.loja_id,l.nome_fantasia,t.vendedor_id ORDER BY gross_total DESC');
         $stmt->execute($params);
-        return ['items' => array_map(static fn (array $row): array => [
+        $rows = array_map(static fn (array $row): array => [
             'storeId' => (int) $row['loja_id'], 'storeName' => $row['store_name'],
             'sellerId' => $row['vendedor_id'] === null ? null : (int) $row['vendedor_id'],
             'sellerName' => $row['seller_name'], 'salesCount' => (int) $row['sales_count'],
             'grossAmountCents' => StoreMoney::toCents($row['gross_total']),
             'giftbackIssuedCents' => StoreMoney::toCents($row['giftback_issued']),
             'balanceRedeemedCents' => StoreMoney::toCents($row['balance_redeemed']),
-        ], $stmt->fetchAll(PDO::FETCH_ASSOC))];
+            'customersCount' => (int) $row['customers_count'], 'cancelledCount' => (int) $row['cancelled_count'],
+        ], $stmt->fetchAll(PDO::FETCH_ASSOC));
+        $people = [];
+        foreach ($rows as $row) {
+            $key = $row['sellerId'] === null ? 'unknown' : (string) $row['sellerId'];
+            if (!isset($people[$key])) {
+                $people[$key] = ['sellerId' => $row['sellerId'], 'sellerName' => $row['sellerName'], 'salesCount' => 0,
+                    'grossAmountCents' => 0, 'giftbackIssuedCents' => 0, 'balanceRedeemedCents' => 0, 'cancelledCount' => 0];
+            }
+            foreach (['salesCount','grossAmountCents','giftbackIssuedCents','balanceRedeemedCents','cancelledCount'] as $field) {
+                $people[$key][$field] += $row[$field];
+            }
+        }
+        return ['items' => $rows, 'people' => array_values($people)];
+    }
+
+    public function personReport(array $scopeStores, ?int $forcedSellerId, string $person, ?string $startDate, ?string $endDate): array
+    {
+        if ($person !== 'unknown' && (filter_var($person, FILTER_VALIDATE_INT) === false || (int) $person < 1)) {
+            throw new StoreApiException('Vendedor inválido.', 422);
+        }
+        if ($forcedSellerId !== null && (string) $forcedSellerId !== $person) {
+            throw new StoreApiException('Você pode consultar apenas o próprio desempenho.', 403);
+        }
+        $report = $this->sellerReport($scopeStores, $forcedSellerId, $startDate, $endDate, $person);
+        $ids = implode(',', array_map('intval', $scopeStores));
+        $where = ["t.loja_id IN ({$ids})", $person === 'unknown' ? 't.vendedor_id IS NULL' : 't.vendedor_id=?'];
+        $params = $person === 'unknown' ? [] : [(int) $person];
+        if ($startDate) { $where[] = 't.data_transacao>=?'; $params[] = $startDate . ' 00:00:00'; }
+        if ($endDate) { $where[] = 't.data_transacao<=?'; $params[] = $endDate . ' 23:59:59'; }
+        $condition = implode(' AND ', $where);
+        $totals = $this->db->prepare("SELECT COUNT(DISTINCT CASE WHEN t.status='aprovado' THEN t.usuario_id END) customers_count,
+            COUNT(DISTINCT CASE WHEN t.status='aprovado' THEN t.criado_por END) recorders_count
+            FROM transacoes_cashback t WHERE {$condition}");
+        $totals->execute($params);
+        $totalRow = $totals->fetch(PDO::FETCH_ASSOC) ?: [];
+        $monthly = $this->db->prepare("SELECT DATE_FORMAT(t.data_transacao,'%Y-%m') month,COUNT(*) sales_count,
+            COALESCE(SUM(t.valor_total),0) gross_total FROM transacoes_cashback t
+            WHERE {$condition} AND t.status='aprovado' GROUP BY DATE_FORMAT(t.data_transacao,'%Y-%m') ORDER BY month");
+        $monthly->execute($params);
+        $recordedWhere = ["t.loja_id IN ({$ids})", 't.criado_por=?'];
+        $recordedParams = [(int) $person];
+        if ($person === 'unknown') { $recordedWhere[] = '1=0'; }
+        if ($startDate) { $recordedWhere[] = 't.data_transacao>=?'; $recordedParams[] = $startDate . ' 00:00:00'; }
+        if ($endDate) { $recordedWhere[] = 't.data_transacao<=?'; $recordedParams[] = $endDate . ' 23:59:59'; }
+        $recorded = $this->db->prepare('SELECT SUM(t.status=\'aprovado\') FROM transacoes_cashback t WHERE ' . implode(' AND ', $recordedWhere));
+        $recorded->execute($recordedParams);
+        $sales = array_sum(array_column($report['items'], 'salesCount'));
+        $gross = array_sum(array_column($report['items'], 'grossAmountCents'));
+        $redeemed = array_sum(array_column($report['items'], 'balanceRedeemedCents'));
+        return [
+            'sellerId' => $person === 'unknown' ? null : (int) $person,
+            'sellerName' => $report['items'][0]['sellerName'] ?? ($person === 'unknown' ? 'Vendedor não identificado' : 'Sem vendas no período'),
+            'summary' => ['salesCount' => $sales, 'grossAmountCents' => $gross, 'balanceRedeemedCents' => $redeemed,
+                'outsideBalanceCents' => $gross - $redeemed,
+                'giftbackIssuedCents' => array_sum(array_column($report['items'], 'giftbackIssuedCents')),
+                'averageTicketCents' => $sales ? (int) round($gross / $sales) : 0,
+                'customersCount' => (int) ($totalRow['customers_count'] ?? 0),
+                'cancelledCount' => array_sum(array_column($report['items'], 'cancelledCount')),
+                'recordedSalesCount' => $forcedSellerId === null ? (int) $recorded->fetchColumn() : null],
+            'branches' => $report['items'],
+            'monthlySales' => array_map(static fn (array $row): array => ['month' => $row['month'],
+                'salesCount' => (int) $row['sales_count'], 'grossAmountCents' => StoreMoney::toCents($row['gross_total'])], $monthly->fetchAll(PDO::FETCH_ASSOC)),
+        ];
+    }
+
+    public function reportSellers(array $scopeStores, ?string $startDate, ?string $endDate): array
+    {
+        $ids = implode(',', array_map('intval', $scopeStores));
+        if ($ids === '') { throw new StoreApiException('Filial inválida.', 422); }
+        $where = ["t.loja_id IN ({$ids})"];
+        $params = [];
+        if ($startDate) { $this->assertDate($startDate); $where[] = 't.data_transacao>=?'; $params[] = $startDate . ' 00:00:00'; }
+        if ($endDate) { $this->assertDate($endDate); $where[] = 't.data_transacao<=?'; $params[] = $endDate . ' 23:59:59'; }
+        if ($startDate && $endDate && $startDate > $endDate) { throw new StoreApiException('A data inicial deve ser anterior à final.', 422); }
+        $statement = $this->db->prepare('SELECT t.vendedor_id id,COALESCE(NULLIF(MAX(t.vendedor_nome_snapshot),\'\'),\'Vendedor não identificado\') name,
+            COUNT(*) sales_count FROM transacoes_cashback t WHERE ' . implode(' AND ', $where) . ' GROUP BY t.vendedor_id ORDER BY name');
+        $statement->execute($params);
+        return ['items' => array_map(static fn (array $row): array => [
+            'id' => $row['id'] === null ? 'unknown' : (string) $row['id'], 'name' => $row['name'],
+            'salesCount' => (int) $row['sales_count'],
+        ], $statement->fetchAll(PDO::FETCH_ASSOC))];
+    }
+
+    /** @param list<int> $transactionIds */
+    public function saleItemsBatch(array $transactionIds): array
+    {
+        if ($transactionIds === []) { return []; }
+        $list = implode(',', array_map('intval', $transactionIds));
+        $rows = $this->db->query("SELECT transaction_id,line_number,item_name,quantity,unit_price_cents,total_cents FROM store_sale_items WHERE transaction_id IN ({$list}) ORDER BY transaction_id,line_number")
+            ->fetchAll(PDO::FETCH_ASSOC);
+        $grouped = [];
+        foreach ($rows as $row) { $grouped[(int) $row['transaction_id']][] = $row; }
+        return $grouped;
     }
 
     public function giftbackReport(array $scopeStores): array
@@ -406,6 +570,7 @@ final class StoreReadService
             'cashbackGrantedCents' => StoreMoney::toCents($row['valor_cliente']),
             'status' => (string) $row['status'],
             'financialModel' => (string) $row['financial_model'],
+            'sourceChannel' => (string) ($row['source_channel'] ?? ''),
             'occurredAt' => $this->iso($row['data_transacao']),
         ];
     }
@@ -417,6 +582,14 @@ final class StoreReadService
         }
         $timestamp = strtotime((string) $value);
         return $timestamp === false ? null : date(DATE_ATOM, $timestamp);
+    }
+
+    private function assertDate(string $date): void
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
+            || !checkdate((int) substr($date, 5, 2), (int) substr($date, 8, 2), (int) substr($date, 0, 4))) {
+            throw new StoreApiException('Período inválido.', 422);
+        }
     }
 
     private function initial(string $name): string

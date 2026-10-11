@@ -52,8 +52,23 @@ export default function NetworkHubPage() {
     <section className="store-panel"><h3>Gestores designados pela KlubeCash</h3><p>{overview.data.managers?.map((manager) => manager.name).join(", ") || "Nenhum gestor ativo identificado."} Somente o admin KlubeCash pode conceder ou revogar esse acesso.</p></section>
     <section className="store-panel store-stack"><div className="store-panel-head"><div><h3>Equipe da rede</h3><p>Uma conta, funções e estados separados por filial.</p></div>
       <form onSubmit={(event) => { event.preventDefault(); setApplied(search); setPage(1); }} className="store-actions"><input className="store-input" aria-label="Buscar pessoa" placeholder="Nome ou e-mail" value={search} onChange={(event) => setSearch(event.target.value)} /><button className="store-button">Buscar</button></form></div>
-      <div className="store-table-wrap"><table className="store-table"><thead><tr><th>Pessoa</th><th>Filiais e funções</th></tr></thead><tbody>
-        {team.data.items.map((member) => <tr key={member.id}><td><strong>{member.name}</strong><small>{member.email}</small><small>Conta: {member.accountStatus}</small>{member.networkManager && <small>Gestor da rede · acesso alterado somente pela KlubeCash</small>}</td><td>
+      <div className="store-mobile-only">{team.data.items.map((member) => <article className="store-customer-card" key={member.id}>
+        <h4>{member.name}</h4><p>{member.email} · conta {member.accountStatus}</p>
+        {member.networkManager && <p>Gestor da rede · definido pela KlubeCash</p>}
+        {member.branches.map((branch) => <div key={branch.storeId} className="store-stack" style={{ gap: 6, marginBottom: 12 }}>
+          <strong>{branch.storeName}</strong><span>{branch.status === "active" ? "Ativo" : branch.status === "pending" ? "Convite pendente" : "Inativo"} · {branch.role}</span>
+          {branch.status === "active" && !member.networkManager && <div className="store-actions">
+            <select className="store-select" aria-label={`Função de ${member.name} em ${branch.storeName}`} value={branch.role} disabled={change.isPending}
+              onChange={(event) => change.mutate({ action: "role", userId: member.id, storeId: branch.storeId, role: event.target.value as Role, expectedRole: branch.role })}>
+              <option value="vendedor">Vendedor</option><option value="financeiro">Financeiro</option><option value="gerente">Gerente</option>
+            </select>
+            <button className="store-button store-button-danger" disabled={change.isPending} onClick={() => { if (confirm(`Desativar o vínculo de ${member.name} com ${branch.storeName}?`)) change.mutate({ action: "deactivate", userId: member.id, storeId: branch.storeId }); }}>Desativar</button>
+          </div>}
+        </div>)}
+        <Link className="store-button" href={`/store/desempenho/${member.id}`}>Ver desempenho</Link>
+      </article>)}</div>
+      <div className="store-table-wrap store-desktop-only"><table className="store-table"><thead><tr><th>Pessoa</th><th>Filiais e funções</th></tr></thead><tbody>
+        {team.data.items.map((member) => <tr key={member.id}><td><strong>{member.name}</strong><small>{member.email}</small><small>Conta: {member.accountStatus}</small><Link className="store-link" href={`/store/desempenho/${member.id}`}>Ver desempenho</Link>{member.networkManager && <small>Gestor da rede · acesso alterado somente pela KlubeCash</small>}</td><td>
           {member.branches.map((link) => <div className="store-actions" key={link.storeId} style={{ marginBottom: 8 }}>
             <strong>{link.storeName}</strong><span>{link.status === "pending" ? "Convite pendente" : link.status === "inactive" ? "Inativo" : "Ativo"}</span>
             {link.status === "active" && !member.networkManager && <><select className="store-select" aria-label={`Função de ${member.name} em ${link.storeName}`} value={link.role}

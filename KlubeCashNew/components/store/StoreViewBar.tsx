@@ -8,8 +8,8 @@ export function StoreViewBar({ showStatus = false }: { showStatus?: boolean }) {
   const context = useStoreContext();
   const view = useStoreView();
   const sellers = useQuery({
-    queryKey: ["view-sellers", context.store.id, context.networkId, view.branch],
-    queryFn: () => storeFetch<{ items: Array<{ id: number; name: string }> }>(`sellers${view.branch === "network" ? "&scope=network" : context.canViewNetwork && view.branch !== context.store.id ? `&scope=network&storeId=${view.branch}` : ""}`),
+    queryKey: ["view-sellers", context.store.id, context.networkId, view.branch, view.startDate, view.endDate],
+    queryFn: () => storeFetch<{ items: Array<{ id: string; name: string }> }>(`sellers&history=1${view.branch === "network" ? "&scope=network" : context.canViewNetwork && view.branch !== context.store.id ? `&scope=network&storeId=${view.branch}` : ""}${view.startDate ? `&startDate=${view.startDate}` : ""}${view.endDate ? `&endDate=${view.endDate}` : ""}`),
     enabled: context.user.subtype !== "vendedor",
   });
   return <section className="store-view-bar" aria-label="Visão dos dados">
@@ -20,7 +20,9 @@ export function StoreViewBar({ showStatus = false }: { showStatus?: boolean }) {
         <option key={store.id} value={store.id}>{store.name}</option>)}
     </select></label>
     {context.user.subtype !== "vendedor" && <label><span>Vendedor</span><select aria-label="Vendedor dos dados" value={view.sellerId} onChange={(event) => view.setView({ sellerId: event.target.value })}>
-      <option value="">Todos</option>{sellers.data?.items.map((seller) => <option key={seller.id} value={seller.id}>{seller.name}</option>)}
+      <option value="">Todos</option>
+      {view.sellerId && !sellers.data?.items.some((seller) => seller.id === view.sellerId) && <option value={view.sellerId}>Vendedor selecionado · sem vendas no período</option>}
+      {sellers.data?.items.map((seller) => <option key={seller.id} value={seller.id}>{seller.name}</option>)}
     </select></label>}
     <label><span>De</span><input aria-label="Data inicial dos dados" type="date" value={view.startDate} onChange={(event) => view.setView({ startDate: event.target.value })} /></label>
     <label><span>Até</span><input aria-label="Data final dos dados" type="date" value={view.endDate} onChange={(event) => view.setView({ endDate: event.target.value })} /></label>
