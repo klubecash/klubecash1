@@ -5,7 +5,7 @@ services:
     environment:
       NODE_ENV: production
       PHP_BACKEND_URL: http://legacy-http:8080
-      SITE_URL: ${KLUBCASH_SITE_URL:-https://vps.klubecash.com}
+      SITE_URL: ${KLUBCASH_SITE_URL:-https://klubecash.com}
       STORE_UI_MODE: next
       ADMIN_UI_MODE: next
     expose:
@@ -46,7 +46,7 @@ services:
     restart: unless-stopped
     command: ["sh", "-lc", "chown www-data:www-data /app/uploads /app/logs && exec php-fpm -F"]
     environment:
-      SITE_URL: ${KLUBCASH_SITE_URL:-https://vps.klubecash.com}
+      SITE_URL: ${KLUBCASH_SITE_URL:-https://klubecash.com}
       SESSION_DRIVER: database
       SESSION_NAME: KLCSESSID
       SESSION_COOKIE_SECURE: "true"
@@ -84,6 +84,7 @@ services:
       WHATSAPP_SALES_ENABLED: "${KLUBCASH_WHATSAPP_SALES_ENABLED:-false}"
       WAHA_MANAGE_WEBHOOK: "${KLUBCASH_WAHA_MANAGE_WEBHOOK:-false}"
       VPS_WORKERS_ENABLED: "${KLUBCASH_VPS_WORKERS_ENABLED:-false}"
+      GIFTBACK_NOTICES_ENABLED: "${KLUBCASH_GIFTBACK_NOTICES_ENABLED:-false}"
       VPS_DERIVE_RUNTIME_KEYS: "true"
     volumes:
       - uploads-data:/app/uploads

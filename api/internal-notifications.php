@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Core\Logger;
+use App\Services\Giftback\GiftbackExpiryNoticeService;
 use App\Services\Store\StoreWhatsAppNotificationService;
 use App\Services\WhatsApp\CurlWahaHttpClient;
 use App\Services\WhatsApp\WahaConfig;
@@ -57,6 +58,19 @@ try {
         ? $menuService->processPendingReplies($limit)
         : ['available' => 0, 'sent' => 0, 'pending' => 0, 'failed' => 0];
 
+    // Avisos de vencimento de giftback: desligados por padrao e isolados, uma falha aqui
+    // nao afeta as demais filas do WhatsApp.
+    $expiryNotices = ['enabled' => false];
+    if ($connection['available']) {
+        try {
+            require_once __DIR__ . '/../services/Giftback/GiftbackExpiryNoticeService.php';
+            $expiryNotices = (new GiftbackExpiryNoticeService($db, $waha))->run(30);
+        } catch (Throwable $exception) {
+            Logger::error('giftback.notice.worker_failed', ['exception' => get_class($exception)]);
+            $expiryNotices = ['enabled' => true, 'error' => 'notice_processor_failed'];
+        }
+    }
+
     http_response_code($connection['available'] ? 200 : 503);
     echo json_encode([
         'success' => $connection['available'],
@@ -65,6 +79,7 @@ try {
         'outbound' => $outbound,
         'inbound' => $inbound,
         'menuReplies' => $menuReplies,
+        'expiryNotices' => $expiryNotices,
         'processedAt' => date(DATE_ATOM),
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (Throwable $exception) {
