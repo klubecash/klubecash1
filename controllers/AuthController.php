@@ -67,71 +67,112 @@ class AuthController {
             return ['status' => false, 'message' => 'E-mail ou senha incorretos.'];
         }
 
-        if (!session_regenerate_id(true)) {
-            error_log('auth.login.session_regeneration_failed');
-            return ['status' => false, 'message' => 'Nao foi possivel iniciar uma sessao segura. Tente novamente.'];
-        }
-
-        if ($user['status'] !== 'ativo') {
-            error_log('auth.login.inactive_account');
-            return ['status' => false, 'message' => 'Sua conta está inativa. Entre em contato com o suporte.'];
-        }
-
         error_log('auth.login.validated');
-
-        // Definir variáveis básicas da sessão
-        $_SESSION['user_id'] = intval($user['id']);
-        $_SESSION['user_name'] = $user['nome'];
-        $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_type'] = $user['tipo'];
-        $_SESSION['last_activity'] = time();
-
-        error_log('auth.login.session_configured');
-
-        if (in_array($user['tipo'], ['loja', 'funcionario'], true)) {
-            $access = new \App\Services\Store\StoreNetworkAccess($db);
-            $stores = $access->stores((int) $user['id']);
-            if ($stores === []) {
-                return ['status' => false, 'message' => 'Nenhuma filial ativa está vinculada à sua conta.'];
-            }
-            // A previous branch must never leak into a newly authenticated user.
-            unset($_SESSION['store_id'], $_SESSION['loja_vinculada_id'], $_SESSION['store_name']);
-            if (count($stores) === 1) {
-                $access->select((int) $user['id'], $stores[0]['id']);
-            }
-        }
-
-        // Atualizar último login
-        $updateStmt = $db->prepare("UPDATE usuarios SET ultimo_login = NOW() WHERE id = ?");
-        $updateStmt->execute([$user['id']]);
-        error_log('auth.login.last_login_updated');
-
-        // Geração do Token JWT
-        $tokenPayload = [
-            'id'   => intval($user['id']),
-            'nome' => $user['nome'],
-            'tipo' => $user['tipo'],
-            'exp'  => time() + (60 * 60 * 24) // Token JWT válido por 24h
-        ];
-        $token = Security::generateJWT($tokenPayload);
-        error_log('auth.login.token_generated');
-
-        return [
-            'status' => true,
-            'message' => 'Login realizado com sucesso!',
-            'user_data' => [
-                'id' => intval($user['id']),
-                'nome' => $user['nome'],
-                'email' => $user['email'],
-                'tipo' => $user['tipo']
-            ],
-            'token' => $token
-        ];
+        return self::startSessionForUser($db, $user);
 
     } catch (Exception $e) {
         error_log('LOGIN ERRO CRÍTICO: ' . $e->getMessage());
         return ['status' => false, 'message' => 'Não foi possível concluir o login. Tente novamente em instantes.'];
     }
+}
+
+/**
+ * Opens the KlubeCash session for an account whose identity was already proven
+ * (password here, or the Grupo Klube central login). Shared by every way of signing in.
+ *
+ * @param array{id: int|string, nome: string, email: ?string, tipo: string, status: string} $user
+ */
+public static function startSessionForUser(PDO $db, array $user): array {
+    if ($user['status'] !== 'ativo') {
+        error_log('auth.login.inactive_account');
+        return ['status' => false, 'message' => 'Sua conta está inativa. Entre em contato com o suporte.'];
+    }
+
+    // Branches are checked before the session is touched, so a refused login leaves no session behind.
+    $access = null;
+    $stores = [];
+    if (in_array($user['tipo'], ['loja', 'funcionario'], true)) {
+        $access = new \App\Services\Store\StoreNetworkAccess($db);
+        $stores = $access->stores((int) $user['id']);
+        if ($stores === []) {
+            return ['status' => false, 'message' => 'Nenhuma filial ativa está vinculada à sua conta.'];
+        }
+    }
+
+    if (!session_regenerate_id(true)) {
+        error_log('auth.login.session_regeneration_failed');
+        return ['status' => false, 'message' => 'Nao foi possivel iniciar uma sessao segura. Tente novamente.'];
+    }
+
+    // Definir variáveis básicas da sessão
+    $_SESSION['user_id'] = intval($user['id']);
+    $_SESSION['user_name'] = $user['nome'];
+    $_SESSION['user_email'] = $user['email'];
+    $_SESSION['user_type'] = $user['tipo'];
+    $_SESSION['last_activity'] = time();
+    // A previous branch or login method must never leak into a newly authenticated user.
+    unset(
+        $_SESSION['store_id'], $_SESSION['loja_vinculada_id'], $_SESSION['store_name'],
+        $_SESSION['employee_subtype'], $_SESSION['subtipo_funcionario'],
+        $_SESSION['login_method'], $_SESSION['grupoklube_id_token']
+    );
+
+    error_log('auth.login.session_configured');
+
+    if ($access !== null && count($stores) === 1) {
+        $access->select((int) $user['id'], $stores[0]['id']);
+    }
+
+    // Atualizar último login
+    $updateStmt = $db->prepare("UPDATE usuarios SET ultimo_login = NOW() WHERE id = ?");
+    $updateStmt->execute([$user['id']]);
+    error_log('auth.login.last_login_updated');
+
+    // Geração do Token JWT
+    $tokenPayload = [
+        'id'   => intval($user['id']),
+        'nome' => $user['nome'],
+        'tipo' => $user['tipo'],
+        'exp'  => time() + (60 * 60 * 24) // Token JWT válido por 24h
+    ];
+    $token = Security::generateJWT($tokenPayload);
+    error_log('auth.login.token_generated');
+
+    return [
+        'status' => true,
+        'message' => 'Login realizado com sucesso!',
+        'user_data' => [
+            'id' => intval($user['id']),
+            'nome' => $user['nome'],
+            'email' => $user['email'],
+            'tipo' => $user['tipo']
+        ],
+        'token' => $token
+    ];
+}
+
+/** Sets the JWT cookie and writes the session before answering: the next request may reach another instance. */
+public static function persistLogin(string $token): bool {
+    if ($token !== '') {
+        setcookie('jwt_token', $token, [
+            'expires' => time() + (60 * 60 * 24),
+            'path' => '/',
+            'domain' => '',
+            'secure' => getenv('VERCEL') === '1'
+                || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https',
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
+    }
+    return session_status() !== PHP_SESSION_ACTIVE || session_write_close();
+}
+
+public static function dashboardFor(string $userType): string {
+    if ($userType === 'admin') {
+        return ADMIN_DASHBOARD_URL;
+    }
+    return in_array($userType, ['loja', 'funcionario'], true) ? '/store' : CLIENT_DASHBOARD_URL;
 }
 
 

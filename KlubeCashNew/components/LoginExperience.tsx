@@ -14,6 +14,7 @@ type LoginExperienceProps = {
   initialSuccess: string | null;
   forceLogin: boolean;
   returnTo?: string | null;
+  groupLoginUrl?: string | null;
 };
 
 type LoginResponse = {
@@ -42,6 +43,7 @@ export default function LoginExperience({
   initialSuccess,
   forceLogin,
   returnTo = null,
+  groupLoginUrl = null,
 }: LoginExperienceProps) {
   const [theme, setTheme] = useState<Theme>(() =>
     typeof document !== "undefined" && document.documentElement.dataset.theme === "dark"
@@ -320,6 +322,16 @@ export default function LoginExperience({
                 {!submitting ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5" /></svg> : null}
               </button>
             </form>
+
+            {groupLoginUrl ? (
+              <>
+                <div className={styles.ssoDivider} aria-hidden="true"><span>ou</span></div>
+                <a href={groupLoginUrl} className={styles.ssoButton}>
+                  <span className={styles.ssoDot} aria-hidden="true" />
+                  <span>Entrar com Grupo Klube</span>
+                </a>
+              </>
+            ) : null}
 
             <div className={styles.trustNote}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>

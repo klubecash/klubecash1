@@ -38,6 +38,17 @@ describe("experiência de login", () => {
     expect(screen.getByRole("link", { name: "Esqueci minha senha" })).toHaveAttribute("href", "/recuperar-senha");
   });
 
+  it("mostra Entrar com Grupo Klube só quando o login central está ligado", () => {
+    const { rerender } = render(<LoginExperience initialError={null} initialSuccess={null} forceLogin={false} />);
+    expect(screen.queryByRole("link", { name: "Entrar com Grupo Klube" })).not.toBeInTheDocument();
+
+    rerender(
+      <LoginExperience initialError={null} initialSuccess={null} forceLogin={false} groupLoginUrl="/auth/grupoklube/login?returnTo=%2Fstore" />,
+    );
+    expect(screen.getByRole("link", { name: "Entrar com Grupo Klube" })).toHaveAttribute("href", "/auth/grupoklube/login?returnTo=%2Fstore");
+    expect(screen.getByRole("button", { name: "Entrar" })).toBeInTheDocument();
+  });
+
   it("valida os campos e direciona o foco para o primeiro erro", () => {
     render(<LoginExperience initialError={null} initialSuccess={null} forceLogin={false} />);
 

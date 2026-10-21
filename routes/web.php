@@ -20,6 +20,8 @@ return [
     $page('/registro', 'views/auth/register.php', 'auth.register', ['guest']),
     $page('/recuperar-senha', 'views/auth/recover-password.php', 'auth.recover', ['guest']),
     $page('/logout', 'views/auth/logout.php', 'auth.logout', ['auth']),
+    $page('/auth/grupoklube/login', 'views/auth/grupoklube-login.php', 'auth.grupoklube.login', [], ['GET']),
+    $page('/auth/grupoklube/callback', 'views/auth/grupoklube-callback.php', 'auth.grupoklube.callback', [], ['GET']),
     $page('/como-funciona', 'views/marketing/como-funciona.php', 'marketing.how'),
     $page('/vantagens-cashback', 'views/marketing/vantagens.php', 'marketing.benefits'),
     $page('/blog', 'views/blog/index.php', 'blog.index', [], ['GET']),

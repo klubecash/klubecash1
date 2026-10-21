@@ -8,10 +8,17 @@ require_once '../../config/database.php';
 require_once '../../config/constants.php';
 require_once '../../controllers/AuthController.php';
 
+require_once __DIR__ . '/../../services/Auth/GrupoKlubeSsoException.php';
+require_once __DIR__ . '/../../services/Auth/IdTokenVerifier.php';
+require_once __DIR__ . '/../../services/Auth/GrupoKlubeSso.php';
+
 // Iniciar sessão se não estiver iniciada
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
+// Quem entrou pelo login do Grupo Klube também encerra a sessão central ao sair.
+$centralIdToken = ($_SESSION['login_method'] ?? null) === 'grupoklube' ? (string) ($_SESSION['grupoklube_id_token'] ?? '') : '';
 
 // Fazer logout através do AuthController
 $result = AuthController::logout();
@@ -41,6 +48,12 @@ if ($legacyDomain !== '' && filter_var($legacyDomain, FILTER_VALIDATE_IP) === fa
     foreach (array_unique([session_name(), 'KLCSESSID', 'PHPSESSID', 'jwt_token']) as $cookieName) {
         setcookie($cookieName, '', $expiredCookie);
     }
+}
+
+$centralLogin = $centralIdToken !== '' ? \App\Services\Auth\GrupoKlubeSso::fromEnvironment(SITE_URL) : null;
+if ($centralLogin !== null) {
+    header('Location: ' . $centralLogin->logoutUrl($centralIdToken, SITE_URL . LOGIN_URL));
+    exit;
 }
 
 // Redirecionar para login
