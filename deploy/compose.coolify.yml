@@ -8,6 +8,8 @@ services:
       SITE_URL: ${KLUBCASH_SITE_URL:-https://klubecash.com}
       STORE_UI_MODE: next
       ADMIN_UI_MODE: next
+      # Shows "Entrar com Grupo Klube" on /login. Switch on only after the login was tested.
+      GRUPOKLUBE_SSO_ENABLED: "${KLUBCASH_GRUPOKLUBE_SSO_ENABLED:-false}"
     expose:
       - "3000"
     networks:
@@ -86,6 +88,10 @@ services:
       VPS_WORKERS_ENABLED: "${KLUBCASH_VPS_WORKERS_ENABLED:-false}"
       GIFTBACK_NOTICES_ENABLED: "${KLUBCASH_GIFTBACK_NOTICES_ENABLED:-false}"
       VPS_DERIVE_RUNTIME_KEYS: "true"
+      # Grupo Klube central login (OIDC). Without the client secret the /auth/grupoklube routes fall back to /login.
+      GRUPOKLUBE_ISSUER: ${KLUBCASH_GRUPOKLUBE_ISSUER:-https://login.grupoklube.online}
+      GRUPOKLUBE_CLIENT_ID: ${KLUBCASH_GRUPOKLUBE_CLIENT_ID:-klubecash}
+      GRUPOKLUBE_CLIENT_SECRET: ${KLUBCASH_GRUPOKLUBE_CLIENT_SECRET:-}
     volumes:
       - uploads-data:/app/uploads
       - logs-data:/app/logs

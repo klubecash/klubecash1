@@ -61,25 +61,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($result['status']) {
         $userType = $_SESSION['user_type'] ?? '';
-        $token = $result['token'] ?? '';
 
-        if ($token) {
-            // Define o cookie JWT
-            setcookie('jwt_token', $token, [
-                'expires' => time() + (60 * 60 * 24),
-                'path' => '/',
-                'domain' => '',
-                'secure' => getenv('VERCEL') === '1'
-                    || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-                    || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https',
-                'httponly' => true,
-                'samesite' => 'Lax'
-            ]);
-        }
-
-        // Persiste a sessão no banco antes de responder ao fetch. Em runtimes
-        // serverless, o redirecionamento seguinte pode cair em outra instância.
-        if (session_status() === PHP_SESSION_ACTIVE && !session_write_close()) {
+        // Define o cookie JWT e persiste a sessão no banco antes de responder ao fetch.
+        // Em runtimes serverless, o redirecionamento seguinte pode cair em outra instância.
+        if (!AuthController::persistLogin($result['token'] ?? '')) {
             header('Content-Type: application/json');
             http_response_code(500);
             echo json_encode([
@@ -89,14 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        // Definir URL de redirecionamento
-        $redirectUrl = CLIENT_DASHBOARD_URL; // padrão
-
-        if ($userType == 'admin') {
-            $redirectUrl = ADMIN_DASHBOARD_URL;
-        } else if ($userType == 'loja' || $userType == 'funcionario') {
-            $redirectUrl = '/store';
-        }
+        $redirectUrl = AuthController::dashboardFor($userType);
 
         // Retorna JSON para o front
         header('Content-Type: application/json');

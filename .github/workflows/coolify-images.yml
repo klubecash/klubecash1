@@ -2,7 +2,7 @@ name: Build KlubeCash VPS images
 
 on:
   push:
-    branches: [codex/klubcashvps, codex/sales-performance]
+    branches: [codex/klubcashvps, codex/sales-performance, codex/grupoklube-sso]
   workflow_dispatch:
 
 permissions:
@@ -44,7 +44,13 @@ jobs:
       - run: php scripts/quality/check-routes.php
       - run: php tests/php/vps_runtime_keys_unit.php
       - run: php tests/php/store_sale_items_unit.php
+      - run: php tests/php/grupoklube_sso_unit.php
       - run: php tests/php/store_sales_reporting_integration.php
+        env:
+          GIFTBACK_TEST_DSN: mysql:host=127.0.0.1;port=3306
+          GIFTBACK_TEST_USER: root
+          GIFTBACK_TEST_PASSWORD: isolated-test-only
+      - run: php tests/php/grupoklube_session_integration.php
         env:
           GIFTBACK_TEST_DSN: mysql:host=127.0.0.1;port=3306
           GIFTBACK_TEST_USER: root

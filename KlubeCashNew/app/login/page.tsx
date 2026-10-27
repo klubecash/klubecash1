@@ -49,12 +49,18 @@ export default async function LoginPage({
     redirect(returnTo ?? context.user.dashboardUrl);
   }
 
+  // "Entrar com Grupo Klube" only appears where the central login is switched on (the VPS stack).
+  const groupLoginUrl = process.env.GRUPOKLUBE_SSO_ENABLED === "true"
+    ? `/auth/grupoklube/login${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`
+    : null;
+
   return (
     <LoginExperience
       initialError={firstValue(params.error) ?? null}
       initialSuccess={successMessage(firstValue(params.success))}
       forceLogin={forceLogin}
       returnTo={returnTo}
+      groupLoginUrl={groupLoginUrl}
     />
   );
 }
