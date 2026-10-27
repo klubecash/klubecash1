@@ -30,7 +30,10 @@ class StoreBalancePaymentController {
             $offset = ($page - 1) * $limit;
             
             // Construir condições WHERE
-            $whereConditions = ["cm.tipo_operacao = 'uso'", "cm.transacao_uso_id IS NOT NULL"];
+            // Klube Pass promoters keep their own leftover money: their usage is never owed to them.
+            require_once __DIR__ . '/../services/Partner/PassStorePolicy.php';
+            $notPromoter = \App\Services\Partner\PassStorePolicy::notPromoterSql($db, 'cm.loja_id');
+            $whereConditions = ["cm.tipo_operacao = 'uso'", "cm.transacao_uso_id IS NOT NULL", $notPromoter];
             $params = [];
             
             // Aplicar filtros
@@ -139,8 +142,9 @@ class StoreBalancePaymentController {
                 LEFT JOIN store_balance_payments sbp ON cm.pagamento_id = sbp.id
                 WHERE cm.tipo_operacao = 'uso'
                 AND cm.transacao_uso_id IS NOT NULL
+                AND $notPromoter
             ";
-            
+
             $totalStmt = $db->query($totalQuery);
             $totals = $totalStmt->fetch(PDO::FETCH_ASSOC);
             
@@ -482,7 +486,11 @@ public static function getStoreBalanceRepasseDetails($repasseId, $storeId) {
             if (!$store) {
                 return ['status' => false, 'message' => 'Loja não encontrada.'];
             }
-            
+            require_once __DIR__ . '/../services/Partner/PassStorePolicy.php';
+            if (\App\Services\Partner\PassStorePolicy::forStore($db, (int) $data['loja_id'])['promoter']) {
+                return ['status' => false, 'message' => 'Promotor de eventos do Klube Pass não recebe reembolso de saldo.'];
+            }
+
             // Converter movimentações para array se necessário
             $movimentacaoIds = is_array($data['movimentacoes']) ? $data['movimentacoes'] : explode(',', $data['movimentacoes']);
             $movimentacaoIds = array_map('intval', $movimentacaoIds);

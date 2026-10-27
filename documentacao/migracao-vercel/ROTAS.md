@@ -37,7 +37,10 @@
 | `GET` | `/api/get-store-id` | `api.store-id` | `api/get-store-id.php` | `api, auth` |
 | `GET` | `/api/health` | `api.health` | `api/health.php` | `api` |
 | `GET` | `/api/homepage-context` | `api.homepage-context` | `api/homepage-context.php` | `api` |
+| `GET` | `/api/internal/giftback-expiration` | `api.internal.giftback-expiration` | `api/internal-giftback-expiration.php` | `api` |
+| `GET` | `/api/internal/notifications` | `api.internal.notifications` | `api/internal-notifications.php` | `api` |
 | `GET, POST, OPTIONS` | `/api/mercadopago` | `api.mercadopago` | `api/mercadopago.php` | `api, store` |
+| `POST` | `/api/mercadopago-subscriptions-webhook` | `api.mercadopago.subscriptions.webhook` | `api/mercadopago-subscriptions-webhook.php` | `api` |
 | `POST` | `/api/mercadopago-webhook` | `api.mercadopago.webhook` | `api/mercadopago-webhook.php` | `api` |
 | `POST, OPTIONS` | `/api/openpix` | `api.openpix` | `api/openpix.php` | `api, store` |
 | `GET` | `/api/payment-receipt` | `api.payment-receipt` | `api/payment-receipt.php` | `api, auth` |
@@ -54,6 +57,17 @@
 | `GET, POST, PUT, DELETE, OPTIONS` | `/api/transactions` | `api.transactions` | `api/transactions.php` | `api, auth` |
 | `GET, POST, PUT, DELETE, OPTIONS` | `/api/users` | `api.users` | `api/users.php` | `api, admin` |
 | `GET, POST, PUT, DELETE, OPTIONS` | `/api/users/{id:\d+}` | `api.users.show` | `api/users.php` | `api, admin` |
+| `GET, POST, PATCH, DELETE, OPTIONS` | `/api/v1/store-app` | `api.store-app` | `api/store-app.php` | `api, store` |
+| `GET, POST, PATCH, DELETE, OPTIONS` | `/api/v2/admin/{resource:.+}` | `api.admin.v2` | `api/admin-v2.php` | `api, admin` |
+| `GET, POST, OPTIONS` | `/api/v2/partner/{resource:.+}` | `api.partner.v2` | `api/partner-v2.php` | `api` |
+| `GET, POST, PATCH, DELETE, OPTIONS` | `/api/v2/store/{resource:.+}` | `api.store.v2` | `api/store-v2.php` | `api, store` |
+| `GET, POST` | `/api/v2/wallet-link` | `api.wallet-link` | `api/store-wallet-link.php` | `api` |
+| `GET, POST` | `/api/v2/whatsapp/auth/approve` | `api.whatsapp.auth.approve` | `api/whatsapp-auth-approve.php` | `api, store` |
+| `POST` | `/api/webhooks/waha` | `api.waha.webhook` | `api/waha-webhook.php` | `api` |
+| `POST` | `/api/whatsapp/send-text` | `api.whatsapp.send-text` | `api/whatsapp-send-text.php` | `api, admin` |
+| `GET` | `/api/whatsapp/status` | `api.whatsapp.status` | `api/whatsapp-status.php` | `api, admin` |
+| `GET` | `/auth/grupoklube/callback` | `auth.grupoklube.callback` | `views/auth/grupoklube-callback.php` | `nenhum` |
+| `GET` | `/auth/grupoklube/login` | `auth.grupoklube.login` | `views/auth/grupoklube-login.php` | `nenhum` |
 | `GET` | `/blog` | `blog.index` | `views/blog/index.php` | `nenhum` |
 | `GET` | `/blog/{slug:[a-zA-Z0-9-]+}` | `blog.post` | `views/blog/post.php` | `nenhum` |
 | `GET, POST` | `/cadastro-loja` | `store.register` | `views/stores/register.php` | `nenhum` |
@@ -98,4 +112,4 @@
 | `GET, POST` | `/store/upload-lote` | `store.batch` | `views/stores/batch-upload.php` | `store` |
 | `GET, POST` | `/vantagens-cashback` | `marketing.benefits` | `views/marketing/vantagens.php` | `nenhum` |
 
-Total: **93 rotas declaradas**.
+Total: **107 rotas declaradas**.

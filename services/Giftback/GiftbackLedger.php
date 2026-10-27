@@ -572,4 +572,134 @@ final class GiftbackLedger
             });
         });
     }
+
+    private function tagPass(int $movementId, string $passRef): void
+    {
+        $this->execute("UPDATE cashback_movimentacoes SET origem='klube_pass',pass_ref=? WHERE id=?", [$passRef, $movementId]);
+    }
+
+    /**
+     * Klube Pass event leftover: its own lot (kind pass_leftover), never a giftback.
+     * The pass reference is the idempotency key; an explicit validity overrides the store policy.
+     */
+    public function creditPassLeftover(int $userId, int $storeId, int $amountCents, string $passRef, ?string $validUntil, string $description): array
+    {
+        if ($amountCents <= 0) { throw new GiftbackException('O crédito deve ser positivo.'); }
+        $source = 'pass:' . $passRef;
+        return $this->atomic(function () use ($userId, $storeId, $amountCents, $passRef, $validUntil, $description, $source) {
+            $store = $this->row('SELECT giftback_expiration_days FROM lojas WHERE id=? FOR UPDATE', [$storeId]);
+            if (!$store) { throw new GiftbackException('Loja não encontrada.', 404); }
+            $this->lockWallet($userId, $storeId);
+            $this->expireLocked($userId, $storeId);
+            $existing = $this->row('SELECT * FROM cashback_creditos WHERE usuario_id=? AND loja_id=? AND source_key=?', [$userId, $storeId, $source]);
+            if ($existing) {
+                if ((int) $existing['original_cents'] !== $amountCents) { throw new GiftbackException('Sobra já creditada com valor diferente.', 409); }
+                return ['balanceCents' => $this->available($userId, $storeId), 'movementId' => (int) $existing['origin_movement_id'], 'creditId' => (int) $existing['id'], 'expiresAt' => $existing['expires_at'], 'replayed' => true];
+            }
+            $days = $store['giftback_expiration_days'] === null ? null : (int) $store['giftback_expiration_days'];
+            if ($validUntil !== null) {
+                $date = DateTimeImmutable::createFromFormat('!Y-m-d', $validUntil, $this->zone);
+                if (!$date || $date->format('Y-m-d') !== $validUntil || $validUntil < $this->clock()->format('Y-m-d')) { throw new GiftbackException('Validade da sobra inválida.', 422); }
+                $expires = $date->modify('+1 day')->format('Y-m-d H:i:s');
+                $days = (int) $this->clock()->setTime(0, 0)->diff($date)->format('%a') + 1;
+            } else {
+                $expires = $days === null ? null : $this->clock()->setTime(0, 0)->modify('+' . ($days + 1) . ' days')->format('Y-m-d H:i:s');
+            }
+            [$movement, $before, $after] = $this->movement($userId, $storeId, 'credito_sobra_evento', $amountCents, $description, null, null, null, $amountCents);
+            $this->tagPass($movement, $passRef);
+            $this->execute("INSERT INTO cashback_creditos(usuario_id,loja_id,source_key,origin_movement_id,kind,original_cents,remaining_cents,credited_at,expires_at,policy_days) VALUES(?,?,?,?,'pass_leftover',?,?,?,?,?)", [$userId, $storeId, $source, $movement, $amountCents, $amountCents, $this->timestamp(), $expires, $days]);
+            $credit = (int) $this->db->lastInsertId();
+            $this->event($credit, 'credito', $amountCents, $before, $after, $description, $movement, null, null, $expires);
+            $this->assertWallet($userId, $storeId);
+            return ['balanceCents' => $after, 'movementId' => $movement, 'creditId' => $credit, 'expiresAt' => $expires, 'replayed' => false];
+        });
+    }
+
+    /** Klube Pass debit (top-up paid with KlubeCash balance): FEFO spend tagged with the pass reference. */
+    public function spendPass(int $userId, int $storeId, int $amountCents, string $passRef, string $description): array
+    {
+        return $this->atomic(function () use ($userId, $storeId, $amountCents, $passRef, $description) {
+            $result = $this->spend($userId, $storeId, $amountCents, $description, null, null, 'pass:' . $passRef);
+            $this->tagPass((int) $result['movementId'], $passRef);
+            return $result;
+        });
+    }
+
+    /** Klube Pass giftback over the cash part of a debit. Separate lot, normal grant. */
+    public function creditPassGiftback(int $userId, int $storeId, int $amountCents, string $passRef, string $description): array
+    {
+        return $this->atomic(function () use ($userId, $storeId, $amountCents, $passRef, $description) {
+            $result = $this->credit($userId, $storeId, $amountCents, $description, null, null, 'pass-giftback:' . $passRef);
+            $this->tagPass((int) $result['movementId'], $passRef . ':giftback');
+            return $result;
+        });
+    }
+
+    /**
+     * Undo a Klube Pass operation by its reference: a debit returns to the same lots
+     * (and its unused giftback is revoked); a leftover credit loses what is still unused.
+     * Anything already consumed needs manual review, never another customer's funds.
+     */
+    public function reversePass(string $passRef, string $reason): array
+    {
+        $peek = $this->row('SELECT usuario_id,loja_id FROM cashback_movimentacoes WHERE pass_ref=?', [$passRef]);
+        if (!$peek) { throw new GiftbackException('Operação do Klube Pass não encontrada.', 404); }
+        $userId = (int) $peek['usuario_id']; $storeId = (int) $peek['loja_id'];
+        return $this->atomic(function () use ($passRef, $reason, $userId, $storeId) {
+            $this->lockWallet($userId, $storeId); $this->expireLocked($userId, $storeId);
+            $original = $this->row('SELECT * FROM cashback_movimentacoes WHERE pass_ref=? FOR UPDATE', [$passRef]);
+            $reversalRef = $passRef . ':estorno';
+            $done = $this->row('SELECT * FROM cashback_movimentacoes WHERE pass_ref=?', [$reversalRef]);
+            if ($done) {
+                return ['type' => $original['tipo_operacao'], 'reversedCents' => self::cents($done['valor']), 'balanceCents' => $this->available($userId, $storeId), 'replayed' => true];
+            }
+            $reversed = 0;
+            if ($original['tipo_operacao'] === 'uso') {
+                $allocations = $this->rows('SELECT a.*,c.revoked_cents,c.kind FROM cashback_credito_alocacoes a JOIN cashback_creditos c ON c.id=a.credit_id WHERE a.movement_id=? ORDER BY a.credit_id FOR UPDATE', [$original['id']]);
+                foreach ($allocations as $allocation) {
+                    if ((int) $allocation['revoked_cents'] > 0) { throw new GiftbackException('Origem revogada; revisão administrativa necessária.', 409); }
+                    $reversed += (int) $allocation['amount_cents'] - (int) $allocation['refunded_cents'];
+                }
+                $giftback = $this->row('SELECT * FROM cashback_movimentacoes WHERE pass_ref=? FOR UPDATE', [$passRef . ':giftback']);
+                $giftLot = $giftback ? $this->row('SELECT * FROM cashback_creditos WHERE origin_movement_id=? FOR UPDATE', [$giftback['id']]) : null;
+                if ($giftLot && (int) $giftLot['consumed_cents'] > 0) { throw new GiftbackException('O giftback desta operação já foi usado; revisão manual necessária.', 409); }
+                if ($reversed > 0) {
+                    [$movement, $before] = $this->movement($userId, $storeId, 'estorno', $reversed, 'Estorno Klube Pass: ' . $reason, null, null, null, 0, -$reversed);
+                    $this->tagPass($movement, $reversalRef);
+                    $running = $before;
+                    foreach ($allocations as $allocation) {
+                        $amount = (int) $allocation['amount_cents'] - (int) $allocation['refunded_cents'];
+                        if ($amount <= 0) { continue; }
+                        $this->execute('UPDATE cashback_creditos SET remaining_cents=remaining_cents+?,consumed_cents=consumed_cents-?,version=version+1 WHERE id=?', [$amount, $amount, $allocation['credit_id']]);
+                        $this->execute('UPDATE cashback_credito_alocacoes SET refunded_cents=refunded_cents+? WHERE id=?', [$amount, $allocation['id']]);
+                        $this->event((int) $allocation['credit_id'], 'estorno', $amount, $running, $running + $amount, $reason, $movement);
+                        $running += $amount;
+                    }
+                }
+                if ($giftLot && (int) $giftLot['remaining_cents'] > 0) {
+                    $left = (int) $giftLot['remaining_cents'];
+                    [$movement, $before, $after] = $this->movement($userId, $storeId, 'revogacao', -$left, 'Revogação do giftback Klube Pass', null, null, null, -$left);
+                    $this->execute('UPDATE cashback_creditos SET remaining_cents=0,revoked_cents=revoked_cents+?,version=version+1 WHERE id=?', [$left, $giftLot['id']]);
+                    $this->event((int) $giftLot['id'], 'revogacao', $left, $before, $after, $reason, $movement);
+                }
+                // Returned funds keep their deadlines, including ones that already elapsed.
+                $this->expireLocked($userId, $storeId);
+            } elseif ($original['tipo_operacao'] === 'credito_sobra_evento') {
+                $lot = $this->row('SELECT * FROM cashback_creditos WHERE origin_movement_id=? FOR UPDATE', [$original['id']]);
+                if (!$lot) { throw new GiftbackException('Lote da sobra não encontrado.', 409); }
+                if ((int) $lot['consumed_cents'] > 0) { throw new GiftbackException('A sobra já foi usada; revisão manual necessária.', 409); }
+                $reversed = (int) $lot['remaining_cents'];
+                if ($reversed > 0) {
+                    [$movement, $before, $after] = $this->movement($userId, $storeId, 'estorno_sobra_evento', -$reversed, 'Estorno de sobra Klube Pass: ' . $reason, null, null, null, -$reversed);
+                    $this->tagPass($movement, $reversalRef);
+                    $this->execute('UPDATE cashback_creditos SET remaining_cents=0,revoked_cents=revoked_cents+?,version=version+1 WHERE id=?', [$reversed, $lot['id']]);
+                    $this->event((int) $lot['id'], 'revogacao', $reversed, $before, $after, $reason, $movement);
+                }
+            } else {
+                throw new GiftbackException('Esta operação não pode ser estornada pelo Klube Pass.', 409);
+            }
+            $this->assertWallet($userId, $storeId);
+            return ['type' => $original['tipo_operacao'], 'reversedCents' => $reversed, 'balanceCents' => $this->available($userId, $storeId), 'replayed' => false];
+        });
+    }
 }

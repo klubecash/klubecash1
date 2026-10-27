@@ -31,6 +31,8 @@ final class StoreReadService
             throw new StoreApiException('Loja não encontrada.', 404);
         }
 
+        require_once __DIR__ . '/../Partner/PassStorePolicy.php';
+        $passPolicy = \App\Services\Partner\PassStorePolicy::forStore($this->db, $storeId);
         $plan = \FeatureGate::getPlanInfo($storeId);
         $type = (string) ($session['user_type'] ?? '');
         $membership = (new StoreNetworkAccess($this->db))->membership((int) ($session['user_id'] ?? 0), $storeId);
@@ -49,6 +51,8 @@ final class StoreReadService
                 'logoUrl' => !empty($store['logo']) ? '/uploads/store_logos/' . basename((string) $store['logo']) : null,
                 'customerCashbackPercentage' => (float) $store['customer_percentage'],
                 'cashbackEnabled' => (bool) $store['cashback_ativo'],
+                'eventPromoter' => $passPolicy['promoter'],
+                'giftbackOnCash' => $passPolicy['giftbackOnCash'],
                 'mvp' => $store['mvp'] === 'sim',
                 'financialModel' => 'subscription_cashback',
             ],
@@ -494,6 +498,55 @@ final class StoreReadService
             GROUP BY m.loja_id,origin.nome_fantasia,COALESCE(m.redemption_store_id,m.loja_id),redemption.nome_fantasia
             ORDER BY m.loja_id,redemption_store_id")->fetchAll(PDO::FETCH_ASSOC);
         return ['issuedByOrigin' => $issued, 'usageByOriginAndRedemption' => $usage];
+    }
+
+    /** Klube Pass closing view for an event promoter: leftovers credited, used and still open. */
+    public function passReport(int $storeId): array
+    {
+        require_once __DIR__ . '/../Partner/PassStorePolicy.php';
+        if (!\App\Services\Partner\PassStorePolicy::forStore($this->db, $storeId)['promoter']) {
+            throw new StoreApiException('Relatório disponível só para promotores de eventos do Klube Pass.', 403);
+        }
+        (new \App\Services\Giftback\GiftbackLedger($this->db))->settleStore($storeId);
+        $cents = static fn (mixed $value): int => (int) round((float) $value * 100);
+        $totals = $this->db->prepare("SELECT
+            COALESCE(SUM(CASE WHEN tipo_operacao='credito_sobra_evento' THEN valor END),0) leftover,
+            COALESCE(SUM(CASE WHEN tipo_operacao='estorno_sobra_evento' THEN valor END),0) leftover_reversed,
+            COALESCE(SUM(CASE WHEN tipo_operacao='uso' THEN valor END),0) used,
+            COALESCE(SUM(CASE WHEN tipo_operacao='estorno' THEN valor END),0) used_reversed,
+            COALESCE(SUM(CASE WHEN tipo_operacao='credito' THEN valor END),0) giftback,
+            COUNT(DISTINCT CASE WHEN tipo_operacao='credito_sobra_evento' THEN usuario_id END) customers
+            FROM cashback_movimentacoes WHERE loja_id=? AND origem='klube_pass'");
+        $totals->execute([$storeId]);
+        $row = $totals->fetch(PDO::FETCH_ASSOC);
+        $lots = $this->db->prepare("SELECT COALESCE(SUM(remaining_cents),0) open_cents,COALESCE(SUM(consumed_cents),0) consumed_cents,
+            COALESCE(SUM(expired_cents),0) expired_cents FROM cashback_creditos WHERE loja_id=? AND kind='pass_leftover'");
+        $lots->execute([$storeId]);
+        $lot = $lots->fetch(PDO::FETCH_ASSOC);
+        $events = $this->db->prepare("SELECT descricao,COUNT(*) credits,COUNT(DISTINCT usuario_id) customers,SUM(valor) total,
+            MIN(data_operacao) first_at,MAX(data_operacao) last_at FROM cashback_movimentacoes
+            WHERE loja_id=? AND tipo_operacao='credito_sobra_evento' GROUP BY descricao ORDER BY last_at DESC LIMIT 50");
+        $events->execute([$storeId]);
+        $recent = $this->db->prepare("SELECT m.id,m.tipo_operacao,m.valor,m.data_operacao,u.nome FROM cashback_movimentacoes m
+            JOIN usuarios u ON u.id=m.usuario_id WHERE m.loja_id=? AND m.origem='klube_pass' ORDER BY m.id DESC LIMIT 50");
+        $recent->execute([$storeId]);
+        $labels = ['credito_sobra_evento' => 'Sobra creditada', 'estorno_sobra_evento' => 'Sobra estornada', 'uso' => 'Saldo usado em recarga',
+            'estorno' => 'Recarga estornada', 'credito' => 'Giftback sobre dinheiro', 'revogacao' => 'Giftback revogado'];
+        return [
+            'leftoverCreditedCents' => $cents($row['leftover']), 'leftoverReversedCents' => $cents($row['leftover_reversed']),
+            'usedAtEventsCents' => $cents($row['used']) - $cents($row['used_reversed']), 'giftbackOnCashCents' => $cents($row['giftback']),
+            'customers' => (int) $row['customers'],
+            'openLeftoverCents' => (int) $lot['open_cents'], 'consumedLeftoverCents' => (int) $lot['consumed_cents'], 'expiredLeftoverCents' => (int) $lot['expired_cents'],
+            'events' => array_map(static fn (array $event): array => [
+                'name' => (string) $event['descricao'], 'credits' => (int) $event['credits'], 'customers' => (int) $event['customers'],
+                'totalCents' => $cents($event['total']), 'firstAt' => $event['first_at'], 'lastAt' => $event['last_at'],
+            ], $events->fetchAll(PDO::FETCH_ASSOC)),
+            'recent' => array_map(static fn (array $item): array => [
+                'id' => (int) $item['id'], 'type' => $labels[$item['tipo_operacao']] ?? $item['tipo_operacao'],
+                'amountCents' => $cents($item['valor']), 'occurredAt' => $item['data_operacao'],
+                'customerName' => trim(explode(' ', trim((string) $item['nome']))[0] ?? ''),
+            ], $recent->fetchAll(PDO::FETCH_ASSOC)),
+        ];
     }
 
     /** @return array<string, mixed> */

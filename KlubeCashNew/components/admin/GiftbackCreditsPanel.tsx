@@ -19,6 +19,7 @@ const eventLabels: Record<string, string> = {
   revoke: "Crédito estornado", refund: "Utilização devolvida",
   credito: "Crédito recebido", uso: "Utilização", expiracao: "Expiração", prorrogacao: "Validade estendida",
   reversao_expiracao: "Expiração revertida", estorno: "Utilização devolvida", revogacao: "Crédito estornado",
+  credito_sobra_evento: "Sobra de evento (Klube Pass)", estorno_sobra_evento: "Sobra de evento estornada",
 };
 
 function calendarDate(value: string | null) {

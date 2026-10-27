@@ -71,6 +71,16 @@ try {
         }
     }
 
+    // Avisos de sobra do Klube Pass: desligados por padrao; o e-mail vai para a fila mesmo sem WhatsApp.
+    $passNotices = ['enabled' => false];
+    try {
+        require_once __DIR__ . '/../services/Partner/PassCreditNoticeService.php';
+        $passNotices = (new \App\Services\Partner\PassCreditNoticeService($db, $connection['available'] ? $waha : null))->run(30);
+    } catch (Throwable $exception) {
+        Logger::error('pass.notice.worker_failed', ['exception' => get_class($exception)]);
+        $passNotices = ['enabled' => true, 'error' => 'notice_processor_failed'];
+    }
+
     http_response_code($connection['available'] ? 200 : 503);
     echo json_encode([
         'success' => $connection['available'],
@@ -80,6 +90,7 @@ try {
         'inbound' => $inbound,
         'menuReplies' => $menuReplies,
         'expiryNotices' => $expiryNotices,
+        'passNotices' => $passNotices,
         'processedAt' => date(DATE_ATOM),
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (Throwable $exception) {

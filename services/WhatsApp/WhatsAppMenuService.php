@@ -547,9 +547,11 @@ final class WhatsAppMenuService
         $storeStatement->execute([':store' => $merchant['storeId']]);
         $storeData = $storeStatement->fetch(PDO::FETCH_ASSOC) ?: [];
         $paid = $gross - $balanceUsed;
-        $cashback = (int) ($storeData['cashback_ativo'] ?? 0) === 1
-            ? StoreMoney::percentage($paid, (float) ($storeData['percentage'] ?? 0))
-            : 0;
+        require_once __DIR__ . '/../Partner/PassStorePolicy.php';
+        $cashback = \App\Services\Partner\PassStorePolicy::saleGiftbackCents(
+            \App\Services\Partner\PassStorePolicy::forStore($this->db, $merchant['storeId']),
+            (int) ($storeData['cashback_ativo'] ?? 0) === 1, $paid, (float) ($storeData['percentage'] ?? 0)
+        );
         $confirmation = (string) random_int(1000, 9999);
         $payload = [...$payload,
             'balanceUsedCents' => $balanceUsed,

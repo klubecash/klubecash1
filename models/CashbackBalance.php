@@ -120,7 +120,10 @@ class CashbackBalance {
                     \App\Services\Giftback\GiftbackLedger::cents($amount), (int) $useTransactionId, null, $access->networkId((int) $storeId));
             } else {
                 $result = $this->ledger()->spend((int) $userId, (int) $storeId, \App\Services\Giftback\GiftbackLedger::cents($amount), (string) $description, $useTransactionId === null ? null : (int) $useTransactionId);
-                if (!$result['replayed']) { $this->createStoreReimbursementRecord($storeId, $amount, $useTransactionId, $userId); }
+                // Event promoters hold the money of their own leftovers: nothing to reimburse.
+                require_once __DIR__ . '/../services/Partner/PassStorePolicy.php';
+                $promoter = \App\Services\Partner\PassStorePolicy::forStore($this->db, (int) $storeId)['promoter'];
+                if (!$result['replayed'] && !$promoter) { $this->createStoreReimbursementRecord($storeId, $amount, $useTransactionId, $userId); }
             }
             if ($own) { $this->db->commit(); }
             return true;

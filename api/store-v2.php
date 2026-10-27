@@ -205,6 +205,10 @@ try {
         if ($forcedSellerId !== null) { throw new StoreApiException('Relatório financeiro restrito à gestão.', 403); }
         storeV2Respond(200, true, $read->giftbackReport($scopeStores));
     }
+    if ($method === 'GET' && $resource === 'reports/pass') {
+        if ($forcedSellerId !== null) { throw new StoreApiException('Relatório financeiro restrito à gestão.', 403); }
+        storeV2Respond(200, true, $read->passReport($storeId));
+    }
     if ($method === 'GET' && $resource === 'transactions/export') {
         $exportFilters = storeV2Filters(['status', 'startDate', 'endDate', 'customer', 'minimumCents', 'maximumCents', 'sellerId']);
         $format = (string) ($_GET['format'] ?? 'sales');

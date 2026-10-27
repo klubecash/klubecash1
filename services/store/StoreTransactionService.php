@@ -12,8 +12,10 @@ use PDOException;
 use Throwable;
 use App\Services\Giftback\GiftbackLedger;
 use App\Services\Giftback\GiftbackException;
+use App\Services\Partner\PassStorePolicy;
 
 require_once __DIR__ . '/../Giftback/GiftbackLedger.php';
+require_once __DIR__ . '/../Partner/PassStorePolicy.php';
 require_once __DIR__ . '/StoreNetworkAccess.php';
 
 final class StoreTransactionService
@@ -79,7 +81,9 @@ final class StoreTransactionService
             if (!$store || $store['status'] !== 'aprovado') {
                 throw new StoreApiException('Loja não encontrada ou não aprovada.', 422);
             }
-            if ((int) $store['cashback_ativo'] !== 1) {
+            // A Klube Pass promoter registers sales even with cashback off; its giftback follows giftback_sobre_dinheiro.
+            $passPolicy = PassStorePolicy::forStore($this->db, $storeId);
+            if ((int) $store['cashback_ativo'] !== 1 && !$passPolicy['promoter']) {
                 throw new StoreApiException('Esta loja não oferece cashback no momento.', 422);
             }
             if ($access->networkId($storeId) !== $networkId || $access->walletStores($storeId) !== $walletStores || !$access->membership($actorId, $storeId)) {
@@ -163,7 +167,7 @@ final class StoreTransactionService
                 );
             }
 
-            $cashbackCents = StoreMoney::percentage($paidCents, $store['customer_percentage']);
+            $cashbackCents = PassStorePolicy::saleGiftbackCents($passPolicy, (int) $store['cashback_ativo'] === 1, $paidCents, $store['customer_percentage']);
             $insert = $this->db->prepare(
                 'INSERT INTO transacoes_cashback '
                 . '(usuario_id, loja_id, criado_por, vendedor_id, network_id_snapshot, vendedor_nome_snapshot, registrado_por_nome_snapshot, source_channel, valor_total, valor_cashback, valor_cliente, valor_admin, '

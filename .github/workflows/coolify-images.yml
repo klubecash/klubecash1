@@ -3,6 +3,9 @@ name: Build KlubeCash VPS images
 on:
   push:
     branches: [codex/klubcashvps, codex/sales-performance, codex/grupoklube-sso]
+  # PRs into the deploy branch run only the validate job (images need a push to codex/klubcashvps).
+  pull_request:
+    branches: [codex/klubcashvps]
   workflow_dispatch:
 
 permissions:
@@ -51,6 +54,13 @@ jobs:
           GIFTBACK_TEST_USER: root
           GIFTBACK_TEST_PASSWORD: isolated-test-only
       - run: php tests/php/grupoklube_session_integration.php
+        env:
+          GIFTBACK_TEST_DSN: mysql:host=127.0.0.1;port=3306
+          GIFTBACK_TEST_USER: root
+          GIFTBACK_TEST_PASSWORD: isolated-test-only
+      # Klube Pass money rules (1, 2, 3, 4, 7, 8): a failure here blocks the PR.
+      - run: php tests/php/partner_api_unit.php
+      - run: php tests/php/pass_integration_integration.php
         env:
           GIFTBACK_TEST_DSN: mysql:host=127.0.0.1;port=3306
           GIFTBACK_TEST_USER: root

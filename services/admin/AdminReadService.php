@@ -185,8 +185,10 @@ final class AdminReadService
         $count->execute($params);
         $total = (int) $count->fetchColumn();
         $offset = ($page - 1) * $pageSize;
+        require_once __DIR__ . '/../Partner/PassStorePolicy.php';
+        $passColumns = \App\Services\Partner\PassStorePolicy::migrated($this->db) ? 'l.tipo_parceiro,l.pass_organizer_id,l.giftback_sobre_dinheiro,' : '';
         $stmt = $this->db->prepare(
-            "SELECT l.id,l.nome_fantasia,l.razao_social,l.cnpj,l.email,l.telefone,l.categoria,l.status,l.observacao,
+            "SELECT l.id,l.nome_fantasia,l.razao_social,l.cnpj,l.email,l.telefone,l.categoria,l.status,l.observacao,{$passColumns}
                     l.porcentagem_cliente,l.cashback_ativo,l.giftback_expiration_days,l.data_cadastro,l.data_aprovacao,l.updated_at,u.nome owner_name,
                     nm.network_id,nm.status network_membership_status,n.name network_name,
                     (SELECT COUNT(*) FROM transacoes_cashback t WHERE t.loja_id=l.id) transactions_count,
@@ -711,6 +713,9 @@ final class AdminReadService
             'email' => (string) $row['email'], 'phone' => (string) $row['telefone'], 'category' => (string) $row['categoria'], 'status' => (string) $row['status'],
             'notes' => $row['observacao'] ?? null, 'customerCashbackPercentage' => (float) $row['porcentagem_cliente'], 'cashbackEnabled' => (bool) $row['cashback_ativo'],
             'giftbackExpirationDays' => isset($row['giftback_expiration_days']) ? (int) $row['giftback_expiration_days'] : null,
+            'eventPromoter' => ($row['tipo_parceiro'] ?? '') === 'promotor_eventos',
+            'passOrganizerId' => $row['pass_organizer_id'] ?? null,
+            'giftbackOnCash' => (int) ($row['giftback_sobre_dinheiro'] ?? 0) === 1,
             'networkId' => isset($row['network_id']) ? (int) $row['network_id'] : null,
             'networkName' => $row['network_name'] ?? null,
             'networkStatus' => $row['network_membership_status'] ?? null,

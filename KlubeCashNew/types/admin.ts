@@ -94,6 +94,9 @@ export type StoreItem = {
   customerCashbackPercentage: number;
   cashbackEnabled: boolean;
   giftbackExpirationDays: number | null;
+  eventPromoter?: boolean;
+  passOrganizerId?: string | null;
+  giftbackOnCash?: boolean;
   networkId?: number | null;
   networkName?: string | null;
   networkStatus?: string | null;
