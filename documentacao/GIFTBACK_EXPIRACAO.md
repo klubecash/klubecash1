@@ -68,6 +68,34 @@ O lote continua nas demais carteiras quando uma falha: `failed` e `failedWallets
 identificam as pendências, o endpoint responde 503 e o CLI termina com código 1.
 Após corrigir a causa, repetir o processamento não duplica expirações já concluídas.
 
+## Avisos de vencimento pelo WhatsApp
+
+O worker de notificações (`/api/internal/notifications`) avisa o cliente antes de um crédito vencer.
+Os avisos só leem `cashback_creditos`; nunca alteram saldo. Ficam **desligados** até
+`GIFTBACK_NOTICES_ENABLED=true` (no Coolify: `KLUBCASH_GIFTBACK_NOTICES_ENABLED`). Eles dependem do
+worker de notificações (`KLUBCASH_VPS_WORKERS_ENABLED=true` e WAHA conectado).
+
+Marcos: 20, 14, 7 e 1 dia antes do último dia de validade, mas só os que cabem até a metade da
+validade original (`policy_days`). 40 dias: 20/14/7/1; 28–39: 14/7/1; 14–27: 7/1; 2–13: 1; sem
+validade ou 1 dia: nenhum. Créditos sem vencimento (inclusive o saldo de abertura) não recebem aviso.
+
+- A agenda fica em `cashback_credito_avisos` (uma linha por crédito, marco e validade). A chave
+  única impede duplicidade; rodar o worker de novo nunca reenvia.
+- Os avisos saem entre 09h e 20h (Brasília), no máximo 30 clientes por rodada, com **uma mensagem
+  por cliente** reunindo todas as lojas com crédito a vencer.
+- Se o worker ficou parado, só o marco mais próximo é enviado; os mais distantes são descartados.
+  O texto sempre usa os dias realmente restantes.
+- Antes de enviar, o crédito é conferido: sem saldo, vencido ou prorrogado/reativado, o aviso é
+  descartado (`credit_changed`) e uma agenda nova nasce para a nova validade.
+- Telefone vazio ou inválido: `skipped`. Falha temporária: até 5 tentativas com espera. Resultado
+  incerto (`delivery_unknown`) nunca é reenviado.
+- Não há opt-out por enquanto. Cada cliente recebe no máximo 4 avisos por crédito e uma mensagem por dia.
+
+Ativação: com backup feito, `php database/migrations/run_giftback_notice_migration.php` (simula) e
+`... --apply` (cria só a tabela). Depois defina `KLUBCASH_GIFTBACK_NOTICES_ENABLED=true` e reimplante.
+Antes do primeiro envio real, confira o JSON do worker: `expiryNotices.candidates` mostra quantos
+créditos entrariam. Acompanhe `expiryNotices.sent/skipped/failed` e a tabela `cashback_credito_avisos`.
+
 ## Testes isolados
 
 O teste financeiro **não carrega `.env` nem o bootstrap**. Exige explicitamente um servidor

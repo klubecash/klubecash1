@@ -689,6 +689,10 @@ export function StoresPage() {
   const [status, setStatus] = useState("");
   const [editing, setEditing] = useState<StoreItem | undefined>();
   const [giftbackStore, setGiftbackStore] = useState<StoreItem | undefined>();
+  // Klube Pass fields go in the PATCH only when changed, so editing works before the Pass migration.
+  const [passOriginal, setPassOriginal] = useState("");
+  const passSnapshot = (item: StoreItem) =>
+    JSON.stringify([Boolean(item.eventPromoter), item.passOrganizerId || null, Boolean(item.giftbackOnCash)]);
   const params = new URLSearchParams({
     page: String(page),
     ...(search && { search }),
@@ -700,7 +704,10 @@ export function StoresPage() {
   });
   const loadStore = useMutation({
     mutationFn: (id: number) => adminFetch<{ item: StoreItem }>(`stores/${id}`),
-    onSuccess: (data) => setEditing(data.item),
+    onSuccess: (data) => {
+      setEditing(data.item);
+      setPassOriginal(passSnapshot(data.item));
+    },
   });
   const storeMutation = useMutation({
     mutationFn: ({
@@ -737,6 +744,11 @@ export function StoresPage() {
           customerCashbackPercentage: item.customerCashbackPercentage,
           cashbackEnabled: item.cashbackEnabled,
           giftbackExpirationDays: item.giftbackExpirationDays,
+          ...(passSnapshot(item) !== passOriginal && {
+            eventPromoter: Boolean(item.eventPromoter),
+            passOrganizerId: item.passOrganizerId || null,
+            giftbackOnCash: Boolean(item.giftbackOnCash),
+          }),
           updatedAt: item.updatedAt,
         }),
       }),
@@ -1017,6 +1029,35 @@ export function StoresPage() {
                 <input className="admin-input" type="number" min="1" max="3650" step="1" placeholder="Sem expiração" value={editing.giftbackExpirationDays ?? ""} onChange={(e) => setEditing({ ...editing, giftbackExpirationDays: e.target.value === "" ? null : Number(e.target.value) })} />
                 <small>Deixe vazio para não expirar. A regra vale apenas para novos créditos; cada depósito tem sua própria validade até o fim do dia, horário de Brasília. Alterações individuais ficam em Créditos e validades.</small>
               </Field>
+              <label className="admin-check admin-field-full">
+                <input
+                  type="checkbox"
+                  checked={Boolean(editing.eventPromoter)}
+                  onChange={(e) => setEditing({ ...editing, eventPromoter: e.target.checked })}
+                />
+                Promotor de eventos do Klube Pass (o uso de saldo nesta loja não gera reembolso)
+              </label>
+              {editing.eventPromoter && (
+                <>
+                  <Field label="ID do organizador no Klube Pass">
+                    <input
+                      className="admin-input"
+                      maxLength={36}
+                      value={editing.passOrganizerId ?? ""}
+                      onChange={(e) => setEditing({ ...editing, passOrganizerId: e.target.value })}
+                    />
+                    <small>Copie do painel do Klube Pass. É por ele que as sobras dos eventos chegam a esta loja.</small>
+                  </Field>
+                  <label className="admin-check admin-field-full">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editing.giftbackOnCash)}
+                      onChange={(e) => setEditing({ ...editing, giftbackOnCash: e.target.checked })}
+                    />
+                    Dar giftback sobre a parte paga em dinheiro ou Pix (a parte paga com saldo nunca gera)
+                  </label>
+                </>
+              )}
             </div>
             {save.isError && mutationMessage(save, "")}
             <div className="admin-modal-actions">

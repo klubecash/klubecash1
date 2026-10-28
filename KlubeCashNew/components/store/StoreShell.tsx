@@ -18,6 +18,7 @@ import {
   Settings,
   Store,
   Sun,
+  Ticket,
   Upload,
   Users,
   Network,
@@ -40,6 +41,7 @@ const items = [
   },
   { href: "/store/transacoes", label: "Transações", icon: ReceiptText },
   { href: "/store/relatorios", label: "Relatórios", icon: BarChart3 },
+  { href: "/store/eventos", label: "Eventos (Klube Pass)", icon: Ticket, permission: "eventPromoter" as const },
   { href: "/store/upload-lote", label: "Upload em lote", icon: Upload },
   {
     href: "/store/funcionarios",
@@ -59,6 +61,7 @@ const titles: Record<string, { title: string; eyebrow: string }> = {
   },
   "/store/transacoes": { title: "Minhas transações", eyebrow: "Vendas" },
   "/store/relatorios": { title: "Relatórios", eyebrow: "Métricas" },
+  "/store/eventos": { title: "Eventos e sobras", eyebrow: "Klube Pass" },
   "/store/upload-lote": { title: "Upload em lote", eyebrow: "Vendas" },
   "/store/funcionarios": { title: "Equipe da loja", eyebrow: "Gestão" },
   "/store/perfil": { title: "Perfil da loja", eyebrow: "Configurações" },
@@ -131,10 +134,13 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
 
   const navItems = useMemo(
     () =>
-      items.filter(
-        (item) => !item.permission || (item.permission === "canViewNetwork" ? context.canViewNetwork : context.permissions[item.permission]),
-      ),
-    [context.permissions, context.canViewNetwork],
+      items.filter((item) => {
+        if (!item.permission) return true;
+        if (item.permission === "canViewNetwork") return Boolean(context.canViewNetwork);
+        if (item.permission === "eventPromoter") return Boolean(context.store.eventPromoter) && context.user.subtype !== "vendedor";
+        return context.permissions[item.permission];
+      }),
+    [context.permissions, context.canViewNetwork, context.store.eventPromoter, context.user.subtype],
   );
 
   function toggleCollapsed() {

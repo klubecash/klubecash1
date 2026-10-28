@@ -224,6 +224,7 @@ final class AdminMutationService
             ':expiration_days' => $expirationDays,
         ]);
         $after = ['id' => $id, 'name' => $name, 'email' => $email, 'customerCashbackPercentage' => $percentage, 'cashbackEnabled' => (bool) ($input['cashbackEnabled'] ?? $before['cashback_ativo']), 'giftbackExpirationDays' => $expirationDays === null ? null : (int) $expirationDays];
+        $after += $this->updateStorePassPolicy($id, $before, $input);
         $this->audit->record('store.update', 'store', $id, $before, $after);
         if (($before['giftback_expiration_days'] ?? null) != $expirationDays) {
             $this->audit->record('giftback.policy.update', 'store', $id, ['giftbackExpirationDays' => $before['giftback_expiration_days'] ?? null], ['giftbackExpirationDays' => $expirationDays, 'appliesTo' => 'new_credits_only']);
@@ -234,6 +235,38 @@ final class AdminMutationService
             if ($ownsTransaction && $this->db->inTransaction()) { $this->db->rollBack(); }
             throw $exception;
         }
+    }
+
+    /**
+     * Klube Pass fields, written only when sent so the store editor keeps working
+     * before the Pass migration is applied.
+     * @param array<string, mixed> $before @param array<string, mixed> $input @return array<string, mixed>
+     */
+    private function updateStorePassPolicy(int $id, array $before, array $input): array
+    {
+        $sent = array_intersect_key($input, array_flip(['eventPromoter', 'passOrganizerId', 'giftbackOnCash']));
+        if ($sent === []) { return []; }
+        if (!array_key_exists('tipo_parceiro', $before)) { throw new AdminApiException('Aplique a migração do Klube Pass antes de configurar promotores.', 409); }
+        $promoter = array_key_exists('eventPromoter', $sent) ? $sent['eventPromoter'] : $before['tipo_parceiro'] === 'promotor_eventos';
+        $organizer = array_key_exists('passOrganizerId', $sent) ? $sent['passOrganizerId'] : $before['pass_organizer_id'];
+        $onCash = array_key_exists('giftbackOnCash', $sent) ? $sent['giftbackOnCash'] : (int) $before['giftback_sobre_dinheiro'] === 1;
+        if (!is_bool($promoter) || !is_bool($onCash)) { throw new AdminApiException('Promotor e giftback sobre dinheiro devem ser verdadeiro ou falso.', 422); }
+        if (is_string($organizer)) { $organizer = trim($organizer) === '' ? null : trim($organizer); }
+        if ($organizer !== null && (!is_string($organizer) || preg_match('/^[A-Za-z0-9-]{8,36}$/D', $organizer) !== 1)) {
+            throw new AdminApiException('O ID do organizador no Klube Pass deve ter de 8 a 36 letras, números ou hífens.', 422, ['passOrganizerId' => ['ID inválido.']]);
+        }
+        if ($promoter && $organizer === null) { throw new AdminApiException('Informe o ID do organizador no Klube Pass.', 422, ['passOrganizerId' => ['Obrigatório para promotor.']]); }
+        try {
+            $this->db->prepare('UPDATE lojas SET tipo_parceiro=?,pass_organizer_id=?,giftback_sobre_dinheiro=? WHERE id=?')
+                ->execute([$promoter ? 'promotor_eventos' : 'comercio', $organizer, $onCash ? 1 : 0, $id]);
+        } catch (\PDOException $error) {
+            if ((string) $error->getCode() === '23000') { throw new AdminApiException('Este organizador já está ligado a outra loja.', 409, ['passOrganizerId' => ['Já em uso.']]); }
+            throw $error;
+        }
+        $after = ['eventPromoter' => $promoter, 'passOrganizerId' => $organizer, 'giftbackOnCash' => $onCash];
+        $previous = ['eventPromoter' => $before['tipo_parceiro'] === 'promotor_eventos', 'passOrganizerId' => $before['pass_organizer_id'], 'giftbackOnCash' => (int) $before['giftback_sobre_dinheiro'] === 1];
+        if ($previous !== $after) { $this->audit->record('store.pass_policy.update', 'store', $id, $previous, $after); }
+        return $after;
     }
 
     /** @param array<string, mixed> $input @return array<string, mixed> */

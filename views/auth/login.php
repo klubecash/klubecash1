@@ -98,6 +98,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // 3. SE NÃO HOUVE REDIRECIONAMENTO, PREPARAMOS AS VARIÁVEIS PARA MOSTRAR A PÁGINA HTML
 $urlError = $_GET['error'] ?? '';
 $urlSuccess = $_GET['success'] ?? '';
+require_once __DIR__ . '/../../services/Partner/PassReturnUrl.php';
+$passReturn = $urlSuccess === 'cadastro_realizado' ? \App\Services\Partner\PassReturnUrl::safe($_GET['voltar'] ?? null) : null;
 if (!empty($urlError)) {
     $error = urldecode($urlError);
 }
@@ -242,6 +244,11 @@ ob_end_flush();
                         <p class="form-subtitle">
                             Não tem conta? <a href="<?php echo REGISTER_URL; ?>">Cadastre-se grátis</a>
                         </p>
+                        <?php if ($passReturn !== null): ?>
+                        <p class="form-subtitle">
+                            Conta criada. Para continuar no Klube Pass, <a href="<?php echo htmlspecialchars($passReturn, ENT_QUOTES, 'UTF-8'); ?>">volte ao Klube Pass</a> e entre com este e-mail e senha.
+                        </p>
+                        <?php endif; ?>
                     </header>
 
                     <form method="post" action="" class="login-form" id="login-form">

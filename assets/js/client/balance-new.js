@@ -336,7 +336,7 @@ function renderStoreDetails(data) {
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character]));
     const money = (cents) => (Number(cents || 0) / 100).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
     const validDate = (value) => value ? String(value).slice(0, 10).split('-').reverse().join('/') : 'Sem vencimento';
-    const movementLabel = (type) => ({credito: 'Giftback recebido', uso: 'Saldo utilizado', estorno: 'Estorno de saldo', expiracao: 'Giftback expirado', reversao_expiracao: 'Expiração revertida', prorrogacao: 'Validade prorrogada', revogacao: 'Crédito cancelado', abertura: 'Saldo anterior registrado'}[type] || 'Atualização de saldo');
+    const movementLabel = (type) => ({credito: 'Giftback recebido', uso: 'Saldo utilizado', estorno: 'Estorno de saldo', expiracao: 'Giftback expirado', reversao_expiracao: 'Expiração revertida', prorrogacao: 'Validade prorrogada', revogacao: 'Crédito cancelado', abertura: 'Saldo anterior registrado', credito_sobra_evento: 'Sobra de evento (Klube Pass)', estorno_sobra_evento: 'Sobra de evento estornada'}[type] || 'Atualização de saldo');
     const movementDelta = (movement) => Math.round((Number(movement.saldo_atual) - Number(movement.saldo_anterior)) * 100);
     const signedMoney = (cents) => cents === 0 ? 'Sem alteração de saldo' : `${cents < 0 ? '−' : '+'} ${money(Math.abs(cents))}`;
     

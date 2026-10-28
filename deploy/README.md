@@ -1,6 +1,6 @@
 # KLUBCASHVPS: implantação paralela
 
-Esta pilha mantém `www.klubecash.com` e os processadores na Vercel. O Coolify deve criar uma aplicação Docker Compose no projeto `KLUBCASHVPS`, a partir da branch `codex/klubcashvps` e do arquivo `deploy/compose.coolify.yml`. Somente o serviço `web` recebe o domínio `https://vps.klubecash.com:3000`; não publicar portas para `legacy-http`, `php`, MySQL ou WAHA.
+Esta pilha mantém `www.klubecash.com` e os processadores na Vercel. O Coolify deve criar uma aplicação Docker Compose no projeto `KLUBCASHVPS`, a partir da branch `codex/klubcashvps` e do arquivo `deploy/compose.coolify.yml`. Somente o serviço `web` recebe o domínio `https://klubecash.com:3000`; não publicar portas para `legacy-http`, `php`, MySQL ou WAHA.
 
 O workflow `coolify-images.yml` publica três imagens no GHCR, todas marcadas pelo SHA do commit. Após os três builds concluírem, configurar `KLUBCASH_IMAGE_TAG` com o SHA exato. Se o pacote GHCR for privado, configurar acesso de leitura do Coolify antes do deploy; não colocar token no Compose nem tornar o banco público.
 

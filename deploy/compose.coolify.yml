@@ -5,7 +5,7 @@ services:
     environment:
       NODE_ENV: production
       PHP_BACKEND_URL: http://legacy-http:8080
-      SITE_URL: ${KLUBCASH_SITE_URL:-https://vps.klubecash.com}
+      SITE_URL: ${KLUBCASH_SITE_URL:-https://klubecash.com}
       STORE_UI_MODE: next
       ADMIN_UI_MODE: next
       # Shows "Entrar com Grupo Klube" on /login. Switch on only after the login was tested.
@@ -48,7 +48,7 @@ services:
     restart: unless-stopped
     command: ["sh", "-lc", "chown www-data:www-data /app/uploads /app/logs && exec php-fpm -F"]
     environment:
-      SITE_URL: ${KLUBCASH_SITE_URL:-https://vps.klubecash.com}
+      SITE_URL: ${KLUBCASH_SITE_URL:-https://klubecash.com}
       SESSION_DRIVER: database
       SESSION_NAME: KLCSESSID
       SESSION_COOKIE_SECURE: "true"
@@ -86,6 +86,11 @@ services:
       WHATSAPP_SALES_ENABLED: "${KLUBCASH_WHATSAPP_SALES_ENABLED:-false}"
       WAHA_MANAGE_WEBHOOK: "${KLUBCASH_WAHA_MANAGE_WEBHOOK:-false}"
       VPS_WORKERS_ENABLED: "${KLUBCASH_VPS_WORKERS_ENABLED:-false}"
+      GIFTBACK_NOTICES_ENABLED: "${KLUBCASH_GIFTBACK_NOTICES_ENABLED:-false}"
+      # Klube Pass partner API (pepper derived from JWT_SECRET by VPS_DERIVE_RUNTIME_KEYS).
+      PASS_CREDIT_NOTICES_ENABLED: "${KLUBCASH_PASS_CREDIT_NOTICES_ENABLED:-false}"
+      PASS_USER_DAILY_DEBIT_LIMIT_CENTS: "${KLUBCASH_PASS_USER_DAILY_DEBIT_LIMIT_CENTS:-200000}"
+      PASS_RETURN_ORIGINS: "${KLUBCASH_PASS_RETURN_ORIGINS:-https://pass.grupoklube.online}"
       VPS_DERIVE_RUNTIME_KEYS: "true"
       # Grupo Klube central login (OIDC). Without the client secret the /auth/grupoklube routes fall back to /login.
       GRUPOKLUBE_ISSUER: ${KLUBCASH_GRUPOKLUBE_ISSUER:-https://login.grupoklube.online}

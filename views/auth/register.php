@@ -19,6 +19,10 @@ if (isset($_SESSION['user_id'])) {
     exit;
 }
 
+// Cadastro iniciado no Klube Pass: volta para lá depois (só origens permitidas).
+require_once __DIR__ . '/../../services/Partner/PassReturnUrl.php';
+$passReturn = \App\Services\Partner\PassReturnUrl::safe($_POST['voltar'] ?? $_GET['voltar'] ?? null);
+
 // Processar o formulário de registro
 $error = '';
 $success = '';
@@ -82,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     // Redirecionar para login
-                    header('Location: /login?success=cadastro_realizado');
+                    header('Location: /login?success=cadastro_realizado' . ($passReturn !== null ? '&voltar=' . rawurlencode($passReturn) : ''));
                     exit;
                 }
             }
@@ -223,6 +227,9 @@ $registerJsVersion = is_file($registerJsFile) ? filemtime($registerJsFile) : 1;
                     </div>
 
                     <form method="post" action="" id="register-form" class="register-form">
+                        <?php if ($passReturn !== null): ?>
+                        <input type="hidden" name="voltar" value="<?php echo htmlspecialchars($passReturn, ENT_QUOTES, 'UTF-8'); ?>">
+                        <?php endif; ?>
                         <div class="form-section">
                             <h3 class="section-title">
                                 <span class="section-number">1</span>

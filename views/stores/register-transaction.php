@@ -55,6 +55,13 @@ if ($storeId) {
             $porcentagemAdmin = (float) $configResult['porcentagem_admin'];
             $porcentagemTotal = $porcentagemCliente + $porcentagemAdmin;
             $cashbackAtivo = ($configResult['cashback_ativo'] == 1);
+            // Klube Pass promoter: sale allowed, giftback only when giftback_sobre_dinheiro is on.
+            require_once __DIR__ . '/../../services/Partner/PassStorePolicy.php';
+            $passPolicy = \App\Services\Partner\PassStorePolicy::forStore($db, (int) $storeId);
+            if ($passPolicy['promoter']) {
+                $cashbackAtivo = true;
+                if (!$passPolicy['giftbackOnCash']) { $porcentagemCliente = 0.0; $porcentagemTotal = $porcentagemAdmin; }
+            }
         }
         
         // Log das configurações para debug

@@ -16,6 +16,11 @@ final class VpsRuntimeKeys
         return self::key('whatsapp-menu', 'WHATSAPP_MENU_HASH_KEY');
     }
 
+    public static function partnerApiPepper(): string
+    {
+        return self::key('partner-api', 'PARTNER_API_KEY_PEPPER');
+    }
+
     private static function key(string $purpose, string $legacyEnvironmentName): string
     {
         if (getenv('VPS_DERIVE_RUNTIME_KEYS') !== 'true') {

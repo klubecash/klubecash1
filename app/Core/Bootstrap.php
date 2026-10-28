@@ -85,6 +85,10 @@ final class Bootstrap
         if (PHP_SAPI === 'cli' || session_status() !== PHP_SESSION_NONE) {
             return;
         }
+        // Partner calls authenticate with a key; a session would only create rows and cookies.
+        if (str_starts_with(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/', '/api/v2/partner/')) {
+            return;
+        }
 
         // Use a Klube Cash-specific cookie name so stale PHPSESSID cookies
         // left by the legacy hosting cannot override the current session.

@@ -57,10 +57,14 @@ final class GiftbackClientReadService
         $fields = ['id', 'storeId', 'storeName', 'originalCents', 'remainingCents', 'consumedCents',
             'expiredCents', 'revokedCents', 'creditedAt', 'validUntil', 'expiresAt', 'kind', 'status'];
         $public = array_intersect_key($credit, array_flip($fields));
-        $public['events'] = array_map(static function (array $event): array {
+        $leftover = ($credit['kind'] ?? '') === 'pass_leftover';
+        $public['events'] = array_map(static function (array $event) use ($leftover): array {
             $safe = array_intersect_key($event, array_flip(['id', 'type', 'amountCents', 'previousCents',
                 'currentCents', 'oldValidUntil', 'newValidUntil', 'occurredAt']));
-            $safe['label'] = self::eventLabel((string) ($event['type'] ?? ''));
+            $type = (string) ($event['type'] ?? '');
+            // A Klube Pass leftover is not a giftback: its credit and cancellation read as such.
+            $safe['label'] = $leftover && $type === 'credito' ? self::eventLabel('credito_sobra_evento')
+                : ($leftover && $type === 'revogacao' ? self::eventLabel('estorno_sobra_evento') : self::eventLabel($type));
             $safe['deltaCents'] = (int) ($event['currentCents'] ?? 0) - (int) ($event['previousCents'] ?? 0);
             return $safe;
         }, $credit['events'] ?? []);
@@ -74,6 +78,7 @@ final class GiftbackClientReadService
             'uso' => 'Saldo utilizado', 'estorno' => 'Estorno de saldo',
             'expiracao' => 'Giftback expirado', 'prorrogacao' => 'Validade prorrogada',
             'reversao_expiracao' => 'Expiração revertida', 'revogacao' => 'Crédito cancelado',
+            'credito_sobra_evento' => 'Sobra de evento (Klube Pass)', 'estorno_sobra_evento' => 'Sobra de evento estornada',
         ][$type] ?? 'Atualização de saldo';
     }
 

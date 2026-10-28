@@ -102,9 +102,11 @@ export default function RegisterTransactionPage() {
     Number(useWatch({ control: form.control, name: "balanceAmount" }) || 0),
   );
   const paidCents = Math.max(0, totalCents - balanceCents);
-  const cashbackCents = Math.round(
-    (paidCents * context.store.customerCashbackPercentage) / 100,
-  );
+  // Same rule as PassStorePolicy::saleGiftbackCents on the server.
+  const giftbackApplies = context.store.eventPromoter ? Boolean(context.store.giftbackOnCash) : true;
+  const cashbackCents = giftbackApplies
+    ? Math.round((paidCents * context.store.customerCashbackPercentage) / 100)
+    : 0;
 
   const searchMutation = useMutation({
     mutationFn: () =>
@@ -337,8 +339,9 @@ export default function RegisterTransactionPage() {
             <div>
               <h3>2. Dados da venda</h3>
               <p>
-                Giftback atual: {context.store.customerCashbackPercentage}% do
-                valor efetivamente pago.
+                {giftbackApplies
+                  ? `Giftback atual: ${context.store.customerCashbackPercentage}% do valor efetivamente pago${context.store.eventPromoter ? " em dinheiro ou Pix (a parte paga com saldo não gera giftback)" : ""}.`
+                  : "Promotor de eventos: as vendas desta loja não geram giftback."}
               </p>
             </div>
           </div>

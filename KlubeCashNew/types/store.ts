@@ -16,6 +16,9 @@ export type StoreContext = {
     logoUrl: string | null;
     customerCashbackPercentage: number;
     cashbackEnabled: boolean;
+    /** Klube Pass event promoter: no balance reimbursement; giftback only if giftbackOnCash. */
+    eventPromoter?: boolean;
+    giftbackOnCash?: boolean;
     mvp: boolean;
     financialModel: "subscription_cashback";
   };
