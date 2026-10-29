@@ -11,7 +11,7 @@ final class PassReturnUrl
     public static function allowedOrigins(): array
     {
         $configured = trim((string) getenv('PASS_RETURN_ORIGINS'));
-        $origins = array_filter(array_map('trim', explode(',', $configured !== '' ? $configured : 'https://pass.grupoklube.online')));
+        $origins = array_filter(array_map('trim', explode(',', $configured !== '' ? $configured : 'https://pass.grupoklube.com')));
         return array_values(array_map(static fn (string $origin): string => rtrim(strtolower($origin), '/'), $origins));
     }
 

@@ -70,7 +70,7 @@ O worker da `email_queue` (`scripts/cron/process-email-queue.php`) ainda não es
 
 ## Cadastro vindo do Pass
 
-O “Criar conta” do Pass leva a `/registro?voltar=<url do Pass>`. Depois do cadastro, o `/login` mostra “volte ao Klube Pass”. Só origens listadas em `PASS_RETURN_ORIGINS` são aceitas (padrão `https://pass.grupoklube.online`).
+O “Criar conta” do Pass leva a `/registro?voltar=<url do Pass>`. Depois do cadastro, o `/login` mostra “volte ao Klube Pass”. Só origens listadas em `PASS_RETURN_ORIGINS` são aceitas (padrão `https://pass.grupoklube.com`).
 
 ## Ligar em produção (passos do responsável, nesta ordem)
 

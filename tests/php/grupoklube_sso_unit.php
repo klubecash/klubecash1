@@ -131,7 +131,38 @@ $url = $sso->begin(null, $now);
 parse_str((string) parse_url($url, PHP_URL_QUERY), $params);
 $tokenClaims = ['nonce' => $params['nonce']] + $claims;
 unset($tokenClaims['klubecash_user_id']);
-refuses(fn () => $sso->complete(['code' => 'abc', 'state' => $params['state']], $now), 'conta central sem conta KlubeCash recusada');
+$tokenClaims += ['email' => 'Maria@Example.com', 'name' => 'Maria Cliente'];
+$fresh = $sso->complete(['code' => 'abc', 'state' => $params['state']], $now);
+check($fresh['klubecashUserId'] === null && $fresh['sub'] === 'identity-1' && $fresh['email'] === 'maria@example.com' && $fresh['name'] === 'Maria Cliente' && $fresh['linkAttempted'] === false,
+    'conta central sem conta KlubeCash devolve a identidade para criar a conta');
+
+// Asked to link: the central login is told, and the answer remembers it so a failed link does not loop.
+$url = $sso->begin('/cliente/dashboard', $now, true);
+parse_str((string) parse_url($url, PHP_URL_QUERY), $params);
+check(($params['link_klubecash'] ?? null) === '1', 'pede para ligar a conta KlubeCash (senha provada uma vez)');
+$tokenClaims = ['nonce' => $params['nonce']] + $claims;
+unset($tokenClaims['klubecash_user_id']);
+check($sso->complete(['code' => 'abc', 'state' => $params['state']], $now)['linkAttempted'] === true, 'tentativa de ligação lembrada');
+$url = $sso->begin(null, $now);
+parse_str((string) parse_url($url, PHP_URL_QUERY), $params);
+check(!isset($params['link_klubecash']), 'login normal não pede ligação');
+
+// --- the service call that ties a freshly created account to the login único
+$linkCalls = [];
+$linkStatus = 201;
+$linkHttp = static function (string $method, string $url, array $headers, ?string $body) use (&$linkCalls, &$linkStatus): array {
+    $linkCalls[] = compact('method', 'url', 'headers', 'body');
+    return ['status' => $linkStatus, 'body' => '{}'];
+};
+$linker = new GrupoKlubeSso($issuer, $clientId, 'segredo-de-teste', 'https://klubecash.test/auth/grupoklube/callback', $linkHttp);
+$linker->registerLink('identity-1', 77);
+check($linkCalls[0]['url'] === $issuer . '/v1/service/klubecash/link' && $linkCalls[0]['method'] === 'POST', 'ligação pedida à API de serviço do login central');
+check(in_array('Authorization: Basic ' . base64_encode('klubecash:segredo-de-teste'), $linkCalls[0]['headers'], true), 'ligação autenticada como o backend do KlubeCash');
+check(json_decode((string) $linkCalls[0]['body'], true) === ['identitySub' => 'identity-1', 'localUserId' => 77], 'corpo da ligação só leva a identidade e a conta criada');
+$linkStatus = 422;
+refuses(fn () => $linker->registerLink('identity-1', 77), 'ligação recusada pelo login central vira erro');
+$linkStatus = 403;
+refuses(fn () => $linker->registerLink('identity-1', 77), 'cliente sem acesso de serviço vira erro');
 $url = $sso->begin(null, $now);
 parse_str((string) parse_url($url, PHP_URL_QUERY), $params);
 $tokenClaims = $claims; // nonce from an older login
@@ -141,11 +172,11 @@ refuses(fn () => $sso->complete(['code' => 'abc', 'state' => $params['state']], 
 putenv('GRUPOKLUBE_CLIENT_SECRET=');
 check(GrupoKlubeSso::fromEnvironment('https://klubecash.com') === null, 'sem segredo configurado o login central fica desligado');
 putenv('GRUPOKLUBE_CLIENT_SECRET=s');
-putenv('GRUPOKLUBE_ISSUER=http://login.grupoklube.online');
+putenv('GRUPOKLUBE_ISSUER=http://login.grupoklube.com');
 check(GrupoKlubeSso::fromEnvironment('https://klubecash.com') === null, 'emissor sem https recusado');
 putenv('GRUPOKLUBE_ISSUER=');
 $configured = GrupoKlubeSso::fromEnvironment('https://klubecash.com/');
-check($configured?->issuer === 'https://login.grupoklube.online' && $configured->redirectUri === 'https://klubecash.com/auth/grupoklube/callback', 'padrões de produção');
-check(str_starts_with($configured->logoutUrl('t', 'https://klubecash.com/login'), 'https://login.grupoklube.online/session/end?id_token_hint=t&post_logout_redirect_uri=https%3A%2F%2Fklubecash.com%2Flogin'), 'saída também encerra a sessão central');
+check($configured?->issuer === 'https://login.grupoklube.com' && $configured->redirectUri === 'https://klubecash.com/auth/grupoklube/callback', 'padrões de produção');
+check(str_starts_with($configured->logoutUrl('t', 'https://klubecash.com/login'), 'https://login.grupoklube.com/session/end?id_token_hint=t&post_logout_redirect_uri=https%3A%2F%2Fklubecash.com%2Flogin'), 'saída também encerra a sessão central');
 
 echo "OK: login do Grupo Klube validado.\n";

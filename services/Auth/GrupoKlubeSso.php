@@ -6,10 +6,13 @@ namespace App\Services\Auth;
 
 /**
  * "Entrar com Grupo Klube": OpenID Connect Authorization Code with PKCE against the central login
- * (login.grupoklube.online). KlubeCash is a confidential client; the secret only travels server to server.
+ * (login.grupoklube.com). KlubeCash is a confidential client; the secret only travels server to server.
  *
  * The central login answers with the claim klubecash_user_id, the KlubeCash account it already verified
  * with this account's own password. The account is opened by that id, never matched by e-mail.
+ *
+ * Someone who arrives with a login-único account and no KlubeCash account yet gets a customer account created here
+ * and tied to the login by the central login's service API (see registerLink()).
  */
 final class GrupoKlubeSso
 {
@@ -37,7 +40,7 @@ final class GrupoKlubeSso
         if ($secret === '') {
             return null;
         }
-        $issuer = rtrim(trim((string) (getenv('GRUPOKLUBE_ISSUER') ?: 'https://login.grupoklube.online')), '/');
+        $issuer = rtrim(trim((string) (getenv('GRUPOKLUBE_ISSUER') ?: 'https://login.grupoklube.com')), '/');
         $host = (string) parse_url($issuer, PHP_URL_HOST);
         $scheme = (string) parse_url($issuer, PHP_URL_SCHEME);
         if ($host === '' || ($scheme !== 'https' && !($scheme === 'http' && in_array($host, ['localhost', '127.0.0.1'], true)))) {
@@ -57,7 +60,7 @@ final class GrupoKlubeSso
     }
 
     /** Remembers state, nonce and the PKCE verifier in the session and returns the central login URL. */
-    public function begin(?string $returnTo, ?int $now = null): string
+    public function begin(?string $returnTo, ?int $now = null, bool $linkKlubecash = false): string
     {
         $state = self::random();
         $nonce = self::random();
@@ -68,6 +71,7 @@ final class GrupoKlubeSso
             'verifier' => $verifier,
             'returnTo' => self::safeReturnTo($returnTo),
             'createdAt' => $now ?? time(),
+            'link' => $linkKlubecash,
         ];
         return $this->issuer . '/auth?' . http_build_query([
             'response_type' => 'code',
@@ -78,14 +82,15 @@ final class GrupoKlubeSso
             'nonce' => $nonce,
             'code_challenge' => IdTokenVerifier::base64UrlEncode(hash('sha256', $verifier, true)),
             'code_challenge_method' => 'S256',
-        ], '', '&', PHP_QUERY_RFC3986);
+        ] + ($linkKlubecash ? ['link_klubecash' => '1'] : []), '', '&', PHP_QUERY_RFC3986);
     }
 
     /**
      * Finishes the login started by begin(). The pending login is single use.
+     * klubecashUserId is null when the login único has no KlubeCash account for this person yet.
      *
      * @param array<string, mixed> $query the callback query string
-     * @return array{klubecashUserId: int, idToken: string, returnTo: ?string}
+     * @return array{klubecashUserId: ?int, sub: string, email: string, name: string, idToken: string, returnTo: ?string, linkAttempted: bool}
      */
     public function complete(array $query, ?int $now = null): array
     {
@@ -123,10 +128,36 @@ final class GrupoKlubeSso
 
         $claims = IdTokenVerifier::verify($idToken, $this->json('GET', $this->issuer . '/jwks', [], null), $this->issuer, $this->clientId, (string) $pending['nonce'], $now);
         $userId = $claims['klubecash_user_id'] ?? null;
-        if (!is_int($userId) || $userId <= 0) {
-            throw new GrupoKlubeSsoException('Sua conta do Grupo Klube não está ligada a uma conta KlubeCash.');
+        $sub = $claims['sub'] ?? null;
+        if (!is_string($sub) || $sub === '') {
+            throw new GrupoKlubeSsoException('Não foi possível confirmar o login do Grupo Klube. Tente de novo.');
         }
-        return ['klubecashUserId' => $userId, 'idToken' => $idToken, 'returnTo' => $pending['returnTo'] ?? null];
+        return [
+            'klubecashUserId' => is_int($userId) && $userId > 0 ? $userId : null,
+            'sub' => $sub,
+            'email' => is_string($claims['email'] ?? null) ? strtolower(trim($claims['email'])) : '',
+            'name' => is_string($claims['name'] ?? null) ? trim($claims['name']) : '',
+            'idToken' => $idToken,
+            'returnTo' => $pending['returnTo'] ?? null,
+            'linkAttempted' => ($pending['link'] ?? false) === true,
+        ];
+    }
+
+    /**
+     * Tells the central login that the KlubeCash account just created belongs to this login-único account.
+     * The central login only accepts it for an account made minutes ago with the very same e-mail.
+     */
+    public function registerLink(string $identitySub, int $localUserId): void
+    {
+        $response = ($this->http)('POST', $this->issuer . '/v1/service/klubecash/link', [
+            'Authorization: Basic ' . base64_encode(rawurlencode($this->clientId) . ':' . rawurlencode($this->clientSecret)),
+            'Content-Type: application/json',
+            'Accept: application/json',
+        ], json_encode(['identitySub' => $identitySub, 'localUserId' => $localUserId], JSON_THROW_ON_ERROR));
+        if ($response['status'] !== 200 && $response['status'] !== 201) {
+            error_log('auth.grupoklube.link_failed status=' . $response['status']);
+            throw new GrupoKlubeSsoException('Não foi possível ligar sua conta KlubeCash ao Grupo Klube. Tente de novo em instantes.');
+        }
     }
 
     /** Ends the central session too, then comes back to this site. */

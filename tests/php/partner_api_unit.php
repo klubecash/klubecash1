@@ -46,10 +46,10 @@ foreach (['curto', 'com espaço aqui', 'tem:dois-pontos', str_repeat('a', 81), 1
     $rejects(fn () => PassPartnerService::passRef($bad), 422, 'pass_ref inválido: ' . (is_string($bad) ? substr($bad, 0, 15) : 'número'));
 }
 
-putenv('PASS_RETURN_ORIGINS=https://pass.grupoklube.online,http://localhost:3300');
-$check(PassReturnUrl::safe('https://pass.grupoklube.online/entrar?x=1') === 'https://pass.grupoklube.online/entrar?x=1', 'volta ao Pass aceita');
+putenv('PASS_RETURN_ORIGINS=https://pass.grupoklube.com,http://localhost:3300');
+$check(PassReturnUrl::safe('https://pass.grupoklube.com/entrar?x=1') === 'https://pass.grupoklube.com/entrar?x=1', 'volta ao Pass aceita');
 $check(PassReturnUrl::safe('http://localhost:3300/') === 'http://localhost:3300/', 'origem local da lista aceita');
-foreach (['https://pass.grupoklube.online.evil.test/', 'http://pass.grupoklube.online/', 'https://evil.test/', 'https://user:pw@pass.grupoklube.online/', '//pass.grupoklube.online', "https://pass.grupoklube.online/\n", null] as $bad) {
+foreach (['https://pass.grupoklube.com.evil.test/', 'http://pass.grupoklube.com/', 'https://evil.test/', 'https://user:pw@pass.grupoklube.com/', '//pass.grupoklube.com', "https://pass.grupoklube.com/\n", null] as $bad) {
     $check(PassReturnUrl::safe($bad) === null, 'volta recusada: ' . json_encode($bad));
 }
 

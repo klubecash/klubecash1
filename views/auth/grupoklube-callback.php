@@ -11,7 +11,9 @@ require_once __DIR__ . '/../../controllers/AuthController.php';
 require_once __DIR__ . '/../../services/Auth/GrupoKlubeSsoException.php';
 require_once __DIR__ . '/../../services/Auth/IdTokenVerifier.php';
 require_once __DIR__ . '/../../services/Auth/GrupoKlubeSso.php';
+require_once __DIR__ . '/../../services/Auth/GrupoKlubeAccounts.php';
 
+use App\Services\Auth\GrupoKlubeAccounts;
 use App\Services\Auth\GrupoKlubeSso;
 use App\Services\Auth\GrupoKlubeSsoException;
 
@@ -36,14 +38,15 @@ if ($sso === null) {
 try {
     $login = $sso->complete($_GET);
     $db = Database::getConnection();
-    $stmt = $db->prepare("
-        SELECT id, nome, email, tipo, tipo_cliente, status
-        FROM usuarios
-        WHERE id = ? AND tipo IN ('cliente', 'admin', 'loja', 'funcionario')
-        LIMIT 1
-    ");
-    $stmt->execute([$login['klubecashUserId']]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    $account = (new GrupoKlubeAccounts($db))->forLogin($login, [$sso, 'registerLink']);
+    if ($account['outcome'] === GrupoKlubeAccounts::NEEDS_PASSWORD) {
+        // This e-mail already has a KlubeCash account: the central login asks for its password once, which links it.
+        $authorizationUrl = $sso->begin($login['returnTo'], null, true);
+        session_write_close();
+        header('Location: ' . $authorizationUrl, true, 302);
+        exit;
+    }
+    $user = $account['user'];
     if (!$user || ($user['tipo_cliente'] ?? null) === 'visitante') {
         error_log('auth.grupoklube.account_unavailable');
         $fail('Sua conta KlubeCash não está disponível para este login.');
@@ -59,7 +62,7 @@ try {
     if (!AuthController::persistLogin($result['token'] ?? '')) {
         $fail('Não foi possível concluir sua sessão. Tente novamente.');
     }
-    error_log('auth.grupoklube.login_completed');
+    error_log($account['outcome'] === GrupoKlubeAccounts::CREATED ? 'auth.grupoklube.account_created' : 'auth.grupoklube.login_completed');
     header('Location: ' . ($login['returnTo'] ?? AuthController::dashboardFor((string) $user['tipo'])), true, 302);
     exit;
 } catch (GrupoKlubeSsoException $error) {

@@ -7,6 +7,9 @@ ob_start();
 require_once '../../config/constants.php';
 require_once '../../config/database.php';
 require_once '../../controllers/AuthController.php';
+require_once '../../services/Auth/GrupoKlubeSsoException.php';
+require_once '../../services/Auth/IdTokenVerifier.php';
+require_once '../../services/Auth/GrupoKlubeSso.php';
 
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -323,6 +326,11 @@ ob_end_flush();
                             </svg>
                         </button>
                     </form>
+                    <?php if (\App\Services\Auth\GrupoKlubeSso::fromEnvironment(SITE_URL) !== null): ?>
+                        <p class="grupoklube-login">
+                            <a class="btn btn-secondary" href="/auth/grupoklube/login<?php echo isset($_GET['returnTo']) ? '?returnTo=' . rawurlencode((string) $_GET['returnTo']) : ''; ?>">Entrar ou criar conta com o Grupo Klube</a>
+                        </p>
+                    <?php endif; ?>
                 </div>
             </div>
         </section>
