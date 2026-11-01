@@ -10,6 +10,7 @@ use Throwable;
 
 require_once __DIR__ . '/../Giftback/GiftbackLedger.php';
 require_once __DIR__ . '/StoreNetworkAccess.php';
+require_once __DIR__ . '/../../utils/Validator.php';
 
 final class StoreCustomerService
 {
@@ -70,6 +71,154 @@ final class StoreCustomerService
             'canCreateVisitor' => false,
             'suggestedPhone' => '',
         ];
+    }
+
+    /**
+     * The sale always starts from the customer's real e-mail.
+     * @return array<string, mixed>
+     */
+    public function findByEmail(int $storeId, string $email): array
+    {
+        $email = $this->email($email);
+        $owner = $this->db->prepare('SELECT id,tipo,status FROM usuarios WHERE email=? LIMIT 1');
+        $owner->execute([$email]);
+        $row = $owner->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return ['dataState' => 'empty', 'generatedAt' => date(DATE_ATOM), 'customer' => null];
+        }
+        if ($row['tipo'] !== 'cliente' || $row['status'] !== 'ativo') {
+            throw new StoreApiException('Este e-mail não pode ser usado para uma compra. Use outro e-mail do cliente.', 409, [
+                'email' => ['Este e-mail não pode ser usado para uma compra.'],
+            ]);
+        }
+        return $this->get($storeId, (int) $row['id']);
+    }
+
+    /**
+     * Registers the customer with name and e-mail. A phone that belongs to a visitor of this store completes that
+     * visitor instead of creating a second account, so the balance and the purchases stay with the person.
+     * @return array<string, mixed>
+     */
+    public function register(int $storeId, string $name, string $email, string $phone): array
+    {
+        $name = trim($name);
+        $phone = preg_replace('/\D+/', '', $phone) ?? '';
+        $errors = [];
+        if (mb_strlen($name) < 3 || mb_strlen($name) > 100) {
+            $errors['name'] = ['Informe um nome entre 3 e 100 caracteres.'];
+        }
+        if ($phone !== '' && (strlen($phone) < 10 || strlen($phone) > 11)) {
+            $errors['phone'] = ['Informe um telefone válido com DDD ou deixe em branco.'];
+        }
+        if ($errors !== []) {
+            throw new StoreApiException('Revise os dados do cliente.', 422, $errors);
+        }
+        $found = $this->findByEmail($storeId, $email);
+        if ($found['customer'] !== null) {
+            return $found;
+        }
+        $email = $this->email($email);
+        $visitorId = $phone !== '' ? $this->storeVisitor($storeId, $phone) : 0;
+
+        try {
+            $this->db->beginTransaction();
+            if ($visitorId > 0) {
+                $this->db->prepare("UPDATE usuarios SET nome=:name,email=:email,tipo_cliente='completo' WHERE id=:id AND tipo_cliente='visitante'")
+                    ->execute([':name' => $name, ':email' => $email, ':id' => $visitorId]);
+                $customerId = $visitorId;
+            } else {
+                $insert = $this->db->prepare(
+                    "INSERT INTO usuarios (nome,email,telefone,tipo,tipo_cliente,loja_criadora_id,status,provider,email_verified) "
+                    . "VALUES (:name,:email,:phone,'cliente','completo',:store_id,'ativo','local',0)"
+                );
+                $insert->execute([':name' => $name, ':email' => $email, ':phone' => $phone !== '' ? $phone : null, ':store_id' => $storeId]);
+                $customerId = (int) $this->db->lastInsertId();
+                (new GiftbackLedger($this->db))->settleWallet($customerId, $storeId);
+            }
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            if ($exception instanceof \PDOException && $exception->getCode() === '23000') {
+                throw new StoreApiException('Este e-mail acabou de ser cadastrado. Busque o cliente de novo.', 409, [
+                    'email' => ['E-mail já cadastrado.'],
+                ]);
+            }
+            throw $exception;
+        }
+        return $this->get($storeId, $customerId);
+    }
+
+    /**
+     * Completes the registration with the CPF. Only fills an empty CPF: a CPF already informed is never replaced here.
+     * @return array<string, mixed>
+     */
+    public function saveCpf(int $storeId, int $customerId, string $cpf): array
+    {
+        $cpf = preg_replace('/\D+/', '', $cpf) ?? '';
+        if (!\Validator::validaCPF($cpf)) {
+            throw new StoreApiException('CPF inválido.', 422, ['cpf' => ['Confira os 11 números do CPF.']]);
+        }
+        $owner = $this->db->prepare('SELECT id FROM usuarios WHERE cpf=? LIMIT 1');
+        $owner->execute([$cpf]);
+        $ownerId = (int) ($owner->fetchColumn() ?: 0);
+        if ($ownerId > 0 && $ownerId !== $customerId) {
+            throw new StoreApiException('Este CPF já está cadastrado para outro cliente.', 409, ['cpf' => ['CPF já cadastrado.']]);
+        }
+        if ($ownerId === 0) {
+            try {
+                $this->db->prepare(
+                    "UPDATE usuarios SET cpf=:cpf WHERE id=:id AND tipo='cliente' AND tipo_cliente='completo' AND status='ativo' AND (cpf IS NULL OR cpf='')"
+                )->execute([':cpf' => $cpf, ':id' => $customerId]);
+            } catch (\PDOException $exception) {
+                if ($exception->getCode() === '23000') {
+                    throw new StoreApiException('Este CPF já está cadastrado para outro cliente.', 409, ['cpf' => ['CPF já cadastrado.']]);
+                }
+                throw $exception;
+            }
+        }
+        $result = $this->get($storeId, $customerId);
+        if ($result['customer']['cpf'] !== $cpf) {
+            throw new StoreApiException('O CPF deste cliente já foi informado antes e não pode ser trocado pela loja.', 409, [
+                'cpf' => ['CPF já informado.'],
+            ]);
+        }
+        return $result;
+    }
+
+    private function email(string $email): string
+    {
+        $email = mb_strtolower(trim($email));
+        if (
+            $email === '' || strlen($email) > 255 || filter_var($email, FILTER_VALIDATE_EMAIL) === false
+            || str_ends_with($email, '@klubecash.local')
+        ) {
+            throw new StoreApiException('Informe um e-mail válido do cliente.', 422, ['email' => ['Informe um e-mail válido.']]);
+        }
+        return $email;
+    }
+
+    /** A visitor this store created with that phone, ready to be completed. */
+    private function storeVisitor(int $storeId, string $phone): int
+    {
+        $visitor = $this->db->prepare(
+            "SELECT id FROM usuarios WHERE loja_criadora_id=? AND tipo='cliente' AND tipo_cliente='visitante' AND status='ativo' AND telefone=? LIMIT 1"
+        );
+        $visitor->execute([$storeId, $phone]);
+        $visitorId = (int) ($visitor->fetchColumn() ?: 0);
+        $networkId = $visitorId > 0 ? (new StoreNetworkAccess($this->db))->networkId($storeId) : null;
+        if ($networkId !== null) {
+            // A network visitor's balance is shared with the other branches only after they confirm the phone.
+            $proof = $this->db->prepare('SELECT 1 FROM network_visitor_verifications WHERE network_id=? AND user_id=? AND verified_until>NOW() LIMIT 1');
+            $proof->execute([$networkId, $visitorId]);
+            if (!$proof->fetchColumn()) {
+                throw new StoreApiException('Este telefone é de um visitante da rede que ainda não confirmou o número no link da filial. Peça a confirmação antes de completar o cadastro.', 409, [
+                    'phone' => ['Visitante da rede sem telefone confirmado.'],
+                ]);
+            }
+        }
+        return $visitorId;
     }
 
     /** @return array<string, mixed> */
@@ -163,6 +312,7 @@ final class StoreCustomerService
             'email' => $visitor ? null : (string) ($row['email'] ?? ''),
             'phone' => (string) ($row['telefone'] ?? ''),
             'cpf' => $visitor ? null : ($row['cpf'] ?: null),
+            'needsCpf' => !$visitor && empty($row['cpf']),
             'type' => $visitor ? 'visitor' : 'registered',
             'createdByThisStore' => (int) ($row['loja_criadora_id'] ?? 0) === $storeId,
             'balanceCents' => $requiresPhoneVerification ? 0 : (new GiftbackLedger($this->db))->networkWallet((int) $row['id'],

@@ -41,9 +41,14 @@ final class GrupoKlubeAccounts
             throw new GrupoKlubeSsoException('Sua conta do Grupo Klube precisa de um e-mail válido para criar a conta KlubeCash.');
         }
 
-        $stmt = $this->db->prepare('SELECT id FROM usuarios WHERE email = ? LIMIT 1');
+        $stmt = $this->db->prepare('SELECT id, senha_hash IS NULL AS no_password FROM usuarios WHERE email = ? LIMIT 1');
         $stmt->execute([$email]);
-        if ($stmt->fetchColumn() !== false) {
+        $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($existing !== false) {
+            if ((int) $existing['no_password'] === 1) {
+                // Registered by a store at the counter (or made with Google): there is no KlubeCash password to prove yet.
+                throw new GrupoKlubeSsoException('Sua conta KlubeCash com este e-mail ainda não tem senha. Crie uma em "Esqueci minha senha" e depois entre com o Grupo Klube.');
+            }
             if ($login['linkAttempted']) {
                 // Came back from proving the password and still not linked: do not loop.
                 throw new GrupoKlubeSsoException('Já existe uma conta KlubeCash com este e-mail, mas não foi possível ligá-la. Entre com e-mail e senha do KlubeCash.');

@@ -32,6 +32,7 @@ return [
     $page('/parceria-comercial', 'views/stores/register.php', 'store.commercial-partner'),
     $page('/lojas/cadastro', 'views/stores/register.php', 'store.register.canonical'),
     $page('/lojas/detalhes/{id:\\d+}', 'views/stores/details.php', 'store.details', [], ['GET', 'POST']),
+    $page('/cliente/completar-cadastro', 'views/client/complete-registration.php', 'client.complete-registration', ['client']),
     $page('/cliente/dashboard', 'views/client/dashboard.php', 'client.dashboard', ['client']),
     $page('/cliente/extrato', 'views/client/statement.php', 'client.statement', ['client']),
     $page('/cliente/lojas-parceiras', 'views/client/partner-stores.php', 'client.stores', ['client']),

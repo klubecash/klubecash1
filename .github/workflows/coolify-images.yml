@@ -58,6 +58,17 @@ jobs:
           GIFTBACK_TEST_DSN: mysql:host=127.0.0.1;port=3306
           GIFTBACK_TEST_USER: root
           GIFTBACK_TEST_PASSWORD: isolated-test-only
+      - run: php tests/php/grupoklube_accounts_integration.php
+        env:
+          GIFTBACK_TEST_DSN: mysql:host=127.0.0.1;port=3306
+          GIFTBACK_TEST_USER: root
+          GIFTBACK_TEST_PASSWORD: isolated-test-only
+      # Store sale starts from the customer's e-mail and completes the CPF.
+      - run: php tests/php/store_customer_email_cpf_integration.php
+        env:
+          GIFTBACK_TEST_DSN: mysql:host=127.0.0.1;port=3306
+          GIFTBACK_TEST_USER: root
+          GIFTBACK_TEST_PASSWORD: isolated-test-only
       # Klube Pass money rules (1, 2, 3, 4, 7, 8): a failure here blocks the PR.
       - run: php tests/php/partner_api_unit.php
       - run: php tests/php/pass_integration_integration.php

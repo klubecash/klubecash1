@@ -128,7 +128,41 @@ final class Kernel
             return $this->denyRoute($path, 403, 'Acesso nao autorizado.');
         }
 
+        // A customer without CPF completes the registration before anything else in the panel.
+        if ($requiredRole === 'client' && $path !== self::CLIENT_CPF_PATH && $this->clientNeedsCpf()) {
+            if (str_starts_with($path, '/api/') || str_contains($path, '/ajax/') || $path === '/cliente/actions') {
+                return $this->denyRoute($path, 403, 'Informe seu CPF para continuar.');
+            }
+            header('Location: ' . self::CLIENT_CPF_PATH, true, 302);
+            return false;
+        }
+
         return true;
+    }
+
+    private const CLIENT_CPF_PATH = '/cliente/completar-cadastro';
+
+    private function clientNeedsCpf(): bool
+    {
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        if (($_SESSION['client_cpf_ok'] ?? null) === $userId) {
+            return false;
+        }
+        try {
+            require_once $this->root . '/config/database.php';
+            $statement = \Database::getConnection()->prepare('SELECT cpf FROM usuarios WHERE id = ? LIMIT 1');
+            $statement->execute([$userId]);
+            $cpf = (string) ($statement->fetchColumn() ?: '');
+        } catch (\Throwable $exception) {
+            // Completing the profile never locks people out of their balance when the check itself fails.
+            Logger::warning('client.cpf_check_failed', ['exception' => get_class($exception)]);
+            return false;
+        }
+        if ($cpf === '') {
+            return true;
+        }
+        $_SESSION['client_cpf_ok'] = $userId;
+        return false;
     }
 
     private function denyRoute(string $path, int $status, string $message): bool

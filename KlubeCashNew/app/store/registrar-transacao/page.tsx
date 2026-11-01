@@ -24,17 +24,16 @@ type Customer = {
   email: string | null;
   phone: string;
   cpf: string | null;
+  needsCpf: boolean;
   type: "visitor" | "registered";
   createdByThisStore: boolean;
   balanceCents: number;
   purchaseCount: number;
   spentAmountCents: number;
 };
-type CustomerSearch = {
+type CustomerLookup = {
   dataState: "ready" | "empty";
   customer: Customer | null;
-  canCreateVisitor: boolean;
-  suggestedPhone: string;
 };
 type SaleResult = {
   id: number;
@@ -61,17 +60,25 @@ type SaleItem = { name: string; quantity: string; unitPrice: string };
 const saleCode = () => `VENDA-${Date.now().toString(36).toUpperCase()}`;
 const saleDate = () => new Date().toISOString().slice(0, 16);
 const cents = (value: number) => Math.round(value * 100);
+const looksLikeEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+const cpfDigits = (value: string) => value.replace(/\D/g, "").slice(0, 11);
+const cpfMask = (value: string) =>
+  cpfDigits(value)
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d{1,2})$/, ".$1-$2");
 
 export default function RegisterTransactionPage() {
   const context = useStoreContext();
   const queryClient = useQueryClient();
   const idempotencyKey = useRef<string | null>(null);
   const [step, setStep] = useState(1);
-  const [search, setSearch] = useState("");
+  const [email, setEmail] = useState("");
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [notice, setNotice] = useState("");
-  const [canCreate, setCanCreate] = useState(false);
-  const [visitor, setVisitor] = useState({ name: "", phone: "" });
+  const [isNew, setIsNew] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({ name: "", phone: "" });
+  const [cpf, setCpf] = useState("");
   const [result, setResult] = useState<SaleResult | null>(null);
   const [sellerId, setSellerId] = useState<number | null>(null);
   const [items, setItems] = useState<SaleItem[]>([]);
@@ -108,48 +115,73 @@ export default function RegisterTransactionPage() {
     ? Math.round((paidCents * context.store.customerCashbackPercentage) / 100)
     : 0;
 
-  const searchMutation = useMutation({
+  // The sale always starts from the customer's e-mail; a customer without CPF gives it right after.
+  const lookupMutation = useMutation({
     mutationFn: () =>
-      storeFetch<CustomerSearch>(
-        `customers/search&query=${encodeURIComponent(search.trim())}`,
+      storeFetch<CustomerLookup>(
+        `customers/lookup&email=${encodeURIComponent(email.trim())}`,
       ),
     onSuccess: (data) => {
       setCustomer(data.customer);
-      setCanCreate(data.canCreateVisitor);
-      setVisitor((current) => ({
-        ...current,
-        phone: data.suggestedPhone || current.phone,
-      }));
+      setIsNew(!data.customer);
       setNotice(
         data.customer
           ? ""
-          : "Cliente não encontrado. Você pode cadastrá-lo como visitante.",
+          : "Nenhum cliente com este e-mail. Cadastre-o abaixo para continuar.",
       );
     },
     onError: (error) => {
       setCustomer(null);
-      setCanCreate(false);
+      setIsNew(false);
       setNotice(error.message);
     },
   });
 
-  const visitorMutation = useMutation({
+  const registerMutation = useMutation({
     mutationFn: () =>
-      storeFetch<{ customer: Customer }>("customers/visitor", {
+      storeFetch<{ customer: Customer }>("customers/register", {
         method: "POST",
         headers: { "X-CSRF-Token": context.csrfToken },
         body: JSON.stringify({
-          name: visitor.name,
-          phone: visitor.phone,
+          name: newCustomer.name,
+          email: email.trim(),
+          phone: newCustomer.phone,
           csrfToken: context.csrfToken,
         }),
       }),
     onSuccess: (data) => {
       setCustomer(data.customer);
-      setCanCreate(false);
+      setIsNew(false);
       setNotice("");
     },
   });
+
+  const cpfMutation = useMutation({
+    mutationFn: () =>
+      storeFetch<{ customer: Customer }>("customers/cpf", {
+        method: "POST",
+        headers: { "X-CSRF-Token": context.csrfToken },
+        body: JSON.stringify({
+          customerId: customer?.id,
+          cpf: cpfDigits(cpf),
+          csrfToken: context.csrfToken,
+        }),
+      }),
+    onSuccess: (data) => {
+      setCustomer(data.customer);
+      setCpf("");
+    },
+  });
+
+  const changeEmail = (value: string) => {
+    setEmail(value);
+    setCustomer(null);
+    setIsNew(false);
+    setNotice("");
+    setCpf("");
+    registerMutation.reset();
+    cpfMutation.reset();
+  };
 
   const saleMutation = useMutation({
     mutationFn: (values: SaleForm) => {
@@ -198,8 +230,11 @@ export default function RegisterTransactionPage() {
     setStep(1);
     setCustomer(null);
     setResult(null);
-    setSearch("");
+    setEmail("");
     setNotice("");
+    setIsNew(false);
+    setNewCustomer({ name: "", phone: "" });
+    setCpf("");
     idempotencyKey.current = null;
     setSellerId(null);
     setItems([]);
@@ -238,66 +273,76 @@ export default function RegisterTransactionPage() {
         <section className="store-panel store-form">
           <div className="store-panel-head">
             <div>
-              <h3>1. Encontre o cliente</h3>
-              <p>Busque por e-mail, CPF ou telefone.</p>
+              <h3>1. Cliente</h3>
+              <p>Peça o e-mail do cliente. Em seguida, o CPF completa o cadastro.</p>
             </div>
           </div>
           <label className="store-field">
-            <span>E-mail, CPF ou telefone</span>
+            <span>E-mail do cliente</span>
             <div style={{ display: "flex", gap: 8 }}>
               <input
                 className="store-input"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                type="email"
+                inputMode="email"
+                autoComplete="off"
+                placeholder="cliente@exemplo.com"
+                value={email}
+                onChange={(event) => changeEmail(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && search.trim().length >= 3)
-                    searchMutation.mutate();
+                  if (event.key === "Enter" && looksLikeEmail(email))
+                    lookupMutation.mutate();
                 }}
               />
               <button
                 type="button"
                 className="store-button store-button-primary"
-                disabled={search.trim().length < 3 || searchMutation.isPending}
-                onClick={() => searchMutation.mutate()}
+                disabled={!looksLikeEmail(email) || lookupMutation.isPending}
+                onClick={() => lookupMutation.mutate()}
               >
                 <Search size={16} /> Buscar
               </button>
             </div>
           </label>
           {notice && <div className="store-alert">{notice}</div>}
-          {canCreate && (
+          {isNew && (
             <div className="store-form-grid">
               <label className="store-field">
-                <span>Nome do visitante</span>
+                <span>Nome do cliente</span>
                 <input
                   className="store-input"
-                  value={visitor.name}
+                  autoComplete="off"
+                  value={newCustomer.name}
                   onChange={(event) =>
-                    setVisitor({ ...visitor, name: event.target.value })
+                    setNewCustomer({ ...newCustomer, name: event.target.value })
                   }
                 />
               </label>
               <label className="store-field">
-                <span>Telefone</span>
+                <span>Telefone (opcional)</span>
                 <input
                   className="store-input"
-                  value={visitor.phone}
+                  inputMode="tel"
+                  autoComplete="off"
+                  value={newCustomer.phone}
                   onChange={(event) =>
-                    setVisitor({ ...visitor, phone: event.target.value })
+                    setNewCustomer({ ...newCustomer, phone: event.target.value })
                   }
                 />
+                <small className="store-help">
+                  Se ele já comprou aqui como visitante, use o mesmo telefone para manter o saldo.
+                </small>
               </label>
               <button
                 type="button"
                 className="store-button"
-                disabled={visitorMutation.isPending}
-                onClick={() => visitorMutation.mutate()}
+                disabled={newCustomer.name.trim().length < 3 || registerMutation.isPending}
+                onClick={() => registerMutation.mutate()}
               >
-                <UserPlus size={16} /> Criar visitante
+                <UserPlus size={16} /> Cadastrar cliente
               </button>
-              {visitorMutation.isError && (
+              {registerMutation.isError && (
                 <div className="store-alert store-alert-error">
-                  {visitorMutation.error.message}
+                  {registerMutation.error.message}
                 </div>
               )}
             </div>
@@ -312,10 +357,45 @@ export default function RegisterTransactionPage() {
               </p>
             </div>
           )}
+          {customer?.needsCpf && (
+            <div className="store-form-grid">
+              <label className="store-field">
+                <span>CPF do cliente</span>
+                <input
+                  className="store-input"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="000.000.000-00"
+                  value={cpfMask(cpf)}
+                  onChange={(event) => setCpf(cpfDigits(event.target.value))}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && cpf.length === 11)
+                      cpfMutation.mutate();
+                  }}
+                />
+                <small className="store-help">
+                  Obrigatório para completar o cadastro. Depois de salvo, só o suporte pode trocar.
+                </small>
+              </label>
+              <button
+                type="button"
+                className="store-button"
+                disabled={cpf.length !== 11 || cpfMutation.isPending}
+                onClick={() => cpfMutation.mutate()}
+              >
+                Salvar CPF
+              </button>
+              {cpfMutation.isError && (
+                <div className="store-alert store-alert-error">
+                  {cpfMutation.error.message}
+                </div>
+              )}
+            </div>
+          )}
           <div className="store-form-actions">
             <button
               className="store-button store-button-primary"
-              disabled={!customer}
+              disabled={!customer || customer.needsCpf}
               onClick={() => setStep(2)}
             >
               Continuar <ArrowRight size={16} />

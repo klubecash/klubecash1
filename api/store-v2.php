@@ -259,6 +259,9 @@ try {
     if ($method === 'GET' && $resource === 'customers/search') {
         storeV2Respond(200, true, $customers->search($storeId, (string) ($_GET['query'] ?? '')));
     }
+    if ($method === 'GET' && $resource === 'customers/lookup') {
+        storeV2Respond(200, true, $customers->findByEmail($storeId, (string) ($_GET['email'] ?? '')));
+    }
     if ($method === 'GET' && $resource === 'sellers') {
         if (($_GET['history'] ?? '') === '1') {
             if ($forcedSellerId !== null) { throw new StoreApiException('Consulta restrita à gestão.', 403); }
@@ -373,6 +376,21 @@ try {
             (string) ($payload['name'] ?? ''),
             (string) ($payload['phone'] ?? '')
         ), 'Visitante criado com sucesso.');
+    }
+    if ($method === 'POST' && $resource === 'customers/register') {
+        storeV2Respond(201, true, $customers->register(
+            $storeId,
+            (string) ($payload['name'] ?? ''),
+            (string) ($payload['email'] ?? ''),
+            (string) ($payload['phone'] ?? '')
+        ), 'Cliente cadastrado.');
+    }
+    if ($method === 'POST' && $resource === 'customers/cpf') {
+        storeV2Respond(200, true, $customers->saveCpf(
+            $storeId,
+            (int) ($payload['customerId'] ?? 0),
+            (string) ($payload['cpf'] ?? '')
+        ), 'CPF salvo.');
     }
     if ($method === 'POST' && $resource === 'transactions') {
         $key = (string) ($_SERVER['HTTP_X_IDEMPOTENCY_KEY'] ?? '');

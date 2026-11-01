@@ -53,12 +53,18 @@ try {
     $check($row['tipo'] === 'cliente' && $row['status'] === 'ativo' && $row['senha_hash'] === null && $row['nome'] === 'Maria Cliente', 'conta criada é cliente ativo, sem senha própria');
     $check($linked === [['identity-1', (int) $row['id']]], 'a ligação é pedida só para a conta recém-criada');
 
-    // The same e-mail again, not linked: nothing is matched by e-mail; the password is asked once.
+    // The same e-mail again, not linked, on an account with its own password: nothing is matched by e-mail; the password is asked once.
+    $db->exec("UPDATE usuarios SET senha_hash = 'x' WHERE email = 'maria@example.com'");
     $before = (int) $db->query('SELECT COUNT(*) FROM usuarios')->fetchColumn();
     $result = $accounts->forLogin($login(), $link);
     $check($result['outcome'] === GrupoKlubeAccounts::NEEDS_PASSWORD && $result['user'] === null && count($linked) === 1, 'e-mail que já tem conta pede a senha uma vez, sem juntar por e-mail');
     $check((int) $db->query('SELECT COUNT(*) FROM usuarios')->fetchColumn() === $before, 'nenhuma conta nova para e-mail existente');
     $refuses(fn () => $accounts->forLogin($login(['linkAttempted' => true]), $link), 'depois de pedir a ligação, não repete em laço');
+
+    // An account registered by a store has no password to prove: the person is sent to create one, never linked by e-mail.
+    $db->exec("INSERT INTO usuarios (nome, email) VALUES ('Cliente da Loja', 'balcao@example.com')");
+    $refuses(fn () => $accounts->forLogin($login(['email' => 'balcao@example.com', 'sub' => 'identity-9']), $link), 'conta sem senha (feita pela loja) pede para criar a senha');
+    $check(count($linked) === 1, 'conta sem senha nunca é ligada pelo e-mail');
 
     // Case-insensitive e-mail is normalised, a missing name falls back to the e-mail's first part.
     $accounts->forLogin($login(['email' => 'Joao.Silva@Example.com', 'name' => '', 'sub' => 'identity-2']), $link);
