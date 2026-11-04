@@ -1,22 +1,23 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft,
-  ArrowRight,
   CheckCircle2,
+  ChevronDown,
+  Info,
+  Minus,
+  Plus,
   Search,
   ShieldAlert,
+  Trash2,
   UserPlus,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
-import { z } from "zod";
+import Link from "next/link";
+import { useEffect, useId, useRef, useState } from "react";
 import { storeFetch } from "@/lib/client-api";
 import { moneyFromCents } from "@/lib/format";
 import { useStoreContext } from "@/components/store/StoreProviders";
-import Link from "next/link";
+import styles from "./sale.module.css";
 
 type Customer = {
   id: number;
@@ -45,20 +46,16 @@ type SaleResult = {
   customerBalanceCents: number;
   replayed: boolean;
 };
-
-const schema = z.object({
-  total: z.coerce.number().min(5, "O valor mínimo da venda é R$ 5,00."),
-  code: z.string().trim().min(3, "Informe o código da venda.").max(50),
-  date: z.string().min(1, "Informe a data."),
-  description: z.string().max(500).optional(),
-  balanceAmount: z.coerce.number().min(0).default(0),
-});
-type SaleForm = z.infer<typeof schema>;
-type SaleInput = z.input<typeof schema>;
 type SaleItem = { name: string; quantity: string; unitPrice: string };
 
+const MIN_SALE_CENTS = 500;
+const pad = (value: number) => String(value).padStart(2, "0");
 const saleCode = () => `VENDA-${Date.now().toString(36).toUpperCase()}`;
-const saleDate = () => new Date().toISOString().slice(0, 16);
+/** Valor de <input type="datetime-local">: horário local, e não UTC. */
+const saleDate = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+};
 const cents = (value: number) => Math.round(value * 100);
 const looksLikeEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 const cpfDigits = (value: string) => value.replace(/\D/g, "").slice(0, 11);
@@ -67,68 +64,116 @@ const cpfMask = (value: string) =>
     .replace(/^(\d{3})(\d)/, "$1.$2")
     .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
     .replace(/\.(\d{3})(\d{1,2})$/, ".$1-$2");
+/** Aceita só dígitos e um separador decimal (vírgula ou ponto), com até duas casas. */
+const cleanMoney = (value: string) => {
+  const raw = value.replace(/[^\d.,]/g, "");
+  const at = raw.search(/[.,]/);
+  if (at < 0) return raw;
+  return `${raw.slice(0, at)}${raw[at]}${raw.slice(at + 1).replace(/[.,]/g, "").slice(0, 2)}`;
+};
+const parseMoney = (value: string) => {
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+const formatInput = (value: number) => (value > 0 ? value.toFixed(2).replace(".", ",") : "");
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "?";
+const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? "";
 
 export default function RegisterTransactionPage() {
   const context = useStoreContext();
   const queryClient = useQueryClient();
   const idempotencyKey = useRef<string | null>(null);
-  const [step, setStep] = useState(1);
+  const amountRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const modalTitle = useId();
+
   const [email, setEmail] = useState("");
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [notice, setNotice] = useState("");
   const [isNew, setIsNew] = useState(false);
   const [newCustomer, setNewCustomer] = useState({ name: "", phone: "" });
   const [cpf, setCpf] = useState("");
-  const [result, setResult] = useState<SaleResult | null>(null);
+  const [amountText, setAmountText] = useState("");
+  const [balanceText, setBalanceText] = useState("");
+  const [description, setDescription] = useState("");
+  const [code, setCode] = useState(saleCode);
+  const [date, setDate] = useState(saleDate);
   const [sellerId, setSellerId] = useState<number | null>(null);
   const [items, setItems] = useState<SaleItem[]>([]);
-  const [itemsError, setItemsError] = useState("");
-  const sellers = useQuery({ queryKey: ["store-sellers", context.store.id],
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [result, setResult] = useState<SaleResult | null>(null);
+  const [soldTo, setSoldTo] = useState("");
+
+  const sellers = useQuery({
+    queryKey: ["store-sellers", context.store.id],
     queryFn: () => storeFetch<{ items: Array<{ id: number; name: string; role: string }> }>("sellers"),
-    enabled: Boolean(context.permissions.assignSeller) });
-  const form = useForm<SaleInput, unknown, SaleForm>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      total: 0,
-      code: saleCode(),
-      date: saleDate(),
-      description: "",
-      balanceAmount: 0,
-    },
+    enabled: Boolean(context.permissions.assignSeller),
   });
-  const totalCents = cents(
-    Number(useWatch({ control: form.control, name: "total" }) || 0),
+
+  // Valores da venda. Com itens, o total é a soma deles.
+  const itemsInvalid = items.some(
+    (item) =>
+      !item.name.trim() ||
+      !Number.isInteger(Number(item.quantity)) ||
+      Number(item.quantity) < 1 ||
+      cents(parseMoney(item.unitPrice)) < 1,
   );
-  useEffect(() => {
-    if (items.length) {
-      const sum = items.reduce((amount, item) => amount + Number(item.quantity || 0) * cents(Number(item.unitPrice || 0)), 0);
-      form.setValue("total", sum / 100, { shouldValidate: true });
-    }
-  }, [items, form]);
-  const balanceCents = cents(
-    Number(useWatch({ control: form.control, name: "balanceAmount" }) || 0),
+  const itemsTotalCents = items.reduce(
+    (sum, item) => sum + Number(item.quantity || 0) * cents(parseMoney(item.unitPrice)),
+    0,
   );
+  const totalCents = items.length ? itemsTotalCents : cents(parseMoney(amountText));
+  const balanceLimitCents = Math.min(totalCents, customer?.balanceCents ?? 0);
+  const balanceCents = Math.min(cents(parseMoney(balanceText)), balanceLimitCents);
   const paidCents = Math.max(0, totalCents - balanceCents);
-  // Same rule as PassStorePolicy::saleGiftbackCents on the server.
+  // Mesma regra de PassStorePolicy::saleGiftbackCents no servidor.
   const giftbackApplies = context.store.eventPromoter ? Boolean(context.store.giftbackOnCash) : true;
   const cashbackCents = giftbackApplies
     ? Math.round((paidCents * context.store.customerCashbackPercentage) / 100)
     : 0;
 
-  // The sale always starts from the customer's e-mail; a customer without CPF gives it right after.
+  const blockReason = !customer
+    ? "Busque o cliente pelo e-mail para continuar."
+    : customer.needsCpf
+      ? "Salve o CPF do cliente para continuar."
+      : totalCents < MIN_SALE_CENTS
+        ? "Informe o valor da venda (mínimo R$ 5,00)."
+        : code.trim().length < 3
+          ? "Abra “Mais detalhes” e informe o código da venda."
+          : !date
+            ? "Abra “Mais detalhes” e informe a data da venda."
+            : itemsInvalid
+              ? "Revise os itens: nome, quantidade inteira e preço."
+              : "";
+
+  useEffect(() => {
+    if (customer && !customer.needsCpf) amountRef.current?.focus();
+  }, [customer]);
+
+  useEffect(() => {
+    if (!reviewing) return;
+    confirmRef.current?.focus();
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setReviewing(false);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [reviewing]);
+
+  // A venda sempre começa pelo e-mail do cliente; quem não tem CPF informa em seguida.
   const lookupMutation = useMutation({
-    mutationFn: () =>
-      storeFetch<CustomerLookup>(
-        `customers/lookup&email=${encodeURIComponent(email.trim())}`,
-      ),
+    mutationFn: () => storeFetch<CustomerLookup>(`customers/lookup&email=${encodeURIComponent(email.trim())}`),
     onSuccess: (data) => {
       setCustomer(data.customer);
       setIsNew(!data.customer);
-      setNotice(
-        data.customer
-          ? ""
-          : "Nenhum cliente com este e-mail. Cadastre-o abaixo para continuar.",
-      );
+      setNotice(data.customer ? "" : "Não achamos esse e-mail. Cadastre o cliente abaixo para continuar.");
     },
     onError: (error) => {
       setCustomer(null);
@@ -173,18 +218,8 @@ export default function RegisterTransactionPage() {
     },
   });
 
-  const changeEmail = (value: string) => {
-    setEmail(value);
-    setCustomer(null);
-    setIsNew(false);
-    setNotice("");
-    setCpf("");
-    registerMutation.reset();
-    cpfMutation.reset();
-  };
-
   const saleMutation = useMutation({
-    mutationFn: (values: SaleForm) => {
+    mutationFn: () => {
       idempotencyKey.current ??= crypto.randomUUID();
       return storeFetch<SaleResult>("transactions", {
         method: "POST",
@@ -194,416 +229,644 @@ export default function RegisterTransactionPage() {
         },
         body: JSON.stringify({
           customerId: customer?.id,
-          grossAmountCents: cents(values.total),
-          balanceUsedCents: cents(values.balanceAmount),
-          code: values.code,
-          occurredAt: new Date(values.date).toISOString(),
-          description: values.description,
-          items: items.map((item) => ({ name: item.name.trim(), quantity: Number(item.quantity), unitPriceCents: cents(Number(item.unitPrice)) })),
+          grossAmountCents: totalCents,
+          balanceUsedCents: balanceCents,
+          code: code.trim(),
+          occurredAt: new Date(date).toISOString(),
+          description,
+          items: items.map((item) => ({
+            name: item.name.trim(),
+            quantity: Number(item.quantity),
+            unitPriceCents: cents(parseMoney(item.unitPrice)),
+          })),
           sellerId: context.permissions.assignSeller ? (sellerId ?? context.user.id) : context.user.id,
           csrfToken: context.csrfToken,
         }),
       });
     },
     onSuccess: (data) => {
+      setSoldTo(customer?.name ?? "");
       setResult(data);
-      setStep(4);
+      setReviewing(false);
       queryClient.invalidateQueries({ queryKey: ["store-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
     },
+    onError: () => setReviewing(false),
   });
+
+  const changeEmail = (value: string) => {
+    setEmail(value);
+    setCustomer(null);
+    setIsNew(false);
+    setNotice("");
+    setCpf("");
+    setBalanceText("");
+    registerMutation.reset();
+    cpfMutation.reset();
+    saleMutation.reset();
+  };
+
+  const reset = () => {
+    setEmail("");
+    setCustomer(null);
+    setNotice("");
+    setIsNew(false);
+    setNewCustomer({ name: "", phone: "" });
+    setCpf("");
+    setAmountText("");
+    setBalanceText("");
+    setDescription("");
+    setCode(saleCode());
+    setDate(saleDate());
+    setSellerId(null);
+    setItems([]);
+    setMoreOpen(false);
+    setResult(null);
+    setSoldTo("");
+    idempotencyKey.current = null;
+    registerMutation.reset();
+    cpfMutation.reset();
+    saleMutation.reset();
+  };
+
+  const updateItem = (index: number, change: Partial<SaleItem>) =>
+    setItems((current) => current.map((line, position) => (position === index ? { ...line, ...change } : line)));
 
   if (context.subscription.salesBlocked) {
     return (
-      <div className="store-page store-stack">
-        <section className="store-panel store-empty">
+      <div className={styles.page}>
+        <section className={`${styles.card} ${styles.blocked}`}>
           <ShieldAlert size={52} style={{ color: "var(--store-warning, #d97706)" }} />
-          <h2>Registro de vendas temporariamente bloqueado</h2>
-          <p>O histórico, clientes e demais recursos continuam disponíveis. Regularize ou reative o plano para registrar novas vendas.</p>
-          <Link className="store-button store-button-primary" href="/store/meu-plano">Ver plano e faturas</Link>
+          <h2>Novas vendas estão pausadas</h2>
+          <p>
+            O histórico e os clientes continuam disponíveis. Regularize ou reative o plano para voltar a registrar vendas.
+          </p>
+          <Link className={`${styles.btn} ${styles.btnPrimary}`} href="/store/meu-plano">
+            Ver plano e faturas
+          </Link>
         </section>
       </div>
     );
   }
 
-  const reset = () => {
-    setStep(1);
-    setCustomer(null);
-    setResult(null);
-    setEmail("");
-    setNotice("");
-    setIsNew(false);
-    setNewCustomer({ name: "", phone: "" });
-    setCpf("");
-    idempotencyKey.current = null;
-    setSellerId(null);
-    setItems([]);
-    setItemsError("");
-    form.reset({
-      total: 0,
-      code: saleCode(),
-      date: saleDate(),
-      description: "",
-      balanceAmount: 0,
-    });
-  };
-
-  return (
-    <div className="store-page store-stack">
-      <section className="store-page-head">
-        <div>
-          <h2>{result ? "Venda aprovada!" : "Nova venda"}</h2>
+  if (result) {
+    return (
+      <div className={styles.page}>
+        <section className={`${styles.card} ${styles.done}`}>
+          <CheckCircle2 size={64} className={styles.doneIcon} aria-hidden="true" />
+          <h3>Venda registrada!</h3>
           <p>
-            O giftback do cliente é aprovado e creditado imediatamente, sem
-            comissão ou cobrança posterior.
+            {soldTo ? `${firstName(soldTo)} comprou ${moneyFromCents(result.grossAmountCents)}` : "A venda foi registrada"}
+            {result.balanceUsedCents > 0 ? ` e usou ${moneyFromCents(result.balanceUsedCents)} de saldo` : ""}.
+            {result.replayed ? " Recuperamos a confirmação com segurança, sem duplicar a venda." : ""}
           </p>
-        </div>
-      </section>
-      <div className="store-alert" role="status">Filial desta venda: <strong>{context.store.name}</strong>. Registro feito por <strong>{context.user.name}</strong>. Confira a filial ativa no menu antes de continuar.</div>
-      <div className="store-steps" aria-label={`Etapa ${step} de 4`}>
-        {[1, 2, 3, 4].map((item) => (
-          <span
-            key={item}
-            className={`store-step ${item <= step ? "done" : ""}`}
-          />
-        ))}
-      </div>
-
-      {step === 1 && (
-        <section className="store-panel store-form">
-          <div className="store-panel-head">
-            <div>
-              <h3>1. Cliente</h3>
-              <p>Peça o e-mail do cliente. Em seguida, o CPF completa o cadastro.</p>
-            </div>
+          <div className={styles.doneGift}>
+            <span>Giftback creditado</span>
+            <strong>{moneyFromCents(result.cashbackGrantedCents)}</strong>
           </div>
-          <label className="store-field">
-            <span>E-mail do cliente</span>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                className="store-input"
-                type="email"
-                inputMode="email"
-                autoComplete="off"
-                placeholder="cliente@exemplo.com"
-                value={email}
-                onChange={(event) => changeEmail(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && looksLikeEmail(email))
-                    lookupMutation.mutate();
-                }}
-              />
-              <button
-                type="button"
-                className="store-button store-button-primary"
-                disabled={!looksLikeEmail(email) || lookupMutation.isPending}
-                onClick={() => lookupMutation.mutate()}
-              >
-                <Search size={16} /> Buscar
-              </button>
-            </div>
-          </label>
-          {notice && <div className="store-alert">{notice}</div>}
-          {isNew && (
-            <div className="store-form-grid">
-              <label className="store-field">
-                <span>Nome do cliente</span>
-                <input
-                  className="store-input"
-                  autoComplete="off"
-                  value={newCustomer.name}
-                  onChange={(event) =>
-                    setNewCustomer({ ...newCustomer, name: event.target.value })
-                  }
-                />
-              </label>
-              <label className="store-field">
-                <span>Telefone (opcional)</span>
-                <input
-                  className="store-input"
-                  inputMode="tel"
-                  autoComplete="off"
-                  value={newCustomer.phone}
-                  onChange={(event) =>
-                    setNewCustomer({ ...newCustomer, phone: event.target.value })
-                  }
-                />
-                <small className="store-help">
-                  Se ele já comprou aqui como visitante, use o mesmo telefone para manter o saldo.
-                </small>
-              </label>
-              <button
-                type="button"
-                className="store-button"
-                disabled={newCustomer.name.trim().length < 3 || registerMutation.isPending}
-                onClick={() => registerMutation.mutate()}
-              >
-                <UserPlus size={16} /> Cadastrar cliente
-              </button>
-              {registerMutation.isError && (
-                <div className="store-alert store-alert-error">
-                  {registerMutation.error.message}
-                </div>
-              )}
-            </div>
-          )}
-          {customer && (
-            <div className="store-customer-card">
-              <h4>{customer.name}</h4>
-              <p>{customer.email ?? customer.phone}</p>
-              <p>
-                Saldo disponível: {moneyFromCents(customer.balanceCents)} · {" "}
-                {customer.purchaseCount} compra(s)
-              </p>
-            </div>
-          )}
-          {customer?.needsCpf && (
-            <div className="store-form-grid">
-              <label className="store-field">
-                <span>CPF do cliente</span>
-                <input
-                  className="store-input"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  placeholder="000.000.000-00"
-                  value={cpfMask(cpf)}
-                  onChange={(event) => setCpf(cpfDigits(event.target.value))}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && cpf.length === 11)
-                      cpfMutation.mutate();
-                  }}
-                />
-                <small className="store-help">
-                  Obrigatório para completar o cadastro. Depois de salvo, só o suporte pode trocar.
-                </small>
-              </label>
-              <button
-                type="button"
-                className="store-button"
-                disabled={cpf.length !== 11 || cpfMutation.isPending}
-                onClick={() => cpfMutation.mutate()}
-              >
-                Salvar CPF
-              </button>
-              {cpfMutation.isError && (
-                <div className="store-alert store-alert-error">
-                  {cpfMutation.error.message}
-                </div>
-              )}
-            </div>
-          )}
-          <div className="store-form-actions">
-            <button
-              className="store-button store-button-primary"
-              disabled={!customer || customer.needsCpf}
-              onClick={() => setStep(2)}
-            >
-              Continuar <ArrowRight size={16} />
+          <div className={styles.doneActions}>
+            <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={reset}>
+              <Plus size={18} aria-hidden="true" /> Registrar outra venda
             </button>
+            <Link className={styles.btn} href="/store/transacoes">
+              Ver vendas
+            </Link>
           </div>
         </section>
-      )}
+      </div>
+    );
+  }
 
-      {step === 2 && (
-        <form
-          className="store-panel store-form"
-          onSubmit={form.handleSubmit(() => {
-            if (items.some((item) => !item.name.trim() || !Number.isInteger(Number(item.quantity)) || Number(item.quantity) < 1 || cents(Number(item.unitPrice)) < 1)) {
-              setItemsError("Preencha nome, quantidade inteira e preço positivo em cada item.");
-              return;
-            }
-            setItemsError(""); setStep(3);
-          })}
-        >
-          <div className="store-panel-head">
-            <div>
-              <h3>2. Dados da venda</h3>
-              <p>
-                {giftbackApplies
-                  ? `Giftback atual: ${context.store.customerCashbackPercentage}% do valor efetivamente pago${context.store.eventPromoter ? " em dinheiro ou Pix (a parte paga com saldo não gera giftback)" : ""}.`
-                  : "Promotor de eventos: as vendas desta loja não geram giftback."}
-              </p>
+  const multiBranch = (context.stores?.length ?? 0) > 1;
+
+  return (
+    <div className={styles.page}>
+      <section className={styles.head}>
+        <h2>Nova venda</h2>
+        <p>Registre a compra e o cliente recebe o giftback na hora.</p>
+        <div className={styles.chips}>
+          <span className={styles.chip}>
+            Filial: <strong>{context.store.name}</strong>
+          </span>
+          <span className={styles.chip}>
+            Por: <strong>{context.user.name}</strong>
+          </span>
+        </div>
+        {multiBranch && (
+          <p className={styles.help} style={{ marginTop: 8 }}>
+            Esta venda entra na filial acima. Para trocar, use o seletor de filial no menu.
+          </p>
+        )}
+      </section>
+
+      <div className={styles.layout}>
+        <div className={styles.main}>
+          {/* 1. Cliente */}
+          <section className={styles.card} aria-labelledby="cliente-titulo">
+            <div className={styles.cardHead}>
+              <span className={`${styles.badge} ${customer && !customer.needsCpf ? styles.badgeDone : ""}`} aria-hidden="true">
+                {customer && !customer.needsCpf ? "✓" : "1"}
+              </span>
+              <div>
+                <h3 id="cliente-titulo">Quem está comprando?</h3>
+                <p>Digite o e-mail do cliente para começar.</p>
+              </div>
             </div>
-          </div>
-          <div className="store-form-grid">
-            {context.permissions.assignSeller && <label className="store-field store-field-full">
-              <span>Quem realizou a venda</span>
-              <select className="store-select" value={sellerId ?? context.user.id ?? ""}
-                onChange={(event) => setSellerId(Number(event.target.value))}>
-                {sellers.data?.items.map((seller) => <option key={seller.id} value={seller.id}>{seller.name}</option>)}
-              </select>
-              <small className="store-help">O responsável pelo registro também ficará identificado separadamente.</small>
-            </label>}
-            <Field label="Valor total" error={form.formState.errors.total?.message}>
+
+            <div className={styles.field}>
+              <label htmlFor="cliente-email">E-mail do cliente</label>
+              <div className={styles.row}>
+                <input
+                  id="cliente-email"
+                  className={styles.input}
+                  type="email"
+                  inputMode="email"
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  autoFocus
+                  placeholder="cliente@exemplo.com"
+                  value={email}
+                  onChange={(event) => changeEmail(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && looksLikeEmail(email) && !lookupMutation.isPending) {
+                      event.preventDefault();
+                      lookupMutation.mutate();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className={`${styles.btn} ${styles.btnPrimary}`}
+                  disabled={!looksLikeEmail(email) || lookupMutation.isPending}
+                  onClick={() => lookupMutation.mutate()}
+                >
+                  <Search size={18} aria-hidden="true" /> {lookupMutation.isPending ? "Buscando..." : "Buscar"}
+                </button>
+              </div>
+            </div>
+
+            {notice && (
+              <div className={styles.alert} role="status">
+                <Info size={18} aria-hidden="true" style={{ flex: "none", marginTop: 1 }} />
+                <span>{notice}</span>
+              </div>
+            )}
+
+            {isNew && (
+              <div style={{ marginTop: 16 }}>
+                <div className={styles.grid2}>
+                  <div className={styles.field}>
+                    <label htmlFor="novo-nome">Nome do cliente</label>
+                    <input
+                      id="novo-nome"
+                      className={styles.input}
+                      autoComplete="off"
+                      value={newCustomer.name}
+                      onChange={(event) => setNewCustomer({ ...newCustomer, name: event.target.value })}
+                    />
+                  </div>
+                  <div className={styles.field}>
+                    <label htmlFor="novo-telefone">Telefone (opcional)</label>
+                    <input
+                      id="novo-telefone"
+                      className={styles.input}
+                      inputMode="tel"
+                      autoComplete="off"
+                      value={newCustomer.phone}
+                      onChange={(event) => setNewCustomer({ ...newCustomer, phone: event.target.value })}
+                    />
+                  </div>
+                </div>
+                <p className={styles.help} style={{ margin: "8px 0 12px" }}>
+                  Se ele já comprou aqui como visitante, use o mesmo telefone para manter o saldo.
+                </p>
+                <button
+                  type="button"
+                  className={styles.btn}
+                  disabled={newCustomer.name.trim().length < 3 || registerMutation.isPending}
+                  onClick={() => registerMutation.mutate()}
+                >
+                  <UserPlus size={18} aria-hidden="true" /> {registerMutation.isPending ? "Cadastrando..." : "Cadastrar cliente"}
+                </button>
+                {registerMutation.isError && (
+                  <div className={`${styles.alert} ${styles.alertError}`} role="alert">
+                    {registerMutation.error.message}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {customer && (
+              <div className={styles.customer}>
+                <span className={styles.avatar} aria-hidden="true">
+                  {initials(customer.name)}
+                </span>
+                <div className={styles.customerInfo}>
+                  <strong>{customer.name}</strong>
+                  <span>{customer.email ?? customer.phone}</span>
+                  <span>
+                    {customer.purchaseCount} {customer.purchaseCount === 1 ? "compra" : "compras"} aqui
+                  </span>
+                </div>
+                <div className={styles.customerBalance}>
+                  <span>Saldo disponível</span>
+                  <strong>{moneyFromCents(customer.balanceCents)}</strong>
+                </div>
+              </div>
+            )}
+
+            {customer?.needsCpf && (
+              <div style={{ marginTop: 16 }}>
+                <div className={styles.field}>
+                  <label htmlFor="cliente-cpf">CPF do cliente</label>
+                  <div className={styles.row}>
+                    <input
+                      id="cliente-cpf"
+                      className={styles.input}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="000.000.000-00"
+                      value={cpfMask(cpf)}
+                      onChange={(event) => setCpf(cpfDigits(event.target.value))}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && cpf.length === 11 && !cpfMutation.isPending) {
+                          event.preventDefault();
+                          cpfMutation.mutate();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className={`${styles.btn} ${styles.btnPrimary}`}
+                      disabled={cpf.length !== 11 || cpfMutation.isPending}
+                      onClick={() => cpfMutation.mutate()}
+                    >
+                      {cpfMutation.isPending ? "Salvando..." : "Salvar CPF"}
+                    </button>
+                  </div>
+                  <span className={styles.help}>
+                    Precisamos do CPF para finalizar o cadastro. Depois de salvo, só o suporte altera.
+                  </span>
+                </div>
+                {cpfMutation.isError && (
+                  <div className={`${styles.alert} ${styles.alertError}`} role="alert">
+                    {cpfMutation.error.message}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* 2. Valor */}
+          <section className={styles.card} aria-labelledby="valor-titulo">
+            <div className={styles.cardHead}>
+              <span className={`${styles.badge} ${totalCents >= MIN_SALE_CENTS ? styles.badgeDone : ""}`} aria-hidden="true">
+                {totalCents >= MIN_SALE_CENTS ? "✓" : "2"}
+              </span>
+              <div>
+                <h3 id="valor-titulo">Quanto foi a compra?</h3>
+                <p>
+                  {giftbackApplies
+                    ? `O cliente ganha ${context.store.customerCashbackPercentage}% de giftback sobre o que pagar${context.store.eventPromoter ? " em dinheiro ou Pix" : ""}.`
+                    : "Esta loja não gera giftback nas vendas."}
+                </p>
+              </div>
+            </div>
+
+            <div className={styles.field}>
+              <label htmlFor="venda-valor">Valor total</label>
+              <div className={styles.amount}>
+                <span className={styles.amountPrefix} aria-hidden="true">
+                  R$
+                </span>
+                <input
+                  id="venda-valor"
+                  ref={amountRef}
+                  className={`${styles.input} ${styles.amountInput}`}
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="0,00"
+                  readOnly={items.length > 0}
+                  value={items.length ? formatInput(itemsTotalCents / 100) : amountText}
+                  onChange={(event) => setAmountText(cleanMoney(event.target.value))}
+                  onBlur={() => amountText && setAmountText(formatInput(parseMoney(amountText)))}
+                />
+              </div>
+              {items.length > 0 ? (
+                <span className={styles.help}>Calculado pela soma dos itens.</span>
+              ) : (
+                totalCents > 0 &&
+                totalCents < MIN_SALE_CENTS && <span className={styles.error}>O valor mínimo da venda é R$ 5,00.</span>
+              )}
+            </div>
+
+            <div className={styles.field} style={{ marginTop: 18 }}>
+              <label htmlFor="venda-saldo">Usar saldo do cliente</label>
               <input
-                className="store-input"
-                type="number"
-                min="5"
-                step="0.01"
-                readOnly={items.length > 0}
-                {...form.register("total")}
+                id="venda-saldo"
+                className={styles.input}
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="0,00"
+                disabled={!customer || customer.balanceCents <= 0}
+                value={balanceText}
+                onChange={(event) => setBalanceText(cleanMoney(event.target.value))}
+                onBlur={() => balanceText && setBalanceText(formatInput(balanceCents / 100))}
               />
-              {items.length > 0 && <small className="store-help">Calculado pela soma dos itens.</small>}
-            </Field>
-            <Field label="Código da venda" error={form.formState.errors.code?.message}>
-              <input className="store-input" {...form.register("code")} />
-            </Field>
-            <Field label="Data e hora" error={form.formState.errors.date?.message}>
-              <input
-                className="store-input"
-                type="datetime-local"
-                {...form.register("date")}
-              />
-            </Field>
-            <Field label="Usar saldo do cliente">
-              <input
-                className="store-input"
-                type="number"
-                min="0"
-                max={Math.min(totalCents, customer?.balanceCents ?? 0) / 100}
-                step="0.01"
-                {...form.register("balanceAmount")}
-              />
-              <small className="store-help">
-                Disponível: {moneyFromCents(customer?.balanceCents)}
-              </small>
-            </Field>
-            <label className="store-field store-field-full">
-              <span>Descrição</span>
+              <div className={styles.quick}>
+                <button
+                  type="button"
+                  className={`${styles.btn} ${styles.btnSmall}`}
+                  disabled={balanceLimitCents <= 0}
+                  onClick={() => setBalanceText(formatInput(balanceLimitCents / 100))}
+                >
+                  Usar tudo ({moneyFromCents(balanceLimitCents)})
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.btn} ${styles.btnSmall}`}
+                  disabled={!balanceText}
+                  onClick={() => setBalanceText("")}
+                >
+                  Sem saldo
+                </button>
+              </div>
+              <span className={styles.help}>
+                {customer
+                  ? customer.balanceCents > 0
+                    ? `O cliente tem ${moneyFromCents(customer.balanceCents)}. A parte paga com saldo não gera giftback.`
+                    : "Este cliente ainda não tem saldo para usar."
+                  : "Busque o cliente para ver o saldo disponível."}
+              </span>
+            </div>
+
+            {context.permissions.assignSeller && (
+              <div className={styles.field} style={{ marginTop: 18 }}>
+                <label htmlFor="venda-vendedor">Quem vendeu</label>
+                <select
+                  id="venda-vendedor"
+                  className={styles.input}
+                  value={sellerId ?? context.user.id ?? ""}
+                  onChange={(event) => setSellerId(Number(event.target.value))}
+                >
+                  {sellers.data?.items.map((seller) => (
+                    <option key={seller.id} value={seller.id}>
+                      {seller.name}
+                    </option>
+                  ))}
+                </select>
+                <span className={styles.help}>Quem registrou a venda também fica identificado, separadamente.</span>
+              </div>
+            )}
+
+            <div className={styles.field} style={{ marginTop: 18 }}>
+              <label htmlFor="venda-descricao">Observação (opcional)</label>
               <textarea
-                className="store-textarea"
-                {...form.register("description")}
+                id="venda-descricao"
+                className={`${styles.input} ${styles.textarea}`}
+                maxLength={500}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
                 placeholder={`Compra na ${context.store.name}`}
               />
-            </label>
-            <div className="store-field store-field-full">
-              <span>Itens da venda (opcional)</span>
-              <small className="store-help">Cada linha tem nome livre, quantidade e preço unitário. Sem itens, informe o total acima.</small>
-              {items.map((item, index) => <div className="store-actions" key={index} style={{ marginTop: 8 }}>
-                <input className="store-input" aria-label={`Nome do item ${index + 1}`} placeholder="Item ou serviço" maxLength={200} value={item.name}
-                  onChange={(event) => setItems((current) => current.map((line, position) => position === index ? { ...line, name: event.target.value } : line))} />
-                <input className="store-input" aria-label={`Quantidade do item ${index + 1}`} type="number" min="1" step="1" value={item.quantity}
-                  onChange={(event) => setItems((current) => current.map((line, position) => position === index ? { ...line, quantity: event.target.value } : line))} />
-                <input className="store-input" aria-label={`Preço unitário do item ${index + 1}`} type="number" min="0.01" step="0.01" value={item.unitPrice}
-                  onChange={(event) => setItems((current) => current.map((line, position) => position === index ? { ...line, unitPrice: event.target.value } : line))} />
-                <button type="button" className="store-button" onClick={() => setItems((current) => current.filter((_, position) => position !== index))}>Remover</button>
-              </div>)}
-              {itemsError && <small className="store-error" role="alert">{itemsError}</small>}
-              <button type="button" className="store-button" style={{ marginTop: 8 }} disabled={items.length >= 100}
-                onClick={() => setItems((current) => [...current, { name: "", quantity: "1", unitPrice: "" }])}>Adicionar item</button>
             </div>
-          </div>
-          <div className="store-form-actions">
-            <button type="button" className="store-button" onClick={() => setStep(1)}>
-              <ArrowLeft size={16} /> Voltar
-            </button>
-            <button className="store-button store-button-primary">
-              Revisar venda <ArrowRight size={16} />
-            </button>
-          </div>
-        </form>
-      )}
+          </section>
 
-      {step === 3 && (
-        <section className="store-grid store-grid-2">
-          <div className="store-panel">
-            <div className="store-panel-head">
-              <div>
-                <h3>3. Confirme os dados</h3>
-                <p>A aprovação e o crédito acontecerão juntos.</p>
+          {/* Mais detalhes (recolhido) */}
+          <section className={styles.more}>
+            <button
+              type="button"
+              className={styles.moreToggle}
+              aria-expanded={moreOpen}
+              aria-controls="venda-detalhes"
+              onClick={() => setMoreOpen((open) => !open)}
+            >
+              <span>
+                Mais detalhes
+                <small>Itens, código e data da venda. Já vêm preenchidos.</small>
+              </span>
+              <ChevronDown size={20} aria-hidden="true" className={`${styles.chev} ${moreOpen ? styles.chevOpen : ""}`} />
+            </button>
+            {moreOpen && (
+              <div className={styles.moreBody} id="venda-detalhes">
+                <div className={styles.grid2}>
+                  <div className={styles.field}>
+                    <label htmlFor="venda-codigo">Código da venda</label>
+                    <input
+                      id="venda-codigo"
+                      className={styles.input}
+                      maxLength={50}
+                      value={code}
+                      onChange={(event) => setCode(event.target.value)}
+                    />
+                  </div>
+                  <div className={styles.field}>
+                    <label htmlFor="venda-data">Data e hora</label>
+                    <input
+                      id="venda-data"
+                      className={styles.input}
+                      type="datetime-local"
+                      value={date}
+                      onChange={(event) => setDate(event.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className={styles.field}>
+                  <span className={styles.label}>Itens da venda (opcional)</span>
+                  <span className={styles.help}>
+                    Quer detalhar o que foi vendido? Adicione os itens e o total é calculado sozinho.
+                  </span>
+                  <div className={styles.items}>
+                    {items.map((item, index) => (
+                      <div className={styles.item} key={index}>
+                        <input
+                          className={`${styles.input} ${styles.itemName}`}
+                          aria-label={`Nome do item ${index + 1}`}
+                          placeholder="Item ou serviço"
+                          maxLength={200}
+                          value={item.name}
+                          onChange={(event) => updateItem(index, { name: event.target.value })}
+                        />
+                        <div className={styles.itemQty} role="group" aria-label={`Quantidade do item ${index + 1}`}>
+                          <button
+                            type="button"
+                            aria-label="Diminuir quantidade"
+                            onClick={() => updateItem(index, { quantity: String(Math.max(1, Number(item.quantity || 1) - 1)) })}
+                          >
+                            <Minus size={16} aria-hidden="true" />
+                          </button>
+                          <input
+                            inputMode="numeric"
+                            aria-label={`Quantidade do item ${index + 1}`}
+                            value={item.quantity}
+                            onChange={(event) => updateItem(index, { quantity: event.target.value.replace(/\D/g, "").slice(0, 4) })}
+                          />
+                          <button
+                            type="button"
+                            aria-label="Aumentar quantidade"
+                            onClick={() => updateItem(index, { quantity: String(Number(item.quantity || 0) + 1) })}
+                          >
+                            <Plus size={16} aria-hidden="true" />
+                          </button>
+                        </div>
+                        <div className={styles.itemPrice}>
+                          <input
+                            className={styles.input}
+                            inputMode="decimal"
+                            aria-label={`Preço unitário do item ${index + 1}`}
+                            placeholder="Preço (R$)"
+                            value={item.unitPrice}
+                            onChange={(event) => updateItem(index, { unitPrice: cleanMoney(event.target.value) })}
+                          />
+                          <button
+                            type="button"
+                            className={styles.iconBtn}
+                            aria-label={`Remover item ${index + 1}`}
+                            onClick={() => setItems((current) => current.filter((_, position) => position !== index))}
+                          >
+                            <Trash2 size={18} aria-hidden="true" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {items.length > 0 && itemsInvalid && (
+                    <span className={styles.error} role="alert">
+                      Preencha nome, quantidade inteira e preço maior que zero em cada item.
+                    </span>
+                  )}
+                  <div>
+                    <button
+                      type="button"
+                      className={`${styles.btn} ${styles.btnSmall}`}
+                      disabled={items.length >= 100}
+                      onClick={() => setItems((current) => [...current, { name: "", quantity: "1", unitPrice: "" }])}
+                    >
+                      <Plus size={16} aria-hidden="true" /> {items.length ? "Adicionar outro item" : "Detalhar itens"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+
+        {/* Resumo ao vivo */}
+        <aside className={styles.aside} aria-label="Resumo da venda">
+          <div className={styles.summary}>
+            <h3>Resumo da venda</h3>
+            <div className={styles.sumList} aria-live="polite">
+              <div className={styles.sumRow}>
+                <span>Cliente</span>
+                <strong>{customer ? firstName(customer.name) : "—"}</strong>
+              </div>
+              <div className={styles.sumRow}>
+                <span>Valor da compra</span>
+                <strong>{moneyFromCents(totalCents)}</strong>
+              </div>
+              <div className={styles.sumRow}>
+                <span>Pago com saldo</span>
+                <strong>{moneyFromCents(balanceCents)}</strong>
+              </div>
+              <div className={`${styles.sumRow} ${styles.sumTotal}`}>
+                <span>O cliente paga</span>
+                <strong>{moneyFromCents(paidCents)}</strong>
               </div>
             </div>
-            <div className="store-summary-list">
-              <Row label="Cliente" value={customer?.name ?? ""} />
-              <Row label="Filial" value={context.store.name} />
-              <Row label="Vendedor" value={sellers.data?.items.find((item) => item.id === (sellerId ?? context.user.id))?.name ?? context.user.name} />
-              <Row label="Registrado por" value={context.user.name} />
-              <Row label="Código" value={form.getValues("code")} />
-              <Row label="Valor da compra" value={moneyFromCents(totalCents)} />
-              {items.map((item, index) => <Row key={index} label={`${item.quantity} × ${item.name}`} value={moneyFromCents(Number(item.quantity) * cents(Number(item.unitPrice)))} />)}
-              <Row label="Saldo utilizado" value={moneyFromCents(balanceCents)} />
-              <Row label="Valor efetivamente pago" value={moneyFromCents(paidCents)} />
+            <div className={styles.gift}>
+              <span>Giftback que o cliente ganha</span>
+              <strong>{moneyFromCents(cashbackCents)}</strong>
+              <small>
+                {giftbackApplies ? `${context.store.customerCashbackPercentage}% sobre o valor pago` : "Esta loja não gera giftback"}
+              </small>
             </div>
-          </div>
-          <div className="store-panel">
-            <div className="store-panel-head">
-              <div>
-                <h3>Giftback do cliente</h3>
-                <p>Não existe comissão ou parcela administrativa.</p>
-              </div>
-            </div>
-            <div className="store-summary-list">
-              <Row
-                label={`Giftback (${context.store.customerCashbackPercentage}%)`}
-                value={moneyFromCents(cashbackCents)}
-              />
-              <Row label="Status após confirmar" value="Aprovado" />
-            </div>
+
             {saleMutation.isError && (
-              <div className="store-alert store-alert-error" style={{ marginTop: 14 }}>
+              <div className={`${styles.alert} ${styles.alertError}`} role="alert">
                 {saleMutation.error.message}
               </div>
             )}
-            <div className="store-form-actions">
-              <button className="store-button" onClick={() => setStep(2)}>
-                <ArrowLeft size={16} /> Corrigir
-              </button>
+
+            <div className={styles.actionBar}>
+              {blockReason && <p className={styles.reason}>{blockReason}</p>}
               <button
-                className="store-button store-button-primary"
-                disabled={saleMutation.isPending}
-                onClick={form.handleSubmit((values) => saleMutation.mutate(values))}
+                type="button"
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                disabled={Boolean(blockReason) || saleMutation.isPending}
+                onClick={() => setReviewing(true)}
               >
-                {saleMutation.isPending ? "Aprovando..." : "Confirmar venda"}
+                Revisar e confirmar
               </button>
             </div>
           </div>
-        </section>
-      )}
+        </aside>
+      </div>
 
-      {step === 4 && result && (
-        <section className="store-panel store-empty">
-          <CheckCircle2 size={58} style={{ color: "var(--store-green)" }} />
-          <h3>Venda aprovada e giftback creditado</h3>
-          <p>
-            Giftback: <strong>{moneyFromCents(result.cashbackGrantedCents)}</strong>
-            {result.replayed ? " · confirmação recuperada com segurança" : ""}
-          </p>
-          <button
-            className="store-button store-button-primary"
-            style={{ marginTop: 18 }}
-            onClick={reset}
+      {reviewing && customer && (
+        <div className={styles.backdrop} onClick={() => !saleMutation.isPending && setReviewing(false)}>
+          <div
+            className={styles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={modalTitle}
+            onClick={(event) => event.stopPropagation()}
           >
-            Registrar outra venda
-          </button>
-        </section>
+            <h3 id={modalTitle}>Confira e confirme</h3>
+            <p>O giftback é creditado junto com a venda.</p>
+            <div className={styles.sumList}>
+              <div className={styles.sumRow}>
+                <span>Cliente</span>
+                <strong>{customer.name}</strong>
+              </div>
+              <div className={styles.sumRow}>
+                <span>Valor da compra</span>
+                <strong>{moneyFromCents(totalCents)}</strong>
+              </div>
+              {items.map((item, index) => (
+                <div className={styles.sumRow} key={index}>
+                  <span>
+                    {item.quantity} × {item.name}
+                  </span>
+                  <strong>{moneyFromCents(Number(item.quantity) * cents(parseMoney(item.unitPrice)))}</strong>
+                </div>
+              ))}
+              <div className={styles.sumRow}>
+                <span>Pago com saldo</span>
+                <strong>{moneyFromCents(balanceCents)}</strong>
+              </div>
+              <div className={`${styles.sumRow} ${styles.sumTotal}`}>
+                <span>O cliente paga</span>
+                <strong>{moneyFromCents(paidCents)}</strong>
+              </div>
+              <div className={styles.sumRow}>
+                <span>Vendedor</span>
+                <strong>
+                  {sellers.data?.items.find((seller) => seller.id === (sellerId ?? context.user.id))?.name ?? context.user.name}
+                </strong>
+              </div>
+            </div>
+            <div className={styles.gift}>
+              <span>Giftback que o cliente ganha</span>
+              <strong>{moneyFromCents(cashbackCents)}</strong>
+            </div>
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.btn} disabled={saleMutation.isPending} onClick={() => setReviewing(false)}>
+                Corrigir
+              </button>
+              <button
+                type="button"
+                ref={confirmRef}
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                disabled={saleMutation.isPending}
+                onClick={() => saleMutation.mutate()}
+              >
+                {saleMutation.isPending ? "Registrando..." : "Confirmar venda"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
-    </div>
-  );
-}
-
-function Field({
-  label,
-  error,
-  children,
-}: {
-  label: string;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="store-field">
-      <span>{label}</span>
-      {children}
-      {error && <small className="store-error">{error}</small>}
-    </label>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="store-summary-row">
-      <span>{label}</span>
-      <strong>{value}</strong>
     </div>
   );
 }
