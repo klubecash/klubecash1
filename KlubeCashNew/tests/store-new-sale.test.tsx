@@ -23,7 +23,7 @@ type Customer = {
 };
 
 const ana: Customer = {
-  id: 7, name: "Ana Souza", email: "ana@exemplo.com", phone: "", cpf: "12345678901", needsCpf: false,
+  id: 7, name: "Ana Souza", email: "ana@exemplo.com", phone: "34999990000", cpf: "12345678901", needsCpf: false,
   type: "registered" as const, createdByThisStore: false, balanceCents: 2000, purchaseCount: 3, spentAmountCents: 30000,
 };
 
@@ -31,8 +31,8 @@ const renderPage = (custom: Partial<StoreContext> = {}) =>
   render(<StoreProviders context={{ ...context, ...custom }}><RegisterTransactionPage /></StoreProviders>);
 
 async function findAna(customer = ana) {
-  fetchStore.mockResolvedValueOnce({ dataState: "ready", customer });
-  fireEvent.change(screen.getByLabelText("E-mail do cliente"), { target: { value: "ana@exemplo.com" } });
+  fetchStore.mockResolvedValueOnce({ dataState: "ready", customer, canCreateVisitor: false, suggestedPhone: "" });
+  fireEvent.change(screen.getByLabelText("Celular, e-mail ou CPF"), { target: { value: "34999990000" } });
   fireEvent.click(screen.getByRole("button", { name: /Buscar/ }));
   await screen.findByText(customer.name);
 }
@@ -44,7 +44,7 @@ describe("tela Nova venda", () => {
     renderPage();
     const review = screen.getByRole("button", { name: "Revisar e confirmar" });
     expect(review).toBeDisabled();
-    expect(screen.getByText("Busque o cliente pelo e-mail para continuar.")).toBeInTheDocument();
+    expect(screen.getByText("Busque o cliente pelo celular para continuar.")).toBeInTheDocument();
 
     await findAna();
     expect(screen.getByText("Informe o valor da venda (mínimo R$ 5,00).")).toBeInTheDocument();
@@ -69,12 +69,29 @@ describe("tela Nova venda", () => {
     expect(screen.getAllByText("R$ 20,00").length).toBeGreaterThan(0); // nunca passa do saldo
   });
 
-  it("pede o CPF antes de liberar a venda", async () => {
+  it("busca o cliente pelo celular, como antes", async () => {
     renderPage();
-    await findAna({ ...ana, cpf: null, needsCpf: true });
-    expect(screen.getByLabelText("CPF do cliente")).toBeInTheDocument();
-    expect(screen.getByText("Salve o CPF do cliente para continuar.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Revisar e confirmar" })).toBeDisabled();
+    await findAna();
+    expect(fetchStore).toHaveBeenCalledWith("customers/search&query=34999990000");
+    expect(screen.queryByLabelText("CPF do cliente")).not.toBeInTheDocument();
+    expect(screen.getByText("Informe o valor da venda (mínimo R$ 5,00).")).toBeInTheDocument();
+  });
+
+  it("cria o visitante pelo celular quando o cliente não existe", async () => {
+    renderPage();
+    fetchStore.mockResolvedValueOnce({ dataState: "empty", customer: null, canCreateVisitor: true, suggestedPhone: "34988887777" });
+    fireEvent.change(screen.getByLabelText("Celular, e-mail ou CPF"), { target: { value: "34988887777" } });
+    fireEvent.click(screen.getByRole("button", { name: /Buscar/ }));
+    await screen.findByText("Cliente não encontrado. Cadastre-o como visitante abaixo.");
+    expect(screen.getByLabelText("Telefone")).toHaveValue("34988887777");
+
+    fetchStore.mockResolvedValueOnce({ customer: { ...ana, id: 8, name: "Bruna Lima", type: "visitor", email: null, phone: "34988887777", balanceCents: 0, purchaseCount: 0 } });
+    fireEvent.change(screen.getByLabelText("Nome do visitante"), { target: { value: "Bruna Lima" } });
+    fireEvent.click(screen.getByRole("button", { name: /Criar visitante/ }));
+    await screen.findByText("Bruna Lima");
+    const call = fetchStore.mock.calls.at(-1)!;
+    expect(call[0]).toBe("customers/visitor");
+    expect(JSON.parse(call[1].body)).toMatchObject({ name: "Bruna Lima", phone: "34988887777" });
   });
 
   it("registra a venda depois da revisão, com chave de idempotência e valores em centavos", async () => {
@@ -103,7 +120,7 @@ describe("tela Nova venda", () => {
     expect(body.items).toEqual([]);
 
     fireEvent.click(screen.getByRole("button", { name: /Registrar outra venda/ }));
-    await waitFor(() => expect(screen.getByLabelText("E-mail do cliente")).toHaveValue(""));
+    await waitFor(() => expect(screen.getByLabelText("Celular, e-mail ou CPF")).toHaveValue(""));
   });
 
   it("soma os itens detalhados no total", async () => {
@@ -122,6 +139,6 @@ describe("tela Nova venda", () => {
   it("mostra o aviso de plano quando as vendas estão bloqueadas", () => {
     renderPage({ subscription: { ...context.subscription, salesBlocked: true } });
     expect(screen.getByText("Novas vendas estão pausadas")).toBeInTheDocument();
-    expect(screen.queryByLabelText("E-mail do cliente")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Celular, e-mail ou CPF")).not.toBeInTheDocument();
   });
 });
