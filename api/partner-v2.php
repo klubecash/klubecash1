@@ -10,6 +10,7 @@ use App\Services\Partner\PartnerIdempotencyService;
 use App\Services\Partner\PartnerKeyService;
 use App\Services\Partner\PartnerRequestLog;
 use App\Services\Partner\PassPartnerService;
+use App\Services\Partner\StoreSalesPartnerService;
 
 // Server-to-server API for partners (Klube Pass). No session, no cookies:
 // a per-partner key in Authorization, Idempotency-Key on every write.
@@ -21,6 +22,7 @@ require_once __DIR__ . '/../services/Partner/PartnerKeyService.php';
 require_once __DIR__ . '/../services/Partner/PartnerIdempotencyService.php';
 require_once __DIR__ . '/../services/Partner/PartnerRequestLog.php';
 require_once __DIR__ . '/../services/Partner/PassPartnerService.php';
+require_once __DIR__ . '/../services/Partner/StoreSalesPartnerService.php';
 require_once __DIR__ . '/../services/Security/VpsRuntimeKeys.php';
 
 // The Kernel requires this file inside a method, so the request log lives in
@@ -81,6 +83,21 @@ try {
         $data = $service->balance($_GET);
         $GLOBALS['partnerLog']['userId'] = $data['klubecash_user_id'];
         partnerRespond(200, ['success' => true, 'data' => $data]);
+    }
+
+    // Klube Ops: buscar cliente e registrar venda com cashback numa loja liberada para a chave.
+    if ($resource === 'store/customers/lookup') {
+        if ($method !== 'GET') { partnerError(405, 'method_not_allowed', 'Use GET.'); }
+        PartnerKeyService::requirePermission($key, 'customers:lookup');
+        partnerRespond(200, ['success' => true, 'data' => (new StoreSalesPartnerService($db))->lookup($key, $_GET)]);
+    }
+    if ($resource === 'store/sales') {
+        if ($method !== 'POST') { partnerError(405, 'method_not_allowed', 'Use POST.'); }
+        PartnerKeyService::requirePermission($key, 'sales:create');
+        $salePayload = partnerPayload();
+        $saleKey = trim((string) ($_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? $_SERVER['HTTP_X_IDEMPOTENCY_KEY'] ?? ''));
+        $GLOBALS['partnerLog']['idempotencyKey'] = $saleKey;
+        partnerRespond(200, ['success' => true, 'data' => (new StoreSalesPartnerService($db))->createSale($key, $salePayload, $saleKey)]);
     }
 
     if (!isset($writes[$resource])) { partnerError(404, 'not_found', 'Recurso não encontrado.'); }
