@@ -140,7 +140,7 @@ try {
     $noCredit = $keys->issue('Pass só leitura e débito', ['pass:balance', 'pass:debit'], 1000, 0, 0, null, 'teste');
     $capped = $keys->issue('Pass com teto', ['pass:debit'], 1000, 1500, 0, null, 'teste');
     $fullKey = $keys->authenticate('Bearer ' . $full['key']);
-    $check(count($fullKey['permissions']) === 4 && array_diff(PartnerKeyService::PERMISSIONS, $fullKey['permissions']) === [], 'chave autentica com as 4 permissões');
+    $check(count($fullKey['permissions']) === count(PartnerKeyService::PERMISSIONS) && array_diff(PartnerKeyService::PERMISSIONS, $fullKey['permissions']) === [], 'chave autentica com todas as permissões');
     $check(strlen((string) $scalar("SELECT secret_hash FROM partner_api_keys WHERE id={$full['id']}")) === 64 && !str_contains((string) $scalar("SELECT secret_hash FROM partner_api_keys WHERE id={$full['id']}"), substr($full['key'], -43)), 'só o HMAC do segredo fica no banco');
     $fails(fn () => $keys->authenticate('Bearer ' . substr($full['key'], 0, -1) . 'x'), 401, 'segredo errado recusado');
     $fails(fn () => (new PartnerKeyService($db, PEPPER . 'outro'))->authenticate('Bearer ' . $full['key']), 401, 'pepper diferente recusa');
