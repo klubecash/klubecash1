@@ -14,7 +14,7 @@ require_once __DIR__ . '/PartnerApiException.php';
  */
 final class PartnerKeyService
 {
-    public const PERMISSIONS = ['pass:balance', 'pass:debit', 'pass:credit', 'pass:reverse'];
+    public const PERMISSIONS = ['pass:balance', 'pass:debit', 'pass:credit', 'pass:reverse', 'customers:lookup', 'sales:create'];
 
     public function __construct(private PDO $db, private string $pepper)
     {
