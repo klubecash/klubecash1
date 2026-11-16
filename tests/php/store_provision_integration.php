@@ -105,6 +105,15 @@ try {
     $svc->activate($payload(['validUntil' => $new]), $link);
     $check($one('SELECT current_period_end FROM assinaturas WHERE loja_id=?', [$storeId]) === $new, 'a renovação atualiza a validade');
 
+    // 3b) A loja manda no plano: o KlubeCash cria o plano dela (slug loja-<código>) e a assinatura passa a segui-lo.
+    $svc->activate($payload(['plan' => ['name' => 'Pro', 'code' => 'pro', 'priceCents' => 12000]]), $link);
+    $proId = (int) $one("SELECT id FROM planos WHERE slug='loja-pro'");
+    $check($proId > 0 && $one('SELECT preco_mensal FROM planos WHERE id=?', [$proId]) === '120.00', 'plano da loja criado com o preço dela');
+    $check((int) $one('SELECT plano_id FROM assinaturas WHERE loja_id=?', [$storeId]) === $proId, 'a assinatura passou para o plano da loja');
+    $svc->activate($payload(['plan' => ['name' => 'Pro', 'code' => 'pro', 'priceCents' => 13500]]), $link);
+    $check($one('SELECT preco_mensal FROM planos WHERE id=?', [$proId]) === '135.00' && (int) $one("SELECT COUNT(*) FROM planos WHERE slug='loja-pro'") === 1, 'mudou o preço na loja: o mesmo plano é atualizado, sem duplicar');
+    $check((int) $one("SELECT COUNT(*) FROM planos WHERE slug IN ('essencial','KLUBE-START-M')") === 2, 'os planos próprios do KlubeCash não foram tocados');
+
     // 4) Suspender bloqueia só as vendas novas; reativar volta.
     $s = $svc->suspend(['ref' => 'sub-0001-aaaa', 'reason' => 'Assinatura em atraso']);
     $check($s['suspended'] === true && $one('SELECT status FROM assinaturas WHERE loja_id=?', [$storeId]) === 'suspensa', 'suspender coloca a assinatura em suspensa');

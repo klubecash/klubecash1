@@ -216,6 +216,9 @@ final class StoreProvisionService
         } else {
             $set = ['status = ?', 'updated_at = NOW()'];
             $params = [$active ? 'ativa' : 'suspensa'];
+            if ($active && ($plan['priceCents'] ?? null) !== null) { // troca de plano na loja: o KlubeCash acompanha
+                $set[] = 'plano_id = ?'; $params[] = $this->planId($plan);
+            }
             if ($active && $until !== null) {
                 $set[] = 'current_period_end = ?'; $params[] = $until;
                 $set[] = 'next_invoice_date = ?'; $params[] = $until;
@@ -234,6 +237,10 @@ final class StoreProvisionService
     /** @param array{name:string, code:?string} $plan */
     private function planId(array $plan): int
     {
+        // A Loja do Grupo Klube manda: quando ela informa o preço, o plano é criado/atualizado aqui para seguir o dela.
+        if (($plan['priceCents'] ?? null) !== null && (string) ($plan['name'] ?? '') !== '') {
+            return $this->upsertLojaPlan($plan);
+        }
         $stmt = $this->db->prepare('SELECT id FROM planos WHERE ativo = 1 AND ((? <> \'\' AND slug = ?) OR (? <> \'\' AND LOWER(nome) = LOWER(?))) ORDER BY id LIMIT 1');
         $code = (string) ($plan['code'] ?? '');
         $stmt->execute([$code, $code, $plan['name'], $plan['name']]);
@@ -243,6 +250,38 @@ final class StoreProvisionService
         }
         if ($id === 0) { throw new PartnerApiException('Nenhum plano ativo cadastrado no KlubeCash.', 503, 'no_plan'); }
         return $id;
+    }
+
+    /**
+     * Plano espelhado da loja, identificado pelo slug `loja-<código>` (não mexe nos planos próprios do KlubeCash).
+     * Só grava as colunas que existem no banco; nunca altera o `codigo` único dos planos antigos.
+     * @param array{name:string, code:?string, priceCents:?int, description?:?string, features?:array<int,string>, trialDays?:?int} $plan
+     */
+    private function upsertLojaPlan(array $plan): int
+    {
+        $base = strtolower(preg_replace('/[^a-z0-9]+/i', '-', (string) ($plan['code'] ?? '') !== '' ? (string) $plan['code'] : (string) $plan['name']) ?? '');
+        $slug = 'loja-' . trim(substr($base, 0, 80), '-');
+        $values = [
+            'nome' => mb_substr((string) $plan['name'], 0, 100),
+            'preco_mensal' => number_format(max(0, (int) $plan['priceCents']) / 100, 2, '.', ''),
+            'descricao' => isset($plan['description']) && $plan['description'] !== null ? (string) $plan['description'] : null,
+            'features_json' => !empty($plan['features']) ? json_encode(array_values($plan['features']), JSON_UNESCAPED_UNICODE) : null,
+            'trial_dias' => isset($plan['trialDays']) ? max(0, (int) $plan['trialDays']) : null,
+            'recorrencia' => 'monthly',
+            'ativo' => 1,
+        ];
+        $values = array_filter($values, fn ($v, $col) => $v !== null && ($col === 'nome' || $col === 'preco_mensal' || $col === 'ativo' || $this->hasColumn('planos', $col)), ARRAY_FILTER_USE_BOTH);
+        $find = $this->db->prepare('SELECT id FROM planos WHERE slug = ? LIMIT 1');
+        $find->execute([$slug]);
+        $id = (int) ($find->fetchColumn() ?: 0);
+        if ($id > 0) {
+            $set = implode(', ', array_map(fn ($c) => "{$c} = ?", array_keys($values)));
+            $this->db->prepare("UPDATE planos SET {$set} WHERE id = ?")->execute([...array_values($values), $id]);
+            return $id;
+        }
+        $cols = array_merge(['slug'], array_keys($values));
+        $this->db->prepare('INSERT INTO planos (' . implode(', ', $cols) . ') VALUES (' . implode(', ', array_fill(0, count($cols), '?')) . ')')->execute([$slug, ...array_values($values)]);
+        return (int) $this->db->lastInsertId();
     }
 
     private function hasColumn(string $table, string $column): bool
@@ -287,7 +326,13 @@ final class StoreProvisionService
         return [
             'ref' => $this->ref($p['ref'] ?? null), 'identitySub' => $sub, 'name' => $name !== '' ? $name : $bname, 'email' => $email,
             'business' => $bname, 'doc' => $doc, 'phone' => substr($phone, 0, 20) ?: '00000000000',
-            'plan' => ['name' => trim((string) ($plan['name'] ?? '')), 'code' => is_string($plan['code'] ?? null) ? trim($plan['code']) : null],
+            'plan' => [
+                'name' => trim((string) ($plan['name'] ?? '')), 'code' => is_string($plan['code'] ?? null) ? trim($plan['code']) : null,
+                'priceCents' => is_int($plan['priceCents'] ?? null) && $plan['priceCents'] >= 0 && $plan['priceCents'] <= 100000000 ? $plan['priceCents'] : null,
+                'description' => is_string($plan['description'] ?? null) ? mb_substr(trim($plan['description']), 0, 500) : null,
+                'features' => is_array($plan['features'] ?? null) ? array_slice(array_values(array_filter(array_map(fn ($f) => is_string($f) ? mb_substr(trim($f), 0, 120) : '', $plan['features']))), 0, 12) : [],
+                'trialDays' => is_int($plan['trialDays'] ?? null) && $plan['trialDays'] >= 0 && $plan['trialDays'] <= 365 ? $plan['trialDays'] : null,
+            ],
             'validUntil' => $until,
         ];
     }
