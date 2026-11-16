@@ -137,7 +137,39 @@ final class Kernel
             return false;
         }
 
+        // A store created by a subscription in the Loja do Grupo Klube finishes its registration (in steps) before the panel opens.
+        if ($requiredRole === 'store' && $path !== self::STORE_ONBOARDING_PATH && $this->storeNeedsOnboarding()) {
+            if (str_starts_with($path, '/api/') || str_contains($path, '/ajax/')) {
+                return $this->denyRoute($path, 403, 'Conclua o cadastro da loja para continuar.');
+            }
+            header('Location: ' . self::STORE_ONBOARDING_PATH, true, 302);
+            return false;
+        }
+
         return true;
+    }
+
+    private const STORE_ONBOARDING_PATH = '/store/completar-cadastro';
+
+    private function storeNeedsOnboarding(): bool
+    {
+        $storeId = (int) ($_SESSION['store_id'] ?? 0);
+        if ($storeId <= 0 || ($_SESSION['store_onboarding_ok'] ?? null) === $storeId) {
+            return false;
+        }
+        try {
+            require_once $this->root . '/config/database.php';
+            require_once $this->root . '/services/StoreProvision/StoreOnboardingService.php';
+            $pending = (new \App\Services\StoreProvision\StoreOnboardingService(\Database::getConnection()))->pending($storeId);
+        } catch (\Throwable $exception) {
+            // The gate never locks a store out of its panel when the check itself fails.
+            Logger::warning('store.onboarding_check_failed', ['exception' => get_class($exception)]);
+            return false;
+        }
+        if (!$pending) {
+            $_SESSION['store_onboarding_ok'] = $storeId;
+        }
+        return $pending;
     }
 
     private const CLIENT_CPF_PATH = '/cliente/completar-cadastro';

@@ -11,6 +11,8 @@ use App\Services\Partner\PartnerKeyService;
 use App\Services\Partner\PartnerRequestLog;
 use App\Services\Partner\PassPartnerService;
 use App\Services\Partner\StoreSalesPartnerService;
+use App\Services\Auth\GrupoKlubeSso;
+use App\Services\StoreProvision\StoreProvisionService;
 
 // Server-to-server API for partners (Klube Pass). No session, no cookies:
 // a per-partner key in Authorization, Idempotency-Key on every write.
@@ -24,6 +26,10 @@ require_once __DIR__ . '/../services/Partner/PartnerRequestLog.php';
 require_once __DIR__ . '/../services/Partner/PassPartnerService.php';
 require_once __DIR__ . '/../services/Partner/StoreSalesPartnerService.php';
 require_once __DIR__ . '/../services/Security/VpsRuntimeKeys.php';
+require_once __DIR__ . '/../services/StoreProvision/StoreProvisionService.php';
+require_once __DIR__ . '/../services/Auth/GrupoKlubeSsoException.php';
+require_once __DIR__ . '/../services/Auth/IdTokenVerifier.php';
+require_once __DIR__ . '/../services/Auth/GrupoKlubeSso.php';
 
 // The Kernel requires this file inside a method, so the request log lives in
 // $GLOBALS explicitly for the helper functions below.
@@ -98,6 +104,28 @@ try {
         $saleKey = trim((string) ($_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? $_SERVER['HTTP_X_IDEMPOTENCY_KEY'] ?? ''));
         $GLOBALS['partnerLog']['idempotencyKey'] = $saleKey;
         partnerRespond(200, ['success' => true, 'data' => (new StoreSalesPartnerService($db))->createSale($key, $salePayload, $saleKey)]);
+    }
+
+    // Loja do Grupo Klube: cria a loja aprovada de quem assina o KlubeCash, liga ao login único e suspende/reativa. Idempotente pela referência.
+    if (str_starts_with($resource, 'store/provision/')) {
+        PartnerKeyService::requirePermission($key, 'stores:provision');
+        $action = substr($resource, strlen('store/provision/'));
+        $provision = new StoreProvisionService($db);
+        if ($action === 'status') {
+            if ($method !== 'GET') { partnerError(405, 'method_not_allowed', 'Use GET.'); }
+            partnerRespond(200, ['success' => true, 'data' => $provision->status((string) ($_GET['ref'] ?? ''))]);
+        }
+        if ($method !== 'POST') { partnerError(405, 'method_not_allowed', 'Use POST.'); }
+        if ($action === 'activate') {
+            $sso = GrupoKlubeSso::fromEnvironment(defined('SITE_URL') ? (string) SITE_URL : 'https://klubecash.com');
+            if ($sso === null) { throw new PartnerApiException('O login do Grupo Klube não está configurado neste ambiente.', 503, 'sso_unavailable'); }
+            $data = $provision->activate(partnerPayload(), [$sso, 'registerLink']);
+            partnerRespond(200, ['success' => true, 'data' => $data]);
+        }
+        if ($action === 'suspend') {
+            partnerRespond(200, ['success' => true, 'data' => $provision->suspend(partnerPayload())]);
+        }
+        partnerError(404, 'not_found', 'Recurso não encontrado.');
     }
 
     if (!isset($writes[$resource])) { partnerError(404, 'not_found', 'Recurso não encontrado.'); }
