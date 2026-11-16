@@ -58,6 +58,11 @@ jobs:
           GIFTBACK_TEST_DSN: mysql:host=127.0.0.1;port=3306
           GIFTBACK_TEST_USER: root
           GIFTBACK_TEST_PASSWORD: isolated-test-only
+      - run: php tests/php/store_provision_integration.php
+        env:
+          GIFTBACK_TEST_DSN: mysql:host=127.0.0.1;port=3306
+          GIFTBACK_TEST_USER: root
+          GIFTBACK_TEST_PASSWORD: isolated-test-only
       - run: php tests/php/grupoklube_accounts_integration.php
         env:
           GIFTBACK_TEST_DSN: mysql:host=127.0.0.1;port=3306

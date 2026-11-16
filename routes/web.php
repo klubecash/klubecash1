@@ -74,6 +74,7 @@ return [
     $page('/store/pagamento', 'views/stores/payment.php', 'store.payment', ['store']),
     $page('/store/pagamento-pix', 'views/stores/payment-pix.php', 'store.payment-pix', ['store']),
     $page('/store/historico-pagamentos', 'views/stores/payment-history.php', 'store.payment-history', ['store']),
+    $page('/store/completar-cadastro', 'views/stores/completar-cadastro.php', 'store.onboarding', ['store'], ['GET', 'POST']),
     $page('/store/perfil', 'views/stores/profile.php', 'store.profile', ['store']),
     $page('/store/meu-plano', 'views/stores/subscription.php', 'store.subscription', ['store']),
     $page('/store/fatura-pix', 'views/stores/invoice-pix.php', 'store.invoice-pix', ['store']),
