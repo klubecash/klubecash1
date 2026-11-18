@@ -191,15 +191,29 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
         <div className={styles.brand}>
           <Link
             href="/store/dashboard"
-            className={styles.brandMark}
+            className={styles.brandLink}
             aria-label="KlubeCash - Visão geral"
           >
-            K
+            {/* Logo completa com o menu aberto; só o C duplo com o menu recolhido. */}
+            <Image
+              src="/brand/klubecash-logo-branco.png"
+              alt=""
+              width={660}
+              height={231}
+              className={styles.brandFull}
+              priority
+              unoptimized
+            />
+            <Image
+              src="/brand/klubecash-icone.png"
+              alt=""
+              width={206}
+              height={231}
+              className={styles.brandIcon}
+              priority
+              unoptimized
+            />
           </Link>
-          <div className={styles.brandText}>
-            <strong>Klube</strong>
-            <span>Cash</span>
-          </div>
           <button
             className={styles.mobileClose}
             onClick={() => setMobileOpen(false)}
