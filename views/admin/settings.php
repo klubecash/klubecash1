@@ -133,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $db->prepare($updateQuery);
                 $stmt->execute([
                     ':permitir_uso_saldo' => isset($_POST['permitir_uso_saldo']) ? 1 : 0,
-                    ':valor_minimo_uso' => floatval($_POST['valor_minimo_uso']),
+                    ':valor_minimo_uso' => 0, // uso mínimo do saldo removido (qualquer valor pode ser usado)
                     ':percentual_maximo_uso' => floatval($_POST['percentual_maximo_uso']),
                     ':notificar_saldo_baixo' => isset($_POST['notificar_saldo_baixo']) ? 1 : 0,
                     ':limite_saldo_baixo' => floatval($_POST['limite_saldo_baixo']),
@@ -351,12 +351,6 @@ try {
                         </div>
                         
                         <div class="form-row">
-                            <div class="form-group">
-                                <label class="form-label" for="valorMinimoUso">Valor Mínimo para Uso de Saldo</label>
-                                <input type="number" step="0.01" min="0" class="form-control" id="valorMinimoUso" name="valor_minimo_uso" value="<?php echo $balanceSettings['valor_minimo_uso']; ?>">
-                                <small class="form-text">Valor mínimo de saldo que pode ser usado em uma compra</small>
-                            </div>
-                            
                             <div class="form-group">
                                 <label class="form-label" for="percentualMaximoUso">Percentual Máximo de Uso</label>
                                 <input type="number" step="0.01" min="0" max="100" class="form-control" id="percentualMaximoUso" name="percentual_maximo_uso" value="<?php echo $balanceSettings['percentual_maximo_uso']; ?>">

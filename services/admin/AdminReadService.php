@@ -489,7 +489,7 @@ final class AdminReadService
             ],
             'balance' => [
                 'enabled' => (bool) ($balance['permitir_uso_saldo'] ?? true),
-                'minimumUseCents' => AdminMoney::cents($balance['valor_minimo_uso'] ?? 1),
+                'minimumUseCents' => 0,
                 'maximumPurchasePercentage' => (float) ($balance['percentual_maximo_uso'] ?? 100),
                 'lowBalanceNotification' => (bool) ($balance['notificar_saldo_baixo'] ?? true),
                 'lowBalanceThresholdCents' => AdminMoney::cents($balance['limite_saldo_baixo'] ?? 10),

@@ -1923,7 +1923,6 @@ export function ReportsPage() {
 const settingsSchema = z.object({
   customerPercentage: z.coerce.number<number>().min(0).max(100),
   balanceEnabled: z.boolean(),
-  minimumUseCents: z.coerce.number<number>().min(0),
   maximumPurchasePercentage: z.coerce.number<number>().min(0).max(100),
   lowBalanceNotification: z.boolean(),
   lowBalanceThresholdCents: z.coerce.number<number>().min(0),
@@ -1948,7 +1947,6 @@ export function SettingsPage() {
         ? {
             customerPercentage: query.data.cashback.customerPercentage,
             balanceEnabled: query.data.balance.enabled,
-            minimumUseCents: query.data.balance.minimumUseCents,
             maximumPurchasePercentage:
               query.data.balance.maximumPurchasePercentage,
             lowBalanceNotification: query.data.balance.lowBalanceNotification,
@@ -2023,13 +2021,6 @@ export function SettingsPage() {
                 <input type="checkbox" {...form.register("balanceEnabled")} />
                 Permitir uso de saldo
               </label>
-              <Field label="Uso mínimo (centavos)">
-                <input
-                  className="admin-input"
-                  type="number"
-                  {...form.register("minimumUseCents")}
-                />
-              </Field>
               <Field label="Máximo da compra (%)">
                 <input
                   className="admin-input"
