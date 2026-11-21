@@ -187,7 +187,7 @@ final class AdminController
 
     public static function updateSettings(array $data): array
     {
-        return self::run(fn () => self::mutations()->updateSettings(['customerPercentage' => $data['porcentagem_cliente'] ?? 5, 'balanceEnabled' => true, 'minimumUseCents' => 100, 'maximumPurchasePercentage' => 100, 'lowBalanceNotification' => true, 'lowBalanceThresholdCents' => 1000, 'newTransactionEmail' => true, 'approvedPaymentEmail' => true, 'availableBalanceEmail' => true, 'lowBalanceEmail' => true, 'expiredBalanceEmail' => true]));
+        return self::run(fn () => self::mutations()->updateSettings(['customerPercentage' => $data['porcentagem_cliente'] ?? 5, 'balanceEnabled' => true, 'minimumUseCents' => 0, 'maximumPurchasePercentage' => 100, 'lowBalanceNotification' => true, 'lowBalanceThresholdCents' => 1000, 'newTransactionEmail' => true, 'approvedPaymentEmail' => true, 'availableBalanceEmail' => true, 'lowBalanceEmail' => true, 'expiredBalanceEmail' => true]));
     }
 
     public static function getAvailableStores(): array
