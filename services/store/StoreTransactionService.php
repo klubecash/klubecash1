@@ -134,13 +134,8 @@ final class StoreTransactionService
             if ($balanceUsedCents > 0 && (int) $balanceSettings['permitir_uso_saldo'] !== 1) {
                 throw new StoreApiException('O uso de saldo está temporariamente desativado.', 422);
             }
-            $minimumBalanceUseCents = StoreMoney::toCents($balanceSettings['valor_minimo_uso'] ?? 1);
-            if ($balanceUsedCents > 0 && $balanceUsedCents < $minimumBalanceUseCents) {
-                throw new StoreApiException(
-                    'O uso mínimo de saldo é R$ ' . StoreMoney::decimal($minimumBalanceUseCents) . '.',
-                    422
-                );
-            }
+            // Sem valor mínimo de uso do saldo (decisão de 21/11/2026): qualquer valor positivo é aceito,
+            // limitado só pelo saldo disponível, pelo valor da venda e pelo percentual máximo.
             $maximumBalanceUseCents = StoreMoney::percentage(
                 $grossCents,
                 max(0, min(100, (float) ($balanceSettings['percentual_maximo_uso'] ?? 100)))

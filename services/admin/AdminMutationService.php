@@ -456,7 +456,7 @@ final class AdminMutationService
     public function updateSettings(array $input): array
     {
         $customer = (float) ($input['customerPercentage'] ?? 5);
-        $minimum = AdminMoney::decimal(max(0, (int) ($input['minimumUseCents'] ?? 100)));
+        $minimum = AdminMoney::decimal(0); // uso mínimo do saldo removido: qualquer valor pode ser usado
         $maximum = (float) ($input['maximumPurchasePercentage'] ?? 100);
         if ($customer < 0 || $customer > 100 || $maximum < 0 || $maximum > 100) { throw new AdminApiException('Percentuais inválidos.', 422); }
         $before = ['cashback' => $this->db->query('SELECT * FROM configuracoes_cashback ORDER BY id DESC LIMIT 1')->fetch(PDO::FETCH_ASSOC), 'balance' => $this->db->query('SELECT * FROM configuracoes_saldo ORDER BY id DESC LIMIT 1')->fetch(PDO::FETCH_ASSOC)];
