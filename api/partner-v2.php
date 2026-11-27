@@ -10,6 +10,7 @@ use App\Services\Partner\PartnerIdempotencyService;
 use App\Services\Partner\PartnerKeyService;
 use App\Services\Partner\PartnerRequestLog;
 use App\Services\Partner\PassPartnerService;
+use App\Services\Partner\StoreListPartnerService;
 use App\Services\Partner\StoreSalesPartnerService;
 use App\Services\Auth\GrupoKlubeSso;
 use App\Services\StoreProvision\StoreProvisionService;
@@ -25,6 +26,7 @@ require_once __DIR__ . '/../services/Partner/PartnerIdempotencyService.php';
 require_once __DIR__ . '/../services/Partner/PartnerRequestLog.php';
 require_once __DIR__ . '/../services/Partner/PassPartnerService.php';
 require_once __DIR__ . '/../services/Partner/StoreSalesPartnerService.php';
+require_once __DIR__ . '/../services/Partner/StoreListPartnerService.php';
 require_once __DIR__ . '/../services/Security/VpsRuntimeKeys.php';
 require_once __DIR__ . '/../services/StoreProvision/StoreProvisionService.php';
 require_once __DIR__ . '/../services/Auth/GrupoKlubeSsoException.php';
@@ -96,6 +98,12 @@ try {
         if ($method !== 'GET') { partnerError(405, 'method_not_allowed', 'Use GET.'); }
         PartnerKeyService::requirePermission($key, 'customers:lookup');
         partnerRespond(200, ['success' => true, 'data' => (new StoreSalesPartnerService($db))->lookup($key, $_GET)]);
+    }
+    // Klube Ops: lojas aprovadas de UMA pessoa (login único e/ou e-mail), para escolher em lista. Só leitura; diz quais a chave já pode usar.
+    if ($resource === 'store/list') {
+        if ($method !== 'GET') { partnerError(405, 'method_not_allowed', 'Use GET.'); }
+        PartnerKeyService::requirePermission($key, 'stores:list');
+        partnerRespond(200, ['success' => true, 'data' => (new StoreListPartnerService($db))->listFor($key, $_GET)]);
     }
     if ($resource === 'store/sales') {
         if ($method !== 'POST') { partnerError(405, 'method_not_allowed', 'Use POST.'); }
