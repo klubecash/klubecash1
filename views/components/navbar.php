@@ -698,6 +698,7 @@ $isFuncionario = $userType === 'funcionario';
         <!-- === SEÇÃO DO USUÁRIO === -->
         <div class="navbar-user-section <?php echo $isLoggedIn ? 'logged-in' : ''; ?>">
             <?php if ($isLoggedIn): ?>
+                <?php include __DIR__ . '/apps-menu.php'; ?>
                 <!-- Perfil do usuário logado -->
                 <div class="navbar-user-profile">
                     <button class="navbar-user-trigger" 

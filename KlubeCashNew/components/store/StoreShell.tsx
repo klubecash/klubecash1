@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AppsMenu } from "@/components/AppsMenu";
 import { useStoreContext, useStoreView } from "./StoreProviders";
 import { StoreViewBar } from "./StoreViewBar";
 import { storeFetch } from "@/lib/client-api";
@@ -304,6 +305,7 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
             <h1>{current.title}</h1>
           </div>
           <div className={styles.topActions}>
+            <AppsMenu tone="store" />
             <button
               className={styles.iconButton}
               onClick={() => setDark((value) => !value)}

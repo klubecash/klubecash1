@@ -114,7 +114,7 @@ public static function startSessionForUser(PDO $db, array $user): array {
     unset(
         $_SESSION['store_id'], $_SESSION['loja_vinculada_id'], $_SESSION['store_name'],
         $_SESSION['employee_subtype'], $_SESSION['subtipo_funcionario'],
-        $_SESSION['login_method'], $_SESSION['grupoklube_id_token']
+        $_SESSION['login_method'], $_SESSION['grupoklube_id_token'], $_SESSION['grupoklube_apps']
     );
 
     error_log('auth.login.session_configured');
