@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { AppsMenu } from "@/components/AppsMenu";
 import { useAdminContext } from "./AdminProviders";
 import styles from "./admin-shell.module.css";
 
@@ -279,6 +280,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </datalist>
           </form>
           <div className={styles.topActions}>
+            <AppsMenu tone="admin" />
             <button
               className={styles.iconButton}
               onClick={() => setDark((value) => !value)}

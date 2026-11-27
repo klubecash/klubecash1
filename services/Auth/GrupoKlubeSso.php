@@ -90,7 +90,7 @@ final class GrupoKlubeSso
      * klubecashUserId is null when the login único has no KlubeCash account for this person yet.
      *
      * @param array<string, mixed> $query the callback query string
-     * @return array{klubecashUserId: ?int, sub: string, email: string, name: string, idToken: string, returnTo: ?string, linkAttempted: bool}
+     * @return array{klubecashUserId: ?int, sub: string, email: string, name: string, idToken: string, accessToken: ?string, returnTo: ?string, linkAttempted: bool}
      */
     public function complete(array $query, ?int $now = null): array
     {
@@ -138,9 +138,43 @@ final class GrupoKlubeSso
             'email' => is_string($claims['email'] ?? null) ? strtolower(trim($claims['email'])) : '',
             'name' => is_string($claims['name'] ?? null) ? trim($claims['name']) : '',
             'idToken' => $idToken,
+            'accessToken' => is_string($tokens['access_token'] ?? null) && $tokens['access_token'] !== '' ? $tokens['access_token'] : null,
             'returnTo' => $pending['returnTo'] ?? null,
             'linkAttempted' => ($pending['link'] ?? false) === true,
         ];
+    }
+
+    /**
+     * Apps the person can open (menu "Apps"). The access token lasts only a few minutes, so this is called once, right
+     * at login. It never throws: without the list the menu is simply not shown.
+     *
+     * @return list<array{slug: string, name: string, launchUrl: ?string}>
+     */
+    public function applications(?string $accessToken): array
+    {
+        if ($accessToken === null || $accessToken === '') {
+            return [];
+        }
+        try {
+            $response = ($this->http)('GET', $this->issuer . '/v1/me/applications', ['Authorization: Bearer ' . $accessToken, 'Accept: application/json'], null, 2, 3);
+            if ($response['status'] !== 200) {
+                return [];
+            }
+            $payload = json_decode($response['body'], true);
+        } catch (\Throwable) {
+            return [];
+        }
+        $list = [];
+        foreach (is_array($payload) && is_array($payload['applications'] ?? null) ? $payload['applications'] : [] as $app) {
+            if (!is_array($app) || !is_string($app['slug'] ?? null) || !is_string($app['name'] ?? null)) {
+                continue;
+            }
+            $list[] = ['slug' => $app['slug'], 'name' => mb_substr($app['name'], 0, 80), 'launchUrl' => is_string($app['launchUrl'] ?? null) ? $app['launchUrl'] : null];
+            if (count($list) >= 24) {
+                break;
+            }
+        }
+        return $list;
     }
 
     /**
@@ -189,15 +223,15 @@ final class GrupoKlubeSso
      * @param list<string> $headers
      * @return array{status: int, body: string}
      */
-    public static function curl(string $method, string $url, array $headers, ?string $body): array
+    public static function curl(string $method, string $url, array $headers, ?string $body, int $connectTimeout = 5, int $timeout = 10): array
     {
         $handle = curl_init($url);
         curl_setopt_array($handle, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CUSTOMREQUEST => $method,
             CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_TIMEOUT => 10,
+            CURLOPT_CONNECTTIMEOUT => $connectTimeout,
+            CURLOPT_TIMEOUT => $timeout,
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP,
         ]);

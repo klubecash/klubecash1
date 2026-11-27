@@ -14,6 +14,7 @@ const targets: Record<string, string> = {
   mercadopago: "/api/mercadopago",
   details: "/api/store-details",
   receipt: "/api/payment-receipt",
+  apps: "/api/apps-menu",
 };
 
 function getSetCookies(headers: Headers): string[] {

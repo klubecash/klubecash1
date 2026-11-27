@@ -12,8 +12,10 @@ require_once __DIR__ . '/../../services/Auth/GrupoKlubeSsoException.php';
 require_once __DIR__ . '/../../services/Auth/IdTokenVerifier.php';
 require_once __DIR__ . '/../../services/Auth/GrupoKlubeSso.php';
 require_once __DIR__ . '/../../services/Auth/GrupoKlubeAccounts.php';
+require_once __DIR__ . '/../../services/Auth/GrupoKlubeApps.php';
 
 use App\Services\Auth\GrupoKlubeAccounts;
+use App\Services\Auth\GrupoKlubeApps;
 use App\Services\Auth\GrupoKlubeSso;
 use App\Services\Auth\GrupoKlubeSsoException;
 
@@ -59,6 +61,8 @@ try {
     // Kept for the logout, which also ends the central session.
     $_SESSION['login_method'] = 'grupoklube';
     $_SESSION['grupoklube_id_token'] = $login['idToken'];
+    // Menu "Apps": the list is fetched now, while the access token (valid for minutes) still works.
+    GrupoKlubeApps::store($sso->applications($login['accessToken']));
     if (!AuthController::persistLogin($result['token'] ?? '')) {
         $fail('Não foi possível concluir sua sessão. Tente novamente.');
     }

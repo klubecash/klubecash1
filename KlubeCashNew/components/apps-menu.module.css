@@ -1,0 +1,141 @@
+/* Cores vindas do painel onde o menu esta (lojista ou admin), para acompanhar o tema claro e escuro. */
+.store {
+  --am-card: var(--store-card);
+  --am-text: var(--store-text);
+  --am-muted: var(--store-muted);
+  --am-border: var(--store-border);
+  --am-soft: var(--store-soft);
+  --am-shadow: var(--store-shadow);
+}
+
+.admin {
+  --am-card: var(--admin-card);
+  --am-text: var(--admin-text);
+  --am-muted: var(--admin-muted);
+  --am-border: var(--admin-border);
+  --am-soft: var(--admin-soft);
+  --am-shadow: var(--admin-shadow);
+}
+
+.menu {
+  position: relative;
+}
+
+.botao {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--am-border);
+  border-radius: 12px;
+  background: var(--am-card);
+  color: var(--am-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.botao::-webkit-details-marker {
+  display: none;
+}
+
+.botao:hover,
+.menu[open] .botao {
+  border-color: #ff7a00;
+  color: #ff7a00;
+}
+
+.painel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 40;
+  display: grid;
+  gap: 2px;
+  min-width: 270px;
+  max-width: calc(100vw - 32px);
+  padding: 8px;
+  border: 1px solid var(--am-border);
+  border-radius: 16px;
+  background: var(--am-card);
+  box-shadow: var(--am-shadow, 0 12px 32px rgba(15, 25, 60, 0.16));
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: var(--am-text);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.item small {
+  display: block;
+  font-weight: 400;
+  color: var(--am-muted);
+}
+
+.item:hover {
+  background: var(--am-soft);
+}
+
+.item[aria-current="true"] {
+  background: var(--am-soft);
+  color: #ff7a00;
+}
+
+.icone {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--am-soft);
+  color: #ff7a00;
+  font-weight: 800;
+}
+
+.logo {
+  padding: 0;
+  border-radius: 22%;
+  background: none;
+  line-height: 0;
+  overflow: hidden;
+}
+
+.logo > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.divisor {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--am-border);
+}
+
+@media (max-width: 760px) {
+  .botaoTexto {
+    display: none;
+  }
+
+  .menu {
+    position: static;
+  }
+
+  .painel {
+    position: fixed;
+    top: 72px;
+    right: 12px;
+    left: 12px;
+    min-width: 0;
+    max-width: none;
+  }
+}
